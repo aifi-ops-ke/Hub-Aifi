@@ -1180,6 +1180,8 @@ function _dbRefreshPage(key) {
     <div class="login-tagline" style="margin-bottom:20px">Select your name and enter your personal password to access the WFH station</div>
 
     <!-- Name selector -->
+    <div id="wfh-saved-name-display" style="display:none;padding:10px 14px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:8px;color:#00d4a0;font-weight:700;font-size:13px;margin-bottom:10px;text-align:center"></div>
+    <div id="wfh-name-selector-wrap">
     <label class="login-field-label">Your Name</label>
     <div style="margin-bottom:16px">
       <select id="wfh-login-name" style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:12px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none" onchange="document.getElementById('wfh-login-pw').focus()">
@@ -3866,6 +3868,58 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
     <div style="font-size:12px;color:var(--text3)" id="wfh-op-header-name"></div>
     <button onclick="exitWFHMode()" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">← Exit</button>
   </div>
+
+      <!-- ── Leave Application ─────────────────────────── -->
+      <div class="card" style="margin-top:20px;max-width:700px;margin-left:auto;margin-right:auto">
+        <div class="card-title" style="margin-bottom:16px">🏖️ Apply for Leave</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="form-group" style="margin:0">
+            <label>Leave Type</label>
+            <select id="wfh-leave-type" style="width:100%">
+              <option value="annual">Annual Leave</option>
+              <option value="sick">Sick Leave</option>
+              <option value="emergency">Emergency Leave</option>
+              <option value="maternity">Maternity Leave</option>
+              <option value="paternity">Paternity Leave</option>
+              <option value="unpaid">Unpaid Leave</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Number of Days</label>
+            <input type="number" id="wfh-leave-days" min="1" max="30" placeholder="e.g. 2" style="width:100%"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Start Date</label>
+            <input type="date" id="wfh-leave-start" style="width:100%"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>End Date</label>
+            <input type="date" id="wfh-leave-end" style="width:100%"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <textarea id="wfh-leave-reason" rows="2" placeholder="Brief reason for leave request..." style="width:100%"></textarea>
+        </div>
+        <button class="btn btn-green" style="width:100%;margin-bottom:8px" onclick="submitWFHLeave()">📤 Submit Leave Application</button>
+        <div id="wfh-leave-msg" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px"></div>
+        <div style="margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
+            <div id="wfh-bal-annual" style="font-size:20px;font-weight:900;color:var(--green)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">ANNUAL LEFT</div>
+          </div>
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
+            <div id="wfh-bal-sick" style="font-size:20px;font-weight:900;color:var(--amber)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">SICK LEFT</div>
+          </div>
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
+            <div id="wfh-bal-other" style="font-size:20px;font-weight:900;color:var(--violet)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">OTHER LEFT</div>
+          </div>
+        </div>
+        <div id="wfh-my-leaves" style="margin-top:12px;font-size:12px;color:var(--text3)"></div>
+      </div>
+
 </div>
     <!-- ═══════════════════════════════════════════════════════
          PAGE: VIDEO MEETING ROOM
@@ -4177,7 +4231,6 @@ function exitWFHMode() {
 }
 
 function openWFHLogin() {
-  // Always repopulate name dropdown with full roster
   const sel = document.getElementById('wfh-login-name');
   if(sel) {
     sel.innerHTML = '<option value="">— Select your name —</option>';
@@ -4189,10 +4242,22 @@ function openWFHLogin() {
         opt.textContent = operatorLabel(o.id) + (o.type==='TR' ? ' [TR]' : '');
         sel.appendChild(opt);
       });
+    // FIX 3: Auto-fill saved name so operator only needs to enter password
+    const savedOp = localStorage.getItem('wfh_op_id');
+    if(savedOp && sel.querySelector('option[value="'+savedOp+'"]')) {
+      sel.value = savedOp;
+      sel.closest('.form-group') && (sel.closest('.form-group').style.display = 'none');
+      const nameDisplay = document.getElementById('wfh-saved-name-display');
+      if(nameDisplay) {
+        nameDisplay.textContent = 'Logging in as: ' + operatorLabel(savedOp);
+        nameDisplay.style.display = 'block';
+      }
+    }
   }
   document.getElementById('wfh-login-overlay').style.display = 'flex';
   document.getElementById('wfh-login-error').style.display = 'none';
   document.getElementById('wfh-login-pw').value = '';
+  setTimeout(() => document.getElementById('wfh-login-pw')?.focus(), 200);
 }
 
 function closeWFHLogin() {
@@ -4261,6 +4326,9 @@ async function doWFHLogin() {
 
   errEl.style.display = 'none';
   closeWFHLogin();
+
+  // FIX 3: Save operator name so they don't need to select again
+  localStorage.setItem('wfh_op_id', opId);
 
   // Pre-select operator name in the WFH operator portal
   const opSel = document.getElementById('wfh-op-self');
@@ -8433,26 +8501,29 @@ async function submitEOD() {
     sess.lockedOut = true;  // requires TL to unlock before next login
     saveSession(today(),opId,sess);
   }
-  logWFHEntry(opId,'checkout',{notes:`Checked out. Total hours: ${sess?.totalHours||'–'}`});
+  logWFHEntry(opId,'checkout',{notes:'Checked out. Total hours: '+(sess?.totalHours||'–')});
   clearInterval(_wfhTimerInterval); clearInterval(_wfhIdleInterval);
   stopHeartbeat();
-  // Immediately update Supabase — clear heartbeat, set checkout time, lock session
   const checkoutTime = new Date().toISOString();
-  fetch(_SUPA_URL+'/rest/v1/wfh_sessions?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today(), {
-    method:'PATCH', headers:WFH_HDR,
-    body: JSON.stringify({
-      status: 'offline',
-      check_out: checkoutTime,
-      last_heartbeat: null,  // clear heartbeat so TL sees them as offline
-      updated_at: checkoutTime
+  const today_str = today();
+
+  // FIX 4+5+6: Lock session, clear heartbeat, remove from approved
+  await Promise.all([
+    // Mark session as checked out
+    fetch(_SUPA_URL+'/rest/v1/wfh_sessions?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_str, {
+      method:'PATCH', headers:WFH_HDR,
+      body: JSON.stringify({ status:'offline', check_out:checkoutTime, last_heartbeat:null, updated_at:checkoutTime })
+    }),
+    // Remove from approved — TL must re-approve before they can log in again
+    fetch(_SUPA_URL+'/rest/v1/wfh_approved?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_str, {
+      method:'DELETE', headers:WFH_HDR
+    }),
+    // Clear wfh_status so they disappear from status board
+    fetch(_SUPA_URL+'/rest/v1/wfh_status?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_str, {
+      method:'DELETE', headers:WFH_HDR
     })
-  }).then(r => {
-    if(r.ok) console.log('[WFH] Checkout written to Supabase — operator locked out');
-  });
-  // Remove from approved list — requires TL to re-approve before next login
-  fetch(_SUPA_URL+'/rest/v1/wfh_approved?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today(), {
-    method:'DELETE', headers:WFH_HDR
-  }).then(() => console.log('[WFH] Removed from approved list — TL must re-approve'));
+  ]).catch(e => console.warn('Checkout sync error:', e.message));
+  console.log('[WFH] Operator checked out and locked — TL must re-approve');
   // Take final checkout snapshot, then stop camera
   opTakeSnapshot('checkout').then(()=>{ setTimeout(opStopCam, 1500); });
   document.getElementById('wfh-eod-form-card').style.display='none';
@@ -11074,24 +11145,27 @@ function applyDRRoleVisibility() {
   const teamSection  = document.getElementById('dr-section-team');
   const teamNote     = document.getElementById('dr-team-tl-note');
 
-  // Default: hide all
+  // Hide ALL first
   if(kingsSection) kingsSection.style.display = 'none';
   if(swatSection)  swatSection.style.display  = 'none';
   if(teamSection)  teamSection.style.display  = 'none';
   if(teamNote)     teamNote.style.display     = 'none';
 
   if(currentRole === 'kings') {
-    // Kingori: ONLY Kings section — cannot see SWAT or Whole Team
+    // Kingori: ONLY Kings QA section
     if(kingsSection) kingsSection.style.display = 'block';
   } else if(currentRole === 'swat') {
-    // Rosemary: ONLY SWAT section — cannot see Kings or Whole Team
+    // Rosemary: ONLY SWAT QA section
     if(swatSection) swatSection.style.display = 'block';
-  } else {
-    // TL and Admin: see ALL sections
-    if(kingsSection) kingsSection.style.display = 'block';
-    if(swatSection)  swatSection.style.display  = 'block';
-    if(teamSection)  teamSection.style.display  = 'block';
-    if(teamNote)     teamNote.style.display     = 'block';
+  } else if(currentRole === 'tl' || currentRole === 'admin') {
+    // TL: ONLY Whole Team section (TL reports for full team, not individual QA sections)
+    // Admin also sees all for oversight
+    if(currentRole === 'admin') {
+      if(kingsSection) kingsSection.style.display = 'block';
+      if(swatSection)  swatSection.style.display  = 'block';
+    }
+    if(teamSection) teamSection.style.display = 'block';
+    if(teamNote)    teamNote.style.display    = 'block';
   }
 }
 
@@ -13373,6 +13447,166 @@ function clearDRFilter() {
   if(df) df.value = '';
   if(pf) pf.value = '';
   renderDRView();
+}
+
+
+// ── WFH Operator Leave Application ────────────────────────────
+async function submitWFHLeave() {
+  const opId   = document.getElementById('wfh-op-self')?.value || localStorage.getItem('wfh_op_id');
+  const type   = document.getElementById('wfh-leave-type')?.value;
+  const days   = parseInt(document.getElementById('wfh-leave-days')?.value);
+  const start  = document.getElementById('wfh-leave-start')?.value;
+  const end    = document.getElementById('wfh-leave-end')?.value;
+  const reason = document.getElementById('wfh-leave-reason')?.value?.trim();
+  const msgEl  = document.getElementById('wfh-leave-msg');
+
+  const show = (text, ok) => {
+    msgEl.textContent = text;
+    msgEl.style.background  = ok ? 'rgba(0,212,160,0.1)' : 'rgba(255,94,110,0.1)';
+    msgEl.style.border = ok ? '1px solid rgba(0,212,160,0.3)' : '1px solid rgba(255,94,110,0.3)';
+    msgEl.style.color  = ok ? 'var(--green)' : 'var(--red)';
+    msgEl.style.display = 'block';
+  };
+
+  if(!opId)   return show('⚠️ Please select your name first', false);
+  if(!type)   return show('⚠️ Select leave type', false);
+  if(!days || days < 1) return show('⚠️ Enter number of days', false);
+  if(!start)  return show('⚠️ Select start date', false);
+  if(!end)    return show('⚠️ Select end date', false);
+  if(!reason) return show('⚠️ Enter reason for leave', false);
+
+  const application = {
+    id:          Date.now(),
+    operator:    opId + '.impact.nbo',
+    name:        operatorLabel(opId),
+    type, days, start, end, reason,
+    status:      'Pending',
+    appliedAt:   new Date().toISOString(),
+    appliedDate: today(),
+  };
+
+  // Save to leave tracker
+  const all = load('aifi_leaves') || [];
+  all.unshift(application);
+  save('aifi_leaves', all);
+
+  // Push notification to TL, Admin, Kings QA, SWAT QA
+  const team = OPERATOR_ROSTER.find(o => o.id === opId)?.team || 'unknown';
+  try {
+    const nr = await fetch(_SUPA_URL+'/rest/v1/aifi_store?select=val&key=eq.notifs', {headers:_SUPA_HDR});
+    const nrows = nr.ok ? await nr.json() : [];
+    const notifs = (nrows.length && Array.isArray(nrows[0].val)) ? nrows[0].val : [];
+    notifs.unshift({
+      id: Date.now(), type: 'leave',
+      msg: '🏖️ ' + operatorLabel(opId) + ' applied for ' + days + ' day(s) ' + type + ' leave (' + start + ' to ' + end + ')',
+      operator: opId, team, days, start, end, leaveType: type, reason,
+      status: 'Pending', read: false,
+      time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+      isoTime: new Date().toISOString()
+    });
+    await window._dbSet('notifs', notifs.slice(0,50));
+  } catch(e) { console.warn('Leave notif failed:', e.message); }
+
+  show('✅ Leave application submitted! Your Team Lead will review it.', true);
+
+  // Clear form
+  document.getElementById('wfh-leave-days').value = '';
+  document.getElementById('wfh-leave-reason').value = '';
+  document.getElementById('wfh-leave-start').value = '';
+  document.getElementById('wfh-leave-end').value = '';
+
+  // Refresh balance
+  loadWFHLeaveBalance(opId);
+}
+
+async function loadWFHLeaveBalance(opId) {
+  const balEl  = { annual: document.getElementById('wfh-bal-annual'), sick: document.getElementById('wfh-bal-sick'), other: document.getElementById('wfh-bal-other') };
+  const histEl = document.getElementById('wfh-my-leaves');
+  if(!opId || !balEl.annual) return;
+
+  const op = opId + '.impact.nbo';
+  const all = load('aifi_leaves') || [];
+  const mine = all.filter(l => l.operator === op);
+
+  // Calculate used days
+  const used = { annual:0, sick:0, other:0 };
+  mine.filter(l => l.status === 'Approved').forEach(l => {
+    if(l.type === 'annual') used.annual += l.days;
+    else if(l.type === 'sick') used.sick += l.days;
+    else used.other += (l.days||0);
+  });
+
+  // Entitlement (standard)
+  const ent = { annual:21, sick:7, other:5 };
+  if(balEl.annual) balEl.annual.textContent = (ent.annual - used.annual) + ' days';
+  if(balEl.sick)   balEl.sick.textContent   = (ent.sick   - used.sick)   + ' days';
+  if(balEl.other)  balEl.other.textContent  = (ent.other  - used.other)  + ' days';
+
+  if(histEl) {
+    if(!mine.length) { histEl.textContent = 'No applications yet.'; return; }
+    histEl.innerHTML = mine.slice(0,5).map(l => {
+      const col = l.status==='Approved'?'var(--green)':l.status==='Rejected'?'var(--red)':'var(--amber)';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)">
+        <div><span style="font-weight:700">${l.type}</span> · ${l.days}d · ${l.start}</div>
+        <span style="color:${col};font-weight:700;font-size:11px">${l.status}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// Load balance when WFH operator portal opens
+const _origNavWFH = typeof nav === 'function' ? nav : null;
+
+// ── Leave Approval from Notification ──────────────────────────
+async function approveLeaveNotif(notifId) {
+  const notifs = load('notifs') || [];
+  const notif  = notifs.find(n => n.id === notifId);
+  if(!notif) return;
+
+  // Approve leave in aifi_leaves
+  const leaves = load('aifi_leaves') || [];
+  const op     = notif.operator + '.impact.nbo';
+  const leaf   = leaves.find(l => l.operator === op && l.start === notif.start && l.status === 'Pending');
+  if(leaf) {
+    leaf.status     = 'Approved';
+    leaf.approvedBy = currentName || currentRole;
+    leaf.approvedAt = new Date().toISOString();
+    save('aifi_leaves', leaves);
+  }
+
+  // Mark notif as approved
+  notif.status = 'Approved';
+  notif.read   = true;
+  save('notifs', notifs);
+
+  // Push approval notif back to operator (via notifs with operator tag)
+  const replyNotifs = load('notifs') || [];
+  replyNotifs.unshift({
+    id: Date.now(), type: 'leave_approved',
+    msg: '✅ Your ' + (notif.leaveType||'') + ' leave (' + notif.start + ' to ' + notif.end + ') has been APPROVED by ' + (currentName||'Team Lead'),
+    operator: notif.operator, status: 'Approved', read: false,
+    time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+    isoTime: new Date().toISOString()
+  });
+  await window._dbSet('notifs', replyNotifs.slice(0,50));
+  renderNotifs(); renderNotifDropdown(); updateBellCount();
+  toast('✅ Leave approved for ' + operatorLabel(notif.operator), '✅');
+}
+
+async function rejectLeaveNotif(notifId) {
+  const notifs = load('notifs') || [];
+  const notif  = notifs.find(n => n.id === notifId);
+  if(!notif) return;
+
+  const leaves = load('aifi_leaves') || [];
+  const op     = notif.operator + '.impact.nbo';
+  const leaf   = leaves.find(l => l.operator === op && l.start === notif.start && l.status === 'Pending');
+  if(leaf) { leaf.status = 'Rejected'; save('aifi_leaves', leaves); }
+
+  notif.status = 'Rejected'; notif.read = true;
+  save('notifs', notifs);
+  renderNotifs(); renderNotifDropdown(); updateBellCount();
+  toast('Leave rejected for ' + operatorLabel(notif.operator), '❌');
 }
 </script>
 </body>
