@@ -13554,8 +13554,7 @@ async function loadWFHLeaveBalance(opId) {
   }
 }
 
-// Load balance when WFH operator portal opens
-const _origNavWFH = typeof nav === 'function' ? nav : null;
+// Leave balance loaded on demand via loadWFHLeaveBalance()
 
 // ── Leave Approval from Notification ──────────────────────────
 async function approveLeaveNotif(notifId) {
