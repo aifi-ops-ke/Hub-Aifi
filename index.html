@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- AIFI Hub v20260613_124801 -->
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1016,30 +1016,16 @@ window._pollTs    = {};
 
 // Write one key
 window._dbSet = async function(key, val) {
-  const now = new Date().toISOString();
-  // Step 1: Always try PATCH (works if row exists)
-  let r = await fetch(_SUPA_URL+'/rest/v1/aifi_store?key=eq.'+encodeURIComponent(key),
-    {method:'PATCH', headers:{..._SUPA_HDR,'Prefer':'return=representation'},
-     body:JSON.stringify({val, updated_at:now})});
-  if(r.ok) {
-    const patched = await r.json();
-    if(patched && patched.length > 0) return; // Row existed and was updated
-  }
-  // Step 2: Row didn't exist — INSERT (ignore conflict just in case)
-  r = await fetch(_SUPA_URL+'/rest/v1/aifi_store',
-    {method:'POST',
-     headers:{..._SUPA_HDR,'Prefer':'resolution=merge-duplicates,return=minimal','Content-Type':'application/json'},
-     body:JSON.stringify({key, val, updated_at:now})});
+  const body = JSON.stringify({key, val});
+  const upsertHdr = {
+    ...(_SUPA_HDR),
+    'Prefer': 'resolution=merge-duplicates,return=minimal'
+  };
+  const r = await fetch(_SUPA_URL+'/rest/v1/aifi_store',
+    {method:'POST', headers:upsertHdr, body});
   if(!r.ok) {
     const e = await r.text();
-    // If still 409, try a direct PATCH as last resort
-    if(r.status===409) {
-      await fetch(_SUPA_URL+'/rest/v1/aifi_store?key=eq.'+encodeURIComponent(key),
-        {method:'PATCH', headers:_SUPA_HDR,
-         body:JSON.stringify({val, updated_at:now})});
-    } else {
-      console.warn('DB write failed ['+key+']:', r.status, e);
-    }
+    console.warn('DB write failed ['+key+']:', r.status, e);
   }
 };
 
@@ -1083,7 +1069,7 @@ window.dbStartPolling = function() {
         }
       });
     } catch(e) {}
-  }, 3000);
+  }, 5000);
 };
 
 // Re-render active page on remote change
@@ -1093,23 +1079,6 @@ function _dbRefreshPage(key) {
     if(window._dbCache) window._dbCache['notifs'] = window._dbCache['notifs'] || [];
     renderNotifs(); renderNotifDropdown(); updateNavBadges(); updateBellCount();
     return;
-  }
-  // Always run submission checks when reports or plans change — regardless of page
-  if(key==='dr_entries' || key==='daily_plans') {
-    checkForNewSubmissions();
-    updateBellCount();
-    // Flash bell regardless of page
-    const bell = document.getElementById('notif-bell-wrap');
-    if(bell) { bell.style.transform='scale(1.2)'; setTimeout(()=>bell.style.transform='scale(1)',500); }
-    // If already on the page, refresh immediately
-    const activePage = document.querySelector('.page.active')?.id;
-    if(key==='dr_entries'  && activePage==='page-daily-report') refreshDRView();
-    if(key==='daily_plans' && activePage==='page-daily-plan')   refreshDPView();
-    // Show a toast so TL/Admin knows even if on another page
-    if(currentRole==='tl'||currentRole==='admin') {
-      const label = key==='dr_entries' ? '📋 New report submitted!' : '📅 New plan submitted!';
-      if(typeof toast==='function') toast(label, key==='dr_entries'?'📋':'📅');
-    }
   }
   const page = document.querySelector('.page.active')?.id?.replace('page-','');
   if(!page) return;
@@ -1130,11 +1099,9 @@ function _dbRefreshPage(key) {
       else if(page==='errors')          renderErrors();
       else if(page==='leave')           { renderLeave(); renderLeaveBalanceGrid(); }
       else if(page==='daily-report') {
-        // Fetch fresh data and re-render with no date filter
+        const dEl = document.getElementById('dr-view-date');
+        if(dEl && !dEl.value) dEl.value = ''; // keep existing filter if set
         refreshDRView();
-      }
-      else if(page==='daily-plan') {
-        refreshDPView();
       }
       else if(page==='daily-plan')      renderDailyPlanView();
       else if(page==='call-reports')    renderCallReports();
@@ -1180,8 +1147,6 @@ function _dbRefreshPage(key) {
     <div class="login-tagline" style="margin-bottom:20px">Select your name and enter your personal password to access the WFH station</div>
 
     <!-- Name selector -->
-    <div id="wfh-saved-name-display" style="display:none;padding:10px 14px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:8px;color:#00d4a0;font-weight:700;font-size:13px;margin-bottom:10px;text-align:center"></div>
-    <div id="wfh-name-selector-wrap">
     <label class="login-field-label">Your Name</label>
     <div style="margin-bottom:16px">
       <select id="wfh-login-name" style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:12px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none" onchange="document.getElementById('wfh-login-pw').focus()">
@@ -2780,18 +2745,25 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
 
       <!-- VIEW -->
       <div id="dp-tab-view" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div style="font-size:13px;color:var(--text2);font-weight:600">All Plans — sorted newest first</div>
-          <div style="display:flex;gap:8px">
-            <input type="date" id="dp-filter-date" onchange="renderDailyPlanView()" 
-              style="padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px"/>
-            <button class="btn btn-secondary" style="padding:7px 14px;font-size:12px" 
-              onclick="document.getElementById('dp-filter-date').value='';renderDailyPlanView()">Clear</button>
-            <button class="btn btn-secondary" style="padding:7px 14px;font-size:12px" 
-              onclick="refreshDPView()">🔄 Refresh</button>
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+            <div class="form-group" style="margin:0;flex:1;min-width:160px">
+              <label>Person</label>
+              <select id="dp-filter-person" onchange="renderDailyPlanView()" style="width:100%">
+                <option value="">All</option>
+                <option value="tl">John Paul Kimongo (TL)</option>
+                <option value="kings">Kingori (Kings QA)</option>
+                <option value="swat">Rosemary Nyaleso (SWAT QA)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;flex:1;min-width:140px">
+              <label>Date</label>
+              <input type="date" id="dp-filter-date" onchange="renderDailyPlanView()" style="width:100%"/>
+            </div>
+            <button class="btn btn-secondary" style="padding:9px 14px" onclick="document.getElementById('dp-filter-date').value='';renderDailyPlanView()">Clear</button>
+            <button class="btn btn-secondary" style="padding:9px 14px" onclick="refreshDPView()">🔄 Refresh</button>
           </div>
         </div>
-        <input type="hidden" id="dp-filter-person" value=""/>
         <div id="dp-view-list"><div style="color:var(--text3);font-size:12px">No plans yet.</div></div>
       </div>
     </div>
@@ -3387,16 +3359,7 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
       <!-- Full audit log -->
       <div class="card" style="padding:0;overflow:hidden">
         <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <div class="card-title">🗂️ Full Audit Log</div>
-            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3)">
-              From time: <input type="time" id="wfh-audit-from" value="18:00"
-                onchange="renderWFHMonitor()"
-                style="padding:4px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;font-size:11px;width:90px"/>
-              <button onclick="document.getElementById('wfh-audit-from').value='00:00';renderWFHMonitor()"
-                style="padding:3px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text3);border-radius:6px;font-size:10px;cursor:pointer">All day</button>
-            </div>
-          </div
+          <div class="card-title">🗂️ Full Audit Log</div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-secondary btn-sm" onclick="exportWFHLog()">↓ Export CSV</button>
             <button class="btn btn-danger btn-sm" onclick="if(confirm('Clear today WFH data?')){clearWFHDay();}">🗑 Clear Day</button>
@@ -3868,58 +3831,6 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
     <div style="font-size:12px;color:var(--text3)" id="wfh-op-header-name"></div>
     <button onclick="exitWFHMode()" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">← Exit</button>
   </div>
-
-      <!-- ── Leave Application ─────────────────────────── -->
-      <div class="card" style="margin-top:20px;max-width:700px;margin-left:auto;margin-right:auto">
-        <div class="card-title" style="margin-bottom:16px">🏖️ Apply for Leave</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-          <div class="form-group" style="margin:0">
-            <label>Leave Type</label>
-            <select id="wfh-leave-type" style="width:100%">
-              <option value="annual">Annual Leave</option>
-              <option value="sick">Sick Leave</option>
-              <option value="emergency">Emergency Leave</option>
-              <option value="maternity">Maternity Leave</option>
-              <option value="paternity">Paternity Leave</option>
-              <option value="unpaid">Unpaid Leave</option>
-            </select>
-          </div>
-          <div class="form-group" style="margin:0">
-            <label>Number of Days</label>
-            <input type="number" id="wfh-leave-days" min="1" max="30" placeholder="e.g. 2" style="width:100%"/>
-          </div>
-          <div class="form-group" style="margin:0">
-            <label>Start Date</label>
-            <input type="date" id="wfh-leave-start" style="width:100%"/>
-          </div>
-          <div class="form-group" style="margin:0">
-            <label>End Date</label>
-            <input type="date" id="wfh-leave-end" style="width:100%"/>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Reason</label>
-          <textarea id="wfh-leave-reason" rows="2" placeholder="Brief reason for leave request..." style="width:100%"></textarea>
-        </div>
-        <button class="btn btn-green" style="width:100%;margin-bottom:8px" onclick="submitWFHLeave()">📤 Submit Leave Application</button>
-        <div id="wfh-leave-msg" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px"></div>
-        <div style="margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
-            <div id="wfh-bal-annual" style="font-size:20px;font-weight:900;color:var(--green)">—</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px">ANNUAL LEFT</div>
-          </div>
-          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
-            <div id="wfh-bal-sick" style="font-size:20px;font-weight:900;color:var(--amber)">—</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px">SICK LEFT</div>
-          </div>
-          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
-            <div id="wfh-bal-other" style="font-size:20px;font-weight:900;color:var(--violet)">—</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px">OTHER LEFT</div>
-          </div>
-        </div>
-        <div id="wfh-my-leaves" style="margin-top:12px;font-size:12px;color:var(--text3)"></div>
-      </div>
-
 </div>
     <!-- ═══════════════════════════════════════════════════════
          PAGE: VIDEO MEETING ROOM
@@ -4231,6 +4142,7 @@ function exitWFHMode() {
 }
 
 function openWFHLogin() {
+  // Always repopulate name dropdown with full roster
   const sel = document.getElementById('wfh-login-name');
   if(sel) {
     sel.innerHTML = '<option value="">— Select your name —</option>';
@@ -4242,29 +4154,17 @@ function openWFHLogin() {
         opt.textContent = operatorLabel(o.id) + (o.type==='TR' ? ' [TR]' : '');
         sel.appendChild(opt);
       });
-    // FIX 3: Auto-fill saved name so operator only needs to enter password
-    const savedOp = localStorage.getItem('wfh_op_id');
-    if(savedOp && sel.querySelector('option[value="'+savedOp+'"]')) {
-      sel.value = savedOp;
-      sel.closest('.form-group') && (sel.closest('.form-group').style.display = 'none');
-      const nameDisplay = document.getElementById('wfh-saved-name-display');
-      if(nameDisplay) {
-        nameDisplay.textContent = 'Logging in as: ' + operatorLabel(savedOp);
-        nameDisplay.style.display = 'block';
-      }
-    }
   }
   document.getElementById('wfh-login-overlay').style.display = 'flex';
   document.getElementById('wfh-login-error').style.display = 'none';
   document.getElementById('wfh-login-pw').value = '';
-  setTimeout(() => document.getElementById('wfh-login-pw')?.focus(), 200);
 }
 
 function closeWFHLogin() {
   document.getElementById('wfh-login-overlay').style.display = 'none';
 }
 
-async function doWFHLogin() {
+function doWFHLogin() {
   const opId = document.getElementById('wfh-login-name').value;
   const pw   = document.getElementById('wfh-login-pw').value.trim();
   const errEl= document.getElementById('wfh-login-error');
@@ -4281,54 +4181,9 @@ async function doWFHLogin() {
     return;
   }
 
-  // ✅ Password correct — STRICTLY check approval before allowing ANY access
-  // Always fetch fresh from Supabase — never rely on stale cache
-  errEl.textContent = '⏳ Checking approval...';
-  errEl.style.display = 'block';
-
-  const today_str = new Date().toISOString().split('T')[0];
-  let isApproved = false;
-  try {
-    const ar = await fetch(
-      _SUPA_URL + '/rest/v1/wfh_approved?date=eq.' + today_str + '&op_id=eq.' + encodeURIComponent(opId) + '&select=op_id',
-      { headers: { 'apikey': _SUPA_KEY, 'Authorization': 'Bearer ' + _SUPA_KEY } }
-    );
-    const rows = ar.ok ? await ar.json() : [];
-    isApproved = Array.isArray(rows) && rows.length > 0;
-  } catch(e) {
-    errEl.textContent = '❌ Could not verify approval. Check your connection.';
-    return;
-  }
-
-  if(!isApproved) {
-    errEl.textContent = '🔒 You are NOT approved for WFH today. Wait for your Team Lead to approve you.';
-    errEl.style.color = 'var(--red, #ff5e6e)';
-    errEl.style.fontWeight = '700';
-    errEl.style.display = 'block';
-    document.getElementById('wfh-login-pw').value = '';
-    return;
-  }
-
-  // Also check if already checked out and locked
-  try {
-    const sr = await fetch(
-      _SUPA_URL + '/rest/v1/wfh_sessions?date=eq.' + today_str + '&op_id=eq.' + encodeURIComponent(opId) + '&select=check_out,status',
-      { headers: { 'apikey': _SUPA_KEY, 'Authorization': 'Bearer ' + _SUPA_KEY } }
-    );
-    const sessions = sr.ok ? await sr.json() : [];
-    if(sessions.length > 0 && sessions[0].check_out) {
-      errEl.textContent = '🔒 You already checked out today. Contact your Team Lead for re-approval.';
-      errEl.style.color = 'var(--red, #ff5e6e)';
-      errEl.style.display = 'block';
-      return;
-    }
-  } catch(e) {}
-
+  // ✅ Auth passed — go to WFH operator station
   errEl.style.display = 'none';
   closeWFHLogin();
-
-  // FIX 3: Save operator name so they don't need to select again
-  localStorage.setItem('wfh_op_id', opId);
 
   // Pre-select operator name in the WFH operator portal
   const opSel = document.getElementById('wfh-op-self');
@@ -4611,21 +4466,7 @@ function nav(page) {
   if(page==='dashboard') { renderNotifs(); updateNavBadges(); renderDashProdKPIs(); renderDashPerfChart(); }
   if(page==='call-reports') { renderCallReports(); }
   if(page==='team-dash') { initTeamDash(); }
-  if(page==='daily-report') {
-    // Clear date filter so ALL reports are visible
-    const drDate = document.getElementById('dr-view-date');
-    if(drDate) drDate.value = '';
-    applyDRRoleVisibility();
-    refreshDRView();
-    // Auto-fill today's production data into the form
-    setTimeout(() => autoFillDRFromProd(), 500);
-  }
-  if(page==='daily-plan') {
-    // Clear date filter so ALL plans are visible
-    const dpDate = document.getElementById('dp-filter-date');
-    if(dpDate) dpDate.value = '';
-    refreshDPView();
-  }
+  if(page==='daily-plan') { renderDailyPlan(); }
   if(page==='team-perf-kings') { renderTeamPerf('kings'); }
   if(page==='team-perf-swat')  { renderTeamPerf('swat'); }
   if(page==='payroll-full') { initPayrollPage(); }
@@ -4736,28 +4577,21 @@ function yesterday() {
 function renderDashPerfChart() {
   const canvas = document.getElementById('dash-perf-chart');
   if(!canvas) return;
-  // Wait for layout
-  if(!canvas.offsetWidth) { setTimeout(renderDashPerfChart, 150); return; }
   const ctx = canvas.getContext('2d');
-  const DPR = window.devicePixelRatio || 1;
-  const W   = canvas.offsetWidth;
-  const H   = 220;
-  canvas.width  = W * DPR;
-  canvas.height = H * DPR;
-  canvas.style.height = H + 'px';
-  ctx.scale(DPR, DPR);
+  const W = canvas.offsetWidth || 900;
+  const H = 240;
+  canvas.width  = W * window.devicePixelRatio;
+  canvas.height = H * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
-  // ── Data ────────────────────────────────────────────────────
+  // Group data by date
   const all = load('prod');
   const byDate = {};
-  all.forEach(p => { if(!byDate[p.date]) byDate[p.date]=[]; byDate[p.date].push(p); });
+  all.forEach(p => { if(!byDate[p.date]) byDate[p.date] = []; byDate[p.date].push(p); });
   const dates = Object.keys(byDate).sort().slice(-14);
-
   if(!dates.length) {
-    ctx.fillStyle='rgba(255,255,255,0.35)';
-    ctx.font='13px sans-serif'; ctx.textAlign='center';
-    ctx.fillText('No production data yet', W/2, H/2);
-    return;
+    ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.font='13px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('No production data yet', W/2, H/2); return;
   }
 
   const pts = dates.map(d => {
@@ -4765,123 +4599,220 @@ function renderDashPerfChart() {
     return {
       date:      d,
       cases:     rows.reduce((s,r)=>s+(+r.cases||0),0),
-      occ:       +(rows.reduce((s,r)=>s+(+r.occ||0),0)/n).toFixed(1),
-      aht:       +(rows.reduce((s,r)=>s+(+r.aht||0),0)/n).toFixed(1),
-      normalAht: +(rows.reduce((s,r)=>s+(+r.normalAht||0),0)/n).toFixed(1),
+      aht:       +(rows.reduce((s,r)=>s+(+r.aht||0),0)/n).toFixed(2),
+      normalAht: +(rows.reduce((s,r)=>s+(+r.normalAht||0),0)/n).toFixed(2),
+      occ:       +(rows.reduce((s,r)=>s+(+r.occ||0),0)/n).toFixed(2),
       abandoned: +(rows.reduce((s,r)=>s+(+r.abandoned||0),0)/n).toFixed(2),
+      reported:  +(rows.reduce((s,r)=>s+(+r.reported||0),0)/n).toFixed(2),
     };
   });
 
-  const maxCases = Math.max(...pts.map(p=>p.cases));
-  const maxAHT   = Math.max(...pts.map(p=>Math.max(p.aht, p.normalAht))) * 1.15;
-  const pad = {top:32, right:48, bottom:36, left:52};
-  const cw  = W - pad.left - pad.right;
-  const ch  = H - pad.top  - pad.bottom;
-  const gap = cw / pts.length;
-  const barW = Math.max(10, gap * 0.52);
+  const maxCases  = Math.max(...pts.map(p=>p.cases));
+  const maxAHT    = Math.max(Math.max(...pts.map(p=>p.aht)), Math.max(...pts.map(p=>p.normalAht)));
+  const maxPct    = Math.max(100, Math.max(...pts.map(p=>p.occ)));
+  const pad = {top:24, right:60, bottom:42, left:58};
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top  - pad.bottom;
+  const n  = pts.length;
+  const barW = Math.max(6, cw/n * 0.5);
+  const gap  = cw/n;
 
-  // ── Background & grid ────────────────────────────────────────
   ctx.clearRect(0,0,W,H);
-  [0,0.25,0.5,0.75,1].forEach(f => {
-    const y = pad.top + ch*(1-f);
-    ctx.strokeStyle = f===0||f===1 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 1; ctx.setLineDash([]);
+
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1;
+  [0,.25,.5,.75,1].forEach(f=>{
+    const y=pad.top+ch*(1-f);
     ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+cw,y); ctx.stroke();
-    // Cases axis labels (left)
-    ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.font='9px DM Mono,monospace'; ctx.textAlign='right';
-    const v = Math.round(maxCases*f);
-    ctx.fillText(v>=1000?(v/1000).toFixed(0)+'k':v, pad.left-5, y+3);
   });
 
-  // ── AHT axis labels (right) ──────────────────────────────────
-  ctx.fillStyle='rgba(180,138,247,0.6)'; ctx.textAlign='left'; ctx.font='9px DM Mono,monospace';
-  [0,0.5,1].forEach(f => {
-    const y = pad.top + ch*(1-f);
-    ctx.fillText((maxAHT*f).toFixed(0)+'s', pad.left+cw+4, y+3);
+  // Left Y axis — Cases
+  ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.font='10px DM Mono,monospace'; ctx.textAlign='right';
+  [0,.25,.5,.75,1].forEach(f=>{
+    const y=pad.top+ch*(1-f); const v=Math.round(maxCases*f);
+    ctx.fillText(v>=1000?(v/1000).toFixed(0)+'k':v, pad.left-6, y+3);
   });
 
-  // ── Bars (Cases) ─────────────────────────────────────────────
-  pts.forEach((p,i) => {
-    const x  = pad.left + i*gap + gap/2 - barW/2;
-    const bH = Math.max(2, (p.cases/maxCases)*ch);
-    const y  = pad.top + ch - bH;
-    const col = p.occ>=85?[0,212,160]:p.occ>=75?[0,180,216]:p.occ>=65?[255,170,68]:[255,94,110];
-    const grad = ctx.createLinearGradient(x,y,x,y+bH);
-    grad.addColorStop(0, `rgba(${col},0.90)`);
-    grad.addColorStop(1, `rgba(${col},0.20)`);
-    ctx.fillStyle = grad; ctx.setLineDash([]);
+  // Right Y axis — AHT (seconds)
+  ctx.fillStyle='rgba(180,138,247,0.6)'; ctx.textAlign='left';
+  [0,.25,.5,.75,1].forEach(f=>{
+    const y=pad.top+ch*(1-f);
+    ctx.fillText((maxAHT*f).toFixed(0)+'s', pad.left+cw+6, y+3);
+  });
+
+  // Right Y axis label — %
+  ctx.fillStyle='rgba(255,170,68,0.6)'; ctx.font='9px sans-serif'; ctx.textAlign='right';
+  ctx.fillText('100%', W-2, pad.top+3);
+  ctx.fillText('0%',   W-2, pad.top+ch+3);
+
+  // BARS — Cases
+  pts.forEach((p,i)=>{
+    const x   = pad.left + i*gap + gap/2 - barW/2;
+    const bH  = (p.cases/maxCases)*ch;
+    const y   = pad.top+ch-bH;
+    const col = p.occ>=80?'rgba(0,212,160,0.65)':p.occ>=70?'rgba(255,170,68,0.65)':'rgba(255,94,110,0.65)';
+    ctx.fillStyle=col;
     ctx.beginPath(); ctx.roundRect(x,y,barW,bH,3); ctx.fill();
-    // Case label above bar
-    ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.font='bold 8px DM Mono,monospace'; ctx.textAlign='center';
+    // cases label
+    ctx.fillStyle='rgba(255,255,255,0.65)'; ctx.font='8px DM Mono,monospace'; ctx.textAlign='center';
     ctx.fillText(p.cases>=1000?(p.cases/1000).toFixed(1)+'k':p.cases, x+barW/2, y-3);
-    // Date label below
-    ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.font='9px sans-serif';
-    const dt = new Date(p.date+'T00:00:00');
-    ctx.fillText(dt.getDate()+'/'+(dt.getMonth()+1), pad.left+i*gap+gap/2, H-4);
+    // date label
+    ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.font='9px sans-serif';
+    const dt=new Date(p.date+'T00:00:00');
+    ctx.fillText(dt.getDate()+' '+dt.toLocaleString('en',{month:'short'}), pad.left+i*gap+gap/2, H-6);
   });
 
-  // ── Line helper ──────────────────────────────────────────────
-  const line = (getY, maxY, color, dash=[], showLabels=false) => {
-    ctx.strokeStyle=color; ctx.lineWidth=2; ctx.lineJoin='round'; ctx.setLineDash(dash);
+  // Helper: draw a line metric
+  const drawLine = (getValue, maxVal, color, dash=[], dotR=3) => {
+    ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.lineJoin='round';
+    ctx.setLineDash(dash);
     ctx.beginPath();
-    pts.forEach((p,i) => {
-      const x = pad.left+i*gap+gap/2;
-      const y = pad.top+ch*(1-(getY(p)/maxY));
+    pts.forEach((p,i)=>{
+      const x=pad.left+i*gap+gap/2;
+      const y=pad.top+ch*(1-(getValue(p)/maxVal));
       i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
     });
     ctx.stroke(); ctx.setLineDash([]);
+    // dots + value labels
     ctx.fillStyle=color;
-    pts.forEach((p,i) => {
+    pts.forEach((p,i)=>{
       const x=pad.left+i*gap+gap/2;
-      const y=pad.top+ch*(1-(getY(p)/maxY));
-      ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
-      if(showLabels) {
-        ctx.font='bold 7px DM Mono,monospace'; ctx.textAlign='center';
-        ctx.fillText(getY(p), x, y-5);
-      }
+      const y=pad.top+ch*(1-(getValue(p)/maxVal));
+      ctx.beginPath(); ctx.arc(x,y,dotR,0,Math.PI*2); ctx.fill();
+      ctx.font='8px DM Mono,monospace'; ctx.textAlign='center';
+      ctx.fillText(getValue(p), x, y-5);
     });
   };
 
-  line(p=>p.aht,       maxAHT, 'rgba(180,138,247,0.95)', [],    false);
-  line(p=>p.normalAht, maxAHT, 'rgba(0,210,180,0.95)',   [4,3], false);
-  line(p=>p.occ,       100,    'rgba(255,170,68,0.95)',   [],    false);
-  line(p=>p.abandoned, 10,     'rgba(255,94,110,0.85)',   [3,3], false);
+  // AHT A.A — purple
+  drawLine(p=>p.aht,      maxAHT, 'rgba(180,138,247,0.9)', []);
+  // Normal AHT — teal
+  drawLine(p=>p.normalAht,maxAHT, 'rgba(0,200,180,0.9)',   [4,3]);
+  // Occupancy — amber
+  drawLine(p=>p.occ,      maxPct, 'rgba(255,170,68,0.9)',  []);
+  // Abandoned — red
+  drawLine(p=>p.abandoned,maxPct, 'rgba(255,94,110,0.9)',  [3,3]);
+  // Reported (if has data)
+  if(pts.some(p=>p.reported>0))
+    drawLine(p=>p.reported,maxPct,'rgba(0,180,216,0.9)',   [4,3]);
+}
 
-  // ── Legend (top) ─────────────────────────────────────────────
-  const legend = [
-    {c:'rgba(0,212,160,0.9)',  l:'Cases (bars)'},
-    {c:'rgba(180,138,247,1)',  l:'AHT A.A'},
-    {c:'rgba(0,210,180,1)',    l:'Normal AHT'},
-    {c:'rgba(255,170,68,1)',   l:'Occupancy %'},
-    {c:'rgba(255,94,110,0.9)', l:'Abandoned %'},
-  ];
-  ctx.font='8px sans-serif'; ctx.textAlign='left';
-  let lx = pad.left;
-  legend.forEach(item => {
-    ctx.fillStyle=item.c;
-    ctx.fillRect(lx, 10, 12, 3);
-    ctx.fillStyle='rgba(255,255,255,0.6)';
-    ctx.fillText(item.l, lx+15, 14);
-    lx += ctx.measureText(item.l).width + 32;
+function renderDashProdKPIs() {
+
+  // Group prod data by date, last 14 days
+  const all = load('prod');
+  const byDate = {};
+  all.forEach(p => {
+    if(!byDate[p.date]) byDate[p.date] = [];
+    byDate[p.date].push(p);
+  });
+  const dates = Object.keys(byDate).sort().slice(-14);
+  if(!dates.length) {
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.font = '13px DM Sans, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No production data yet', w/2, h/2);
+    return;
+  }
+
+  const points = dates.map(d => {
+    const rows = byDate[d];
+    return {
+      date: d,
+      cases: rows.reduce((s,r) => s + (+r.cases||0), 0),
+      occ:   rows.reduce((s,r) => s + (+r.occ||0), 0) / rows.length
+    };
+  });
+
+  const maxCases = Math.max(...points.map(p => p.cases));
+  const pad = { top:20, right:16, bottom:38, left:56 };
+  const cw = w - pad.left - pad.right;
+  const ch = h - pad.top - pad.bottom;
+  const barW = Math.max(8, cw / points.length * 0.55);
+  const gap  = cw / points.length;
+
+  // Background
+  ctx.clearRect(0,0,w,h);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  [0,25,50,75,100].forEach(pct => {
+    const y = pad.top + ch - (pct/100)*ch;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left+cw, y); ctx.stroke();
+  });
+
+  // Y axis labels (cases)
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = `10px DM Mono, monospace`;
+  ctx.textAlign = 'right';
+  [0,0.25,0.5,0.75,1].forEach(frac => {
+    const y = pad.top + ch - frac*ch;
+    const val = Math.round(maxCases * frac);
+    ctx.fillText(val >= 1000 ? (val/1000).toFixed(0)+'k' : val, pad.left - 6, y + 3);
+  });
+
+  // Bars
+  points.forEach((p, i) => {
+    const x = pad.left + i*gap + gap/2 - barW/2;
+    const barH = (p.cases / maxCases) * ch;
+    const y = pad.top + ch - barH;
+    const occ = p.occ;
+    const col = occ >= 80 ? 'rgba(0,212,160,0.75)' : occ >= 70 ? 'rgba(255,170,68,0.75)' : 'rgba(255,94,110,0.75)';
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW, barH, 3);
+    ctx.fill();
+
+    // Case count on top of bar
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '9px DM Mono, monospace';
+    ctx.textAlign = 'center';
+    const label = p.cases >= 1000 ? (p.cases/1000).toFixed(1)+'k' : p.cases;
+    ctx.fillText(label, x + barW/2, y - 4);
+
+    // X axis date label
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = '9px DM Sans, sans-serif';
+    const d = new Date(p.date+'T00:00:00');
+    ctx.fillText(d.getDate()+' '+ d.toLocaleString('en',{month:'short'}), x + barW/2, h - 6);
+  });
+
+  // Occupancy line
+  ctx.strokeStyle = 'rgba(255,170,68,0.9)';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    const x = pad.left + i*gap + gap/2;
+    const y = pad.top + ch - (p.occ/100)*ch;
+    i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // Dots on line
+  ctx.fillStyle = 'rgba(255,170,68,1)';
+  points.forEach((p, i) => {
+    const x = pad.left + i*gap + gap/2;
+    const y = pad.top + ch - (p.occ/100)*ch;
+    ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
   });
 }
 
 function renderDashProdKPIs() {
-  const el  = document.getElementById('dash-prod-kpis');
+  const el = document.getElementById('dash-prod-kpis');
   const lbl = document.getElementById('dash-prod-date-label');
   if(!el) return;
 
-  // Show most recent date that has data
-  const all = load('prod');
-  if(!all.length) {
-    el.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 5;text-align:center;padding:20px">No production data yet.</div>';
+  const yday = yesterday();
+  const prod = load('prod').filter(p => p.date === yday);
+
+  if(lbl) lbl.textContent = fmtDate(yday);
+
+  if(!prod.length) {
+    el.innerHTML = `<div style="color:var(--text3);font-size:12px;grid-column:span 5;text-align:center;padding:20px">No production data for ${fmtDate(yday)} yet.</div>`;
     return;
   }
-  const dates = [...new Set(all.map(p=>p.date))].sort();
-  const latest = dates[dates.length-1];
-  const prod = all.filter(p => p.date === latest);
-
-  if(lbl) lbl.textContent = fmtDate(latest);
 
   const totalCases  = prod.reduce((s,p) => s + (+p.cases||0), 0);
   const avgOcc      = (prod.reduce((s,p) => s + (+p.occ||0), 0) / prod.length).toFixed(2);
@@ -6137,9 +6068,13 @@ const DEFAULT_CREDS = {
   swat:   { hash: btoa('Swat@Ros2026!'),      name: 'Rosemary Nyaleso',  role: 'SWAT QA',    icon: '🟣', badge: 'swat'  },
 };
 
-// Always use DEFAULT_CREDS — passwords are fixed and defined here
+// Load saved custom passwords (if user changed them), else use defaults
 function getCreds() {
-  return { ...DEFAULT_CREDS };
+  const saved = loadObj('creds');
+  return Object.keys(DEFAULT_CREDS).reduce((acc, key) => {
+    acc[key] = { ...DEFAULT_CREDS[key], hash: saved[key] || DEFAULT_CREDS[key].hash };
+    return acc;
+  }, {});
 }
 
 let selectedRole = 'tl';
@@ -6334,8 +6269,7 @@ function applyRoleRestrictions(role) {
   // Pages Rosemary (swat) can access
   const swatPages   = ['dashboard','team-dash-swat','daily-report','daily-plan',
     'attendance','attendance-full','production','errors','leave','schedule',
-    'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator'];
+    'call-reports','team-dash','team-perf-kings','team-perf-swat'];
 
   const allowedPages = role==='kings' ? kingsPages : swatPages;
 
@@ -6352,7 +6286,17 @@ function applyRoleRestrictions(role) {
     }
   });
 
-  // WFH: both Kingori and Rosemary have access
+  // WFH: only Kingori has access — hide for Rosemary
+  if(role === 'swat') {
+    document.querySelectorAll('.nav-item').forEach(item => {
+      const onclick = item.getAttribute('onclick') || '';
+      if(onclick.includes("'wfh'") || onclick.includes("'wfh-operator'")) {
+        item.style.opacity = '0.3';
+        item.style.pointerEvents = 'none';
+        item.title = 'Kings QA access only';
+      }
+    });
+  }
 }
 
 function confirmLogout() {
@@ -7113,42 +7057,25 @@ async function dbGetSessions(date) {
     if(!Array.isArray(rows)) return {};
     const out = {};
     rows.forEach(row => {
-      // Auto-detect stale sessions right when loading from Supabase
-      const _now = Date.now();
-      let _effStatus = row.status || 'online';
-      if(row.check_out) {
-        _effStatus = 'checked_out'; // already checked out — always offline
-      } else if(row.last_heartbeat) {
-        const _minsAgo = (_now - new Date(row.last_heartbeat).getTime()) / 60000;
-        if(_minsAgo > 40) _effStatus = 'offline';
-        else if(_minsAgo > 20) _effStatus = 'idle';
-      } else if(row.check_in) {
-        // Checked in but NEVER sent a heartbeat — ghost session
-        const _minsIn = (_now - new Date(row.check_in).getTime()) / 60000;
-        if(_minsIn > 30) _effStatus = 'offline';
-      }
-
       out[row.op_id] = {
-        status:        _effStatus,
-        checkIn:       row.check_in,
-        checkOut:      row.check_out,
-        shift:         row.shift,
-        location:      row.location,
-        device:        row.device,
-        totalCases:    row.total_cases,
-        totalBreakMs:  row.total_break_ms,
-        lastAHT:       row.last_aht,
-        lastFocus:     row.last_focus,
-        lastEnergy:    row.last_energy,
-        breakCount:    row.break_count,
-        preInternet:   row.pre_internet,
-        preEnv:        row.pre_env,
-        prePower:      row.pre_power,
-        preTools:      row.pre_tools,
-        workspace:     row.workspace,
-        totalHours:    row.total_hours,
-        lastHeartbeat: row.last_heartbeat,  // ← CRITICAL: was missing!
-        anydesk:       row.anydesk_id,
+        status:       row.status,
+        checkIn:      row.check_in,
+        checkOut:     row.check_out,
+        shift:        row.shift,
+        location:     row.location,
+        device:       row.device,
+        totalCases:   row.total_cases,
+        totalBreakMs: row.total_break_ms,
+        lastAHT:      row.last_aht,
+        lastFocus:    row.last_focus,
+        lastEnergy:   row.last_energy,
+        breakCount:   row.break_count,
+        preInternet:  row.pre_internet,
+        preEnv:       row.pre_env,
+        prePower:     row.pre_power,
+        preTools:     row.pre_tools,
+        workspace:    row.workspace,
+        totalHours:   row.total_hours,
       };
     });
     return out;
@@ -7210,36 +7137,29 @@ async function dbGetLogs(date) {
       {headers:{...WFH_HDR,'Prefer':''}});
     const rows = await r.json();
     if(!Array.isArray(rows)) return [];
-    return rows.map(row=>{
-      // Normalize: extension uses 'note','tool','is_eod' — hub uses 'log_type','notes'
-      const logType = row.log_type || (row.is_eod?'eod': row.tool==='tab_switch'?'tab_switch': row.tool==='checkin'?'checkin': 'submission');
-      const notes   = row.notes || row.note || '';
-      // Determine label from tool/type
-      const toolLabel = row.tool && row.tool !== 'dat.aifi.com' ? ` [${row.tool}]` : '';
-      return {
-        id:       row.id,
-        date:     row.date,
-        opId:     row.op_id,
-        name:     operatorLabel(row.op_id),
-        timeStr:  new Date(row.logged_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-        isoTime:  row.logged_at,
-        type:     logType,
-        cases:    row.cases||0,
-        aht:      row.aht,
-        occ:      row.occ||row.occupancy,
-        activity: row.activity,
-        tool:     row.tool,
-        net:      row.net||row.internet,
-        env:      row.env,
-        focus:    row.focus,
-        energy:   row.energy,
-        proof:    row.proof,
-        notes:    notes + toolLabel,
-        flags:    row.flags,
-        location: row.location,
-        device:   row.device,
-      };
-    });
+    return rows.map(row=>({
+      id:       row.id,
+      date:     row.date,
+      opId:     row.op_id,
+      name:     operatorLabel(row.op_id),
+      timeStr:  new Date(row.logged_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+      isoTime:  row.logged_at,
+      type:     row.log_type,
+      cases:    row.cases||0,
+      aht:      row.aht,
+      occ:      row.occ,
+      activity: row.activity,
+      tool:     row.tool,
+      net:      row.net,
+      env:      row.env,
+      focus:    row.focus,
+      energy:   row.energy,
+      proof:    row.proof,
+      notes:    row.notes,
+      flags:    row.flags,
+      location: row.location,
+      device:   row.device,
+    }));
   } catch(e) { return load(WFH_LOGS_KEY)||[]; }
 }
 async function dbInsertLog(opId, type, data={}) {
@@ -7340,54 +7260,15 @@ let _faceEventsCache = {}; // { opId: [events] } — keyed by op_id
 
 async function refreshWFHCache(date) {
   const d = date || today();
-  const [sessions, logs, approved, faceEvts, statusRows] = await Promise.all([
+  const [sessions, logs, approved, faceEvts] = await Promise.all([
     dbGetSessions(d),
     dbGetLogs(d),
     dbGetApproved(d),
     fetch(_SUPA_URL+'/rest/v1/wfh_face_events?date=eq.'+d,
       {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}})
-      .then(r=>r.ok?r.json():[]).catch(()=>[]),
-    // Also fetch wfh_status — the source of truth for who is working
-    fetch(_SUPA_URL+'/rest/v1/wfh_status?date=eq.'+d,
-      {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}})
-      .then(r=>r.ok?r.json():[]).catch(()=>[])
+      .then(r=>r.json()).catch(()=>[])
   ]);
-
-  // Merge wfh_status into sessions:
-  // If someone has a status entry but no session, create one
-  // This fixes the case where Status Board shows 19 but Who's Working shows 0
-  const merged = { ...sessions };
-  const now = Date.now();
-  if(Array.isArray(statusRows)) {
-    statusRows.forEach(row => {
-      if(!merged[row.op_id]) {
-        // No session — create from status
-        const minsAgo = row.updated_at
-          ? (now - new Date(row.updated_at).getTime()) / 60000
-          : 999;
-        // Only show as active if status was updated within 40 minutes
-        if(minsAgo < 40) {
-          merged[row.op_id] = {
-            status:        row.status === 'working' ? 'online' : (row.status || 'online'),
-            checkIn:       row.started_at || row.updated_at,
-            checkOut:      null,
-            lastHeartbeat: row.updated_at,
-            totalCases:    0,
-            device:        'Status-Board',
-          };
-        }
-      } else {
-        // Session exists — sync status if status board is more recent
-        const s = merged[row.op_id];
-        if(!s.checkOut && row.updated_at > (s.lastHeartbeat||'')) {
-          s.status        = row.status === 'working' ? 'online' : (row.status || s.status);
-          s.lastHeartbeat = row.updated_at;
-        }
-      }
-    });
-  }
-
-  _sessionsCache[d] = merged;
+  _sessionsCache[d] = sessions;
   _logsCache        = logs;
   _approvedCache    = approved;
   // Index face events per operator
@@ -7399,7 +7280,7 @@ async function refreshWFHCache(date) {
     });
   }
   _lastFetch = Date.now();
-  return { sessions: merged, logs, approved };
+  return { sessions, logs, approved };
 }
 
 // ── wfhIdleMinutes now uses cache ─────────────────────────────────
@@ -7638,16 +7519,10 @@ function renderWorkingNow(sessions, approved, date) {
   const checkedOut = [];
   const pending  = [];
 
-  // STRICT: ONLY approved operators appear — no one else
   approved.forEach(opId => {
     const sess = sessions[opId];
-    if(!sess) { pending.push(opId); return; }
-    if(sess.checkOut || sess.status === 'checked_out') { checkedOut.push(opId); return; }
-    if(sess.status === 'offline') { pending.push(opId); return; }
-    const hasCheckIn  = !!sess.checkIn;
-    const hasRecentHB = sess.lastHeartbeat &&
-      (Date.now() - new Date(sess.lastHeartbeat).getTime()) / 60000 < 40;
-    if(hasCheckIn || hasRecentHB) active.push(opId);
+    if(sess?.checkIn && !sess?.checkOut) active.push(opId);
+    else if(sess?.checkIn && sess?.checkOut) checkedOut.push(opId);
     else pending.push(opId);
   });
 
@@ -7662,7 +7537,7 @@ function renderWorkingNow(sessions, approved, date) {
 
   // ── Active operators ──────────────────────────────────────────
   if(!active.length) {
-    grid.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px;text-align:center">No operators checked in yet.<br><span style="color:var(--accent);font-weight:700">Ask operators to open the WFH Operator Portal and click Check In.</span></div>';
+    grid.innerHTML = '<div style="color:var(--text3);font-size:12px;font-style:italic">No operators checked in yet — shift may not have started.</div>';
   } else {
     grid.innerHTML = active.map(opId => {
       const sess     = sessions[opId];
@@ -7757,57 +7632,26 @@ function renderWFHMonitor() {
   // Determine status incl. idle detection
   function opStatus(id) {
     const s = sessions[id];
-    // If checked out → ALWAYS offline, no exceptions
-    if(s?.checkOut) return 'checked_out';
-    // Check if operator has recent logs (from extension) even without a session
-    if(!s || !s.checkIn) {
-      const recentLog = logs.filter(l=>l.opId===id).sort((a,b)=>b.id-a.id)[0];
-      if(recentLog) {
-        const minsAgo = (Date.now() - new Date(recentLog.isoTime||Date.now()).getTime()) / 60000;
-        if(minsAgo < 30) return 'online';
-        if(minsAgo < 120) return 'idle';
-      }
-      return 'offline';
-    }
+    if(!s || !s.checkIn) return 'offline';
     if(s.checkOut)              return 'logged_out';
     if(s.status === 'logged_out') return 'logged_out';
     if(s.status === 'offline')  return 'logged_out';
-    if(s.status === 'break')         return 'break';
-    if(s.status === 'lunch')         return 'break';
-    if(s.status === 'meeting')       return 'meeting';
-    if(s.status === 'floor_support') return 'online';
-    if(s.status === 'training')      return 'online';
-    if(s.status === 'idle')          return 'idle';
+    if(s.status === 'break')    return 'break';
+    if(s.status === 'idle')     return 'idle';
     // Heartbeat stale check — no ping in 5+ min = not actually online
-    // Use the status already computed during cache refresh (includes stale detection)
-    if(s.status === 'offline') return 'offline';
     if(s.lastHeartbeat) {
       const mins = (Date.now() - new Date(s.lastHeartbeat).getTime()) / 60000;
-      if(mins > 20) return 'idle';
-      if(mins > 40) return 'offline';
-    } else if(s.checkIn) {
-      // No heartbeat at all — check how long since check-in
-      const minsIn = (Date.now() - new Date(s.checkIn).getTime()) / 60000;
-      if(minsIn > 30) return 'offline';
+      if(mins > 5) return 'logged_out';
     }
     return 'online';
   }
 
-  // Show approved operators + anyone with logs today (extension users)
-  const logOps  = [...new Set(logs.map(l=>l.opId).filter(Boolean))];
-  const sessOps = Object.keys(sessions);
-  const mergedOps = [...new Set([...sessOps, ...logOps])];
-  const allOps = approved.length
-    ? mergedOps.filter(id => approved.includes(id))
-    : mergedOps;
-  // Exclude checked-out from active display
-  const activeOps    = allOps.filter(id=>opStatus(id)!=='checked_out'&&opStatus(id)!=='offline');
-  const onlineOps    = allOps.filter(id=>opStatus(id)==='online');
-  const breakOps     = allOps.filter(id=>opStatus(id)==='break');
-  const meetingOps   = allOps.filter(id=>opStatus(id)==='meeting');
-  const idleOps      = allOps.filter(id=>opStatus(id)==='idle');
-  const checkedOutOps= allOps.filter(id=>opStatus(id)==='checked_out');
-  const offOps       = allOps.filter(id=>opStatus(id)==='offline');
+  const allOps    = Object.keys(sessions);
+  const onlineOps = allOps.filter(id=>opStatus(id)==='online');
+  const breakOps  = allOps.filter(id=>opStatus(id)==='break');
+  // idleOps = operators where cursor/cam system set status='idle' in Supabase
+  const idleOps   = allOps.filter(id=>opStatus(id)==='idle');
+  const offOps    = allOps.filter(id=>opStatus(id)==='offline');
 
   // KPIs
   const totalCases  = allOps.reduce((s,id)=>s+(sessions[id].totalCases||0),0);
@@ -7815,12 +7659,12 @@ function renderWFHMonitor() {
   const totalIssues = logs.filter(l=>l.tool&&l.tool!=='ok').length;
   const kpiEl = document.getElementById('wfh-kpi-row');
   if(kpiEl) kpiEl.innerHTML = `
-    <div class="kpi-card green"><div class="kpi-label">🟢 Working</div><div class="kpi-value">${onlineOps.length}</div><div class="kpi-sub">Active now</div></div>
-    <div class="kpi-card amber"><div class="kpi-label">☕ On Break</div><div class="kpi-value">${breakOps.length}</div><div class="kpi-sub">Break/Lunch</div></div>
-    <div class="kpi-card teal"><div class="kpi-label">📹 Meeting</div><div class="kpi-value">${meetingOps.length}</div><div class="kpi-sub">In meeting</div></div>
-    <div class="kpi-card red"><div class="kpi-label">💤 Idle ⚠️</div><div class="kpi-value">${idleOps.length}</div><div class="kpi-sub">>10 min no update</div></div>
-    <div class="kpi-card" style="border-color:rgba(255,94,110,0.3)"><div class="kpi-label">🔴 Checked Out</div><div class="kpi-value" style="color:var(--red)">${checkedOutOps.length}</div><div class="kpi-sub">Shift ended</div></div>
-    <div class="kpi-card purple"><div class="kpi-label">📦 Remote Cases</div><div class="kpi-value">${totalCases.toLocaleString()}</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Online</div><div class="kpi-value">${onlineOps.length}</div><div class="kpi-sub">Active now</div></div>
+    <div class="kpi-card amber"><div class="kpi-label">On Break</div><div class="kpi-value">${breakOps.length}</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Idle ⚠️</div><div class="kpi-value">${idleOps.length}</div><div class="kpi-sub">>60 min no update</div></div>
+    <div class="kpi-card"><div class="kpi-label">Checked Out</div><div class="kpi-value">${offOps.length}</div></div>
+    <div class="kpi-card teal"><div class="kpi-label">Remote Cases</div><div class="kpi-value">${totalCases.toLocaleString()}</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Avg Compliance</div><div class="kpi-value">${avgScore}%</div></div>
   `;
 
   // Compliance alerts
@@ -7846,13 +7690,9 @@ function renderWFHMonitor() {
   if(searchF) gridOps = gridOps.filter(id=>operatorLabel(id).toLowerCase().includes(searchF));
 
   if(!gridOps.length) {
-    gridEl.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 4">No operators checked in yet. Operators need to open the WFH Operator Portal on their machine and click Check In.</div>';
+    gridEl.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 4">No operators match. Approve operators via the button above.</div>';
   } else {
-    const statusLabel = {
-    online:'🟢 Working', break:'☕ On Break', meeting:'📹 In Meeting',
-    idle:'💤 Idle', offline:'⚫ Offline', floor_support:'🤝 Floor Support',
-    training:'📚 Training', lunch:'🍽️ Lunch Break'
-  };
+    const statusLabel = {online:'🟢 Online',break:'☕ On Break',idle:'🔴 Idle',offline:'⚫ Offline'};
     gridEl.innerHTML = gridOps.map(id => {
       const sess   = sessions[id];
       const status = opStatus(id);
@@ -7962,20 +7802,10 @@ function renderWFHMonitor() {
   // Full audit log table
   const fullTbody = document.getElementById('wfh-full-log-tbody');
   const typeColors={checkin:'badge-green',checkout:'badge-red',hourly:'badge-blue',eod:'badge-purple',break:'badge-amber',resume:'badge-teal',idle:'badge-red'};
-  // Apply time filter — default shows from 18:00
-  const auditFromTime = document.getElementById('wfh-audit-from')?.value || '';
-  const filteredLogs = auditFromTime
-    ? logs.filter(l => {
-        if(!l.isoTime) return true;
-        const t = new Date(l.isoTime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-        return t >= auditFromTime;
-      })
-    : logs;
-
-  if(!filteredLogs.length) {
-    fullTbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text3)">No entries from ' + (auditFromTime||'start') + ' yet. Click "All day" to see everything.</td></tr>';
+  if(!logs.length) {
+    fullTbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text3)">No entries.</td></tr>';
   } else {
-    fullTbody.innerHTML=[...filteredLogs].sort((a,b)=>b.id-a.id).map(l=>{
+    fullTbody.innerHTML=[...logs].sort((a,b)=>b.id-a.id).map(l=>{
       const netC=l.net==='stable'?'var(--green)':l.net==='dropping'?'var(--red)':'var(--amber)';
       const focC=l.focus<=2?'var(--red)':l.focus>=4?'var(--green)':'var(--amber)';
       const proofOk=l.proof&&l.proof.length>15;
@@ -7997,56 +7827,6 @@ function renderWFHMonitor() {
         <td style="font-size:10px;color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.notes||''}">${l.notes||l.proof||'–'}</td>
       </tr>`;
     }).join('');
-  }
-
-  // ── Task Submit Tracker ────────────────────────────────────
-  const subTbody = document.getElementById('submit-tracker-tbody');
-  if(subTbody && _logsCache.length) {
-    const today_logs = _logsCache.filter(l => l.date === date);
-
-    // Group logs by operator
-    const byOp = {};
-    today_logs.forEach(l => {
-      const id = l.opId || l.op_id;
-      if(!id) return;
-      if(!byOp[id]) byOp[id] = { submits:0, cases:0, ahts:[], lastTime:'', eodDone:false, tabBreaches:0 };
-      const entry = byOp[id];
-      // Count actual submissions (not break/checkout/status events)
-      const logType = l.type || l.log_type || '';
-      if(!['break','resume','checkout','checkin','status_change','tab_switch'].includes(logType)) {
-        entry.submits++;
-        if(l.cases > entry.cases) entry.cases = l.cases;
-        if(l.aht) entry.ahts.push(+l.aht);
-        if(!entry.lastTime || l.isoTime > entry.lastTime) entry.lastTime = l.isoTime;
-      }
-      if(logType === 'eod' || l.is_eod) entry.eodDone = true;
-      if(logType === 'tab_switch') entry.tabBreaches++;
-    });
-
-    const rows = Object.entries(byOp);
-    if(!rows.length) {
-      subTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3)">No submits yet.</td></tr>';
-    } else {
-      subTbody.innerHTML = rows
-        .sort((a,b) => (b[1].cases - a[1].cases))
-        .map(([id, d]) => {
-          const avgAHT = d.ahts.length ? +(d.ahts.reduce((s,v)=>s+v,0)/d.ahts.length).toFixed(1) : '–';
-          const lastT  = d.lastTime ? new Date(d.lastTime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
-          const eodCol = d.eodDone ? 'var(--green)' : 'var(--red)';
-          const tabCol = d.tabBreaches > 3 ? 'var(--red)' : d.tabBreaches > 0 ? 'var(--amber)' : 'var(--text3)';
-          return `<tr>
-            <td style="font-weight:700;font-size:11px">${operatorLabel(id)}</td>
-            <td style="text-align:center;color:var(--teal);font-weight:700">${d.submits}</td>
-            <td style="font-family:'DM Mono',monospace;font-size:10px">${lastT}</td>
-            <td style="color:var(--green);font-weight:700;text-align:right">${d.cases || '–'}</td>
-            <td style="font-family:'DM Mono',monospace;text-align:right">${avgAHT}${avgAHT!=='–'?'s':''}</td>
-            <td style="text-align:center"><span style="color:${eodCol};font-weight:800">${d.eodDone?'✅':'❌'}</span></td>
-            <td style="text-align:center;color:${tabCol};font-weight:700">${d.tabBreaches || 0}</td>
-          </tr>`;
-        }).join('');
-    }
-  } else if(subTbody) {
-    subTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3)">No submits yet.</td></tr>';
   }
 }
 
@@ -8219,7 +7999,7 @@ function checkIdleWarning(opId) {
   if(timer)  timer.classList.toggle('idle-flash', idle>=60 && !_wfhOnBreak);
 }
 
-async function wfhCheckIn() {
+function wfhCheckIn() {
   const opId = document.getElementById('wfh-op-self').value;
   if(!opId) { toast('Select your name first','⚠️'); return; }
 
@@ -8253,29 +8033,12 @@ async function wfhCheckIn() {
                  shift, location, preInternet:internet, preEnv:env, prePower:power,
                  preTools:tools, workspace, breakCount:0, noCam };
   saveSession(today(), opId, sess);
-  // STRICT: block check-in if not in approved list
-  // Cache may be stale — use what we have but also verify
-  const approvedNow = _approvedCache || [];
-  if(!approvedNow.includes(opId)) {
-    // Cache might be empty — try fresh fetch
-    try {
-      const today_str = today();
-      const ar = await fetch(
-        _SUPA_URL+'/rest/v1/wfh_approved?date=eq.'+today_str+'&op_id=eq.'+encodeURIComponent(opId)+'&select=op_id',
-        {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}}
-      );
-      const rows = ar.ok ? await ar.json() : [];
-      if(!rows.length) {
-        document.getElementById('wfh-session-status-text').textContent = '🔒 Not approved for WFH today.';
-        showLockedOutUI(opId);
-        toast('🔒 You are not approved for WFH today. Contact your Team Lead.', '❌');
-        return;
-      }
-    } catch(e) {
-      toast('❌ Cannot verify approval — check connection.', '❌');
-      return;
-    }
-  }
+  // Auto-approve for WFH on check-in
+  fetch(_SUPA_URL+'/rest/v1/wfh_approved', {
+    method:'POST',
+    headers:{...(typeof WFH_HDR!=='undefined'?WFH_HDR:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY,'Content-Type':'application/json'}),'Prefer':'resolution=merge-duplicates'},
+    body: JSON.stringify({op_id:opId, date:today(), approved_by:'auto'})
+  }).catch(()=>{});
   _wfhSessionStart = now; _wfhTotalBreak = 0; _wfhOnBreak = false;
 
   const envFlag = (env==='unsuitable') ? ' ⚠️ UNSUITABLE ENVIRONMENT' : '';
@@ -8501,29 +8264,9 @@ async function submitEOD() {
     sess.lockedOut = true;  // requires TL to unlock before next login
     saveSession(today(),opId,sess);
   }
-  logWFHEntry(opId,'checkout',{notes:'Checked out. Total hours: '+(sess?.totalHours||'–')});
+  logWFHEntry(opId,'checkout',{notes:`Checked out. Total hours: ${sess?.totalHours||'–'}`});
   clearInterval(_wfhTimerInterval); clearInterval(_wfhIdleInterval);
   stopHeartbeat();
-  const checkoutTime = new Date().toISOString();
-  const today_str = today();
-
-  // FIX 4+5+6: Lock session, clear heartbeat, remove from approved
-  await Promise.all([
-    // Mark session as checked out
-    fetch(_SUPA_URL+'/rest/v1/wfh_sessions?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_str, {
-      method:'PATCH', headers:WFH_HDR,
-      body: JSON.stringify({ status:'offline', check_out:checkoutTime, last_heartbeat:null, updated_at:checkoutTime })
-    }),
-    // Remove from approved — TL must re-approve before they can log in again
-    fetch(_SUPA_URL+'/rest/v1/wfh_approved?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_str, {
-      method:'DELETE', headers:WFH_HDR
-    }),
-    // Clear wfh_status so they disappear from status board
-    fetch(_SUPA_URL+'/rest/v1/wfh_status?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_str, {
-      method:'DELETE', headers:WFH_HDR
-    })
-  ]).catch(e => console.warn('Checkout sync error:', e.message));
-  console.log('[WFH] Operator checked out and locked — TL must re-approve');
   // Take final checkout snapshot, then stop camera
   opTakeSnapshot('checkout').then(()=>{ setTimeout(opStopCam, 1500); });
   document.getElementById('wfh-eod-form-card').style.display='none';
@@ -8550,7 +8293,13 @@ async function showShiftSummary(opId, sess, eod) {
   // Fetch face events for camera score
   let camScore = 100;
   try {
-    const breaches = 0; // face events tracked separately
+    const r = await fetch(_SUPA_URL+'/rest/v1/wfh_face_events?op_id=eq.'+opId+'&date=eq.'+date,
+      {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}});
+    const events = await r.json();
+    if(Array.isArray(events)) {
+      const breaches = events.filter(e=>['face_away','cam_blocked','face_changed'].includes(e.event_type)).length;
+      camScore = Math.max(40, 100 - breaches * 10);
+    }
   } catch(e) {}
 
   const camCol   = camScore >= 80 ? '#00d4a0' : camScore >= 60 ? '#ffaa44' : '#ff5e6e';
@@ -8960,13 +8709,121 @@ async function opCheckFace() {
 
 // ── TL: Render Cam Grid ─────────────────────────────────────────
 async function renderCamGrid() {
+  const grid = document.getElementById('wfh-cam-grid');
+  if(!grid) return;
+
+  const date = document.getElementById('wfh-filter-date')?.value || today();
+
+  // Show loading state
+  grid.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:30px 0">⏳ Loading snapshots...</div>';
+
+  try {
+    // Fetch latest snapshots
+    const url = _SUPA_URL + '/rest/v1/wfh_snapshots?date=eq.' + date + '&order=captured_at.desc&limit=200';
+    const resp = await fetch(url, {
+      headers: { 'apikey': _SUPA_KEY, 'Authorization': 'Bearer ' + _SUPA_KEY }
+    });
+    const snaps = await resp.json();
+    if(!Array.isArray(snaps) || !snaps.length) {
+      grid.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:30px 0">No snapshots yet today.</div>';
+      return;
+    }
+
+    // Build latest-per-operator map
+    const latest = {};
+    snaps.forEach(s => {
+      if(!latest[s.op_id] || s.captured_at > latest[s.op_id].captured_at)
+        latest[s.op_id] = s;
+    });
+
+    // Also fetch face events for away detection
+    let events = [];
+    try {
+      const er = await fetch(_SUPA_URL+'/rest/v1/wfh_face_events?date=eq.'+date+'&order=event_at.desc&limit=100', {
+        headers: { 'apikey': _SUPA_KEY, 'Authorization': 'Bearer ' + _SUPA_KEY }
+      });
+      events = await er.json();
+      if(!Array.isArray(events)) events = [];
+    } catch(e) { events = []; }
+
+    const currentlyAway = [];
+    events.filter(e=>e.event_type==='face_away').forEach(e=>{
+      const back = events.find(r=>r.op_id===e.op_id&&r.event_type==='face_back'&&r.event_at>e.event_at);
+      if(!back) currentlyAway.push(e.op_id);
+    });
+    const uniqueAway = [...new Set(currentlyAway)];
+
+    // Banner
+    const banner = document.getElementById('cam-alert-banner');
+    const alertT = document.getElementById('cam-alert-text');
+    if(uniqueAway.length && banner && alertT) {
+      banner.style.display='block';
+      alertT.textContent = uniqueAway.length+' operator(s) away from camera: '+uniqueAway.map(id=>operatorLabel(id)).join(', ');
+    } else if(banner) banner.style.display='none';
+
+    // Render tiles
+    const opIds = Object.keys(latest);
+    grid.innerHTML = opIds.map(opId => {
+      const snap = latest[opId];
+      const hasSnap = snap && snap.snapshot_b64;
+      const isAway = uniqueAway.includes(opId);
+      const t = snap ? new Date(snap.captured_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+      const initials = operatorLabel(opId).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      const snapCount = snaps.filter(s=>s.op_id===opId).length;
+      const awayCount = events.filter(e=>e.op_id===opId&&e.event_type==='face_away').length;
+      const tileClass = !hasSnap ? 'no-data' : isAway ? 'face-away' : 'face-ok';
+      const statusLbl = !hasSnap ? 'No Data' : isAway ? '⚠️ FACE AWAY' : '✅ Present';
+      const statusCls = !hasSnap ? 'nodata' : isAway ? 'away' : 'ok';
+
+      return `<div class="cam-tile ${tileClass}" onclick="tlViewOperatorCam('${opId}')">
+        ${hasSnap
+          ? `<img class="cam-img" src="data:image/jpeg;base64,${snap.snapshot_b64}" loading="lazy"/>`
+          : `<div class="cam-img-placeholder">
+               <div style="font-size:32px;font-weight:900;color:var(--text3);opacity:.4">${initials}</div>
+               <div style="font-size:10px;color:var(--text3)">No snapshot</div>
+             </div>`}
+        <div class="cam-overlay">
+          <div class="cam-overlay-name">${operatorLabel(opId)}</div>
+          <div class="cam-overlay-status ${statusCls}">${statusLbl}</div>
+        </div>
+        ${isAway ? '<div class="cam-face-banner">⚠️ AWAY FROM CAMERA</div>' : ''}
+        <div class="cam-footer">
+          <div class="cam-footer-time">📸 ${t} · ${snapCount} snaps</div>
+          ${awayCount>0?`<div class="cam-footer-away">⚠️ ${awayCount}×</div>`:''}
+        </div>
+      </div>`;
+    }).join('');
+
+    // Event log
+    const evLog = document.getElementById('cam-event-log');
+    if(evLog) {
+      evLog.innerHTML = events.length
+        ? events.slice(0,40).map(e=>{
+            const t2 = new Date(e.event_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+            const icon = e.event_type==='face_away'?'🔴':e.event_type==='face_back'?'🟢':'📷';
+            const col  = e.event_type==='face_away'?'var(--red)':'var(--green)';
+            return `<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+              <div style="font-family:'DM Mono',monospace;color:var(--text3);font-size:10px">${t2}</div>
+              <div style="font-weight:700;font-size:11px">${operatorLabel(e.op_id)}</div>
+              <div style="font-size:11px;color:${col}">${icon} ${e.event_type.replace('_',' ')}</div>
+            </div>`;
+          }).join('')
+        : '<div style="color:var(--text3)">No face-away events today ✅</div>';
+    }
+
+  } catch(err) {
+    grid.innerHTML = '<div style="color:var(--red);padding:20px;grid-column:span 6">Error loading snapshots: '+err.message+'</div>';
+  }
+}
+
+// ── TL: View single operator cam history ────────────────────────
+async function renderCamGrid() {
   const date      = document.getElementById('wfh-filter-date')?.value || today();
   const grid      = document.getElementById('wfh-cam-grid');
   if(!grid) return;
 
   const snapshots = await fetchLatestSnapshots(date);
-  let events = [];
-  try { const fe = await fetchFaceEvents(date); events = Array.isArray(fe) ? fe : []; } catch(e) { events = []; }
+  const events    = await fetchFaceEvents(date);
 
   // Build operator list from snapshots + sessions + approved
   let approved = getApproved();
@@ -9559,58 +9416,20 @@ const STATUS_CONFIG = {
 
 // ── Supabase helpers ─────────────────────────────────────────────
 async function dbSetStatus(opId, status, note) {
-  const now = new Date().toISOString();
-  const payload = {
-    op_id: opId, date: today(), status, status_note: note||null,
-    started_at: now, updated_at: now
-  };
   try {
-    // Save to wfh_status table (status board)
     const r = await fetch(_SUPA_URL + '/rest/v1/wfh_status', {
       method: 'POST',
       headers: { 'apikey':_SUPA_KEY, 'Authorization':'Bearer '+_SUPA_KEY,
                  'Content-Type':'application/json',
                  'Prefer':'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        op_id: opId, date: today(), status, status_note: note||null,
+        started_at: new Date().toISOString(), updated_at: new Date().toISOString()
+      })
     });
     if(!r.ok) console.error('Status save failed:', r.status, await r.text());
     else console.log('✅ Status saved:', status);
   } catch(e) { console.error('Status save error:', e); }
-
-  // ALSO update wfh_sessions so WFH Monitor shows real-time status
-  try {
-    // Map operator statuses to session statuses
-    const sessStatus = {
-      working:'online', meeting:'meeting', break:'break',
-      lunch:'break', floor_support:'floor_support', training:'training'
-    }[status] || status;
-
-    await fetch(
-      _SUPA_URL + '/rest/v1/wfh_sessions?op_id=eq.' + encodeURIComponent(opId) + '&date=eq.' + today(),
-      {
-        method: 'PATCH',
-        headers: { 'apikey':_SUPA_KEY, 'Authorization':'Bearer '+_SUPA_KEY,
-                   'Content-Type':'application/json', 'Prefer':'return=minimal' },
-        body: JSON.stringify({
-          status: sessStatus,
-          last_heartbeat: now,
-          updated_at: now
-        })
-      }
-    );
-  } catch(e) { console.warn('Session status update failed:', e.message); }
-
-  // Update local session cache immediately so monitor refreshes
-  const sess = getSession(today(), opId);
-  if(sess) {
-    const sessStatus = {
-      working:'online', meeting:'meeting', break:'break',
-      lunch:'break', floor_support:'floor_support', training:'training'
-    }[status] || status;
-    sess.status = sessStatus;
-    sess.lastHeartbeat = now;
-    saveSession(today(), opId, sess);
-  }
 }
 
 async function dbGetOpStatus(opId) {
@@ -9677,13 +9496,7 @@ async function renderStatusBoard() {
   const summary = document.getElementById('status-summary');
   if(!grid) return;
 
-  // STRICT: ONLY approved operators appear in the Status Board
-  const checkedIn = approved.filter(id => {
-    const s = sessions[id];
-    if(!s) return true; // approved but no session yet — still show in status board
-    if(s.checkOut || s.status === 'checked_out') return false; // checked out — hide
-    return true;
-  });
+  const checkedIn = approved.filter(id => sessions[id]?.checkIn && !sessions[id]?.checkOut);
 
   if(!checkedIn.length) {
     grid.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:16px">No operators checked in yet.</div>';
@@ -11145,27 +10958,38 @@ function applyDRRoleVisibility() {
   const teamSection  = document.getElementById('dr-section-team');
   const teamNote     = document.getElementById('dr-team-tl-note');
 
-  // Hide ALL first
-  if(kingsSection) kingsSection.style.display = 'none';
-  if(swatSection)  swatSection.style.display  = 'none';
-  if(teamSection)  teamSection.style.display  = 'none';
-  if(teamNote)     teamNote.style.display     = 'none';
-
   if(currentRole === 'kings') {
-    // Kingori: ONLY Kings QA section
+    // Kingori: Kings section + Whole Team as backup (TL absent cover)
     if(kingsSection) kingsSection.style.display = 'block';
+    if(swatSection)  swatSection.style.display  = 'none';
+    if(teamSection)  teamSection.style.display  = 'block';
+    if(teamNote)     teamNote.style.display      = 'block';
   } else if(currentRole === 'swat') {
-    // Rosemary: ONLY SWAT QA section
-    if(swatSection) swatSection.style.display = 'block';
-  } else if(currentRole === 'tl' || currentRole === 'admin') {
-    // TL: ONLY Whole Team section (TL reports for full team, not individual QA sections)
-    // Admin also sees all for oversight
-    if(currentRole === 'admin') {
-      if(kingsSection) kingsSection.style.display = 'block';
-      if(swatSection)  swatSection.style.display  = 'block';
-    }
-    if(teamSection) teamSection.style.display = 'block';
-    if(teamNote)    teamNote.style.display    = 'block';
+    // Rosemary: SWAT section only — no Whole Team
+    if(kingsSection) kingsSection.style.display = 'none';
+    if(swatSection)  swatSection.style.display  = 'block';
+    if(teamSection)  teamSection.style.display  = 'none';
+    if(teamNote)     teamNote.style.display      = 'none';
+  } else if(currentRole === 'admin') {
+    if(kingsSection) kingsSection.style.display = 'block';
+    if(swatSection)  swatSection.style.display  = 'block';
+    if(teamSection)  teamSection.style.display  = 'block';
+    if(teamNote)     teamNote.style.display      = 'none';
+  } else {
+    // TL — Whole Team section only
+    if(kingsSection) kingsSection.style.display = 'none';
+    if(swatSection)  swatSection.style.display  = 'none';
+    if(teamSection)  teamSection.style.display  = 'block';
+    if(teamNote)     teamNote.style.display      = 'none';
+  }
+
+  // Filter the view-tab section dropdown
+  const viewSelect = document.getElementById('dr-view-person');
+  if(viewSelect) {
+    Array.from(viewSelect.options).forEach(opt => {
+      if(currentRole === 'swat') opt.hidden = opt.value !== '' && opt.value !== 'swat';
+      else                       opt.hidden = false; // TL, Kings, Admin see all
+    });
   }
 }
 
@@ -11230,24 +11054,6 @@ async function saveDRSection(section) {
   if(idx>=0) all[idx]=entry; else all.push(entry);
   save('dr_entries', all);
   toast(LABELS[section]+' report saved for '+fmtDate(date),'💾');
-  // 🔔 Push notification to Supabase so TL+Admin see it on ALL devices
-  try {
-    const nr = await fetch(_SUPA_URL+'/rest/v1/aifi_store?select=val&key=eq.notifs',{headers:_SUPA_HDR});
-    const nrows = nr.ok ? await nr.json() : [];
-    const notifs = (nrows.length && Array.isArray(nrows[0].val)) ? nrows[0].val : [];
-    const NAMES2 = {kings:'John Kingori',swat:'Rosemary Nyaleso',tl:'John Paul Kimongo',admin:'Admin'};
-    notifs.unshift({
-      id: Date.now()+Math.random(), entryId: entry.id,
-      type:'report', person:section,
-      name: NAMES2[currentRole]||currentRole,
-      date, cases:entry.cases||0, quality:entry.quality||0,
-      status:'Pending', read:false,
-      time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-      isoTime: new Date().toISOString(),
-      msg:'📋 '+(NAMES2[currentRole]||currentRole)+' submitted '+( LABELS[section]||section)+' report for '+fmtDate(date)
-    });
-    await window._dbSet('notifs', notifs.slice(0,50));
-  } catch(e) { console.warn('Notif push failed:', e.message); }
 
   // Clear fields
   document.querySelectorAll(`[id^="${pfx}"]`).forEach(el=>{
@@ -11267,9 +11073,6 @@ async function refreshDPView() {
       if(rows.length && Array.isArray(rows[0].val)) window._dbCache['daily_plans'] = rows[0].val;
     }
   } catch(e) {}
-  // Always clear date filter so all entries visible
-  const dateEl = document.getElementById('dp-filter-date');
-  if(dateEl && dateEl.value) dateEl.value = '';
   renderDailyPlanView();
   if(btn) { btn.textContent = '🔄 Refresh'; btn.disabled = false; }
 }
@@ -11286,55 +11089,24 @@ async function refreshDRView() {
       }
     }
   } catch(e) {}
-  // Always clear the date filter so all entries are visible
-  const dateEl = document.getElementById('dr-view-date');
-  if(dateEl && dateEl.value) dateEl.value = '';
   renderDRView();
   if(btn) { btn.textContent = '🔄 Refresh'; btn.disabled = false; }
 }
 
-async function renderDRView() {
-  const el = document.getElementById('dr-view-list');
-  if(!el) return;
-
-  // ALWAYS fetch fresh from Supabase — never rely on stale cache
-  el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px;text-align:center">Loading...</div>';
-  try {
-    const r = await fetch(_SUPA_URL+'/rest/v1/aifi_store?select=val&key=eq.dr_entries', {headers:_SUPA_HDR});
-    if(r.ok) {
-      const rows = await r.json();
-      if(rows.length && Array.isArray(rows[0].val)) {
-        window._dbCache['dr_entries'] = rows[0].val;
-      }
-    }
-  } catch(e) {}
-
-  // Clear ALL filters on load — show everything
-  const dateEl    = document.getElementById('dr-view-date');
-  const sectionEl = document.getElementById('dr-view-person');
-  if(dateEl)    dateEl.value    = '';
-  if(sectionEl) sectionEl.value = '';
-  const sectionF = ''; // Never auto-filter
-  const dateF    = ''; // Never auto-filter
-
-  let entries = window._dbCache['dr_entries'] || [];
-
-  // Role-based filter — STRICT:
-  // Kingori (kings) → ONLY sees his own kings reports
-  // Rosemary (swat) → ONLY sees her own swat reports
-  // TL + Admin      → see ALL reports from everyone
-  if(currentRole === 'kings') {
-    entries = entries.filter(e => e.section === 'kings');
-  } else if(currentRole === 'swat') {
-    entries = entries.filter(e => e.section === 'swat');
-  }
-  // tl and admin: no filter
+function renderDRView() {
+  const sectionF = document.getElementById('dr-view-person')?.value||'';
+  const dateF    = document.getElementById('dr-view-date')?.value||'';
+  let entries = load('dr_entries');
+  // Role-based filter
+  if(currentRole === 'kings')      entries = entries.filter(e=>e.section==='kings'||e.section==='team'||!e.section);
+  else if(currentRole === 'swat')  entries = entries.filter(e=>e.section==='swat'||e.section==='team'||!e.section);
+  // tl and admin see all sections
+  if(sectionF) entries = entries.filter(e=>e.section===sectionF);
+  if(dateF)    entries = entries.filter(e=>e.date===dateF);
   entries = entries.sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
 
-  if(!entries.length){
-    el.innerHTML='<div style="color:var(--text3);font-size:13px;padding:30px;text-align:center">No reports submitted yet.<br><button onclick="renderDRView()" style="margin-top:10px;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:700;font-size:13px">🔄 Try again</button></div>';
-    return;
-  }
+  const el = document.getElementById('dr-view-list');
+  if(!entries.length){ el.innerHTML='<div style="color:var(--text3);font-size:12px">No entries yet.</div>'; return; }
 
   const CFG = {
     kings: { label:'🔵 Team Kings QA',    color:'var(--accent)',  border:'rgba(0,212,160,0.25)' },
@@ -11664,23 +11436,6 @@ async function saveDailyPlan() {
   if(idx>=0) all[idx]=entry; else all.push(entry);
   save('daily_plans', all);
   toast(NAMES[person]+' plan saved for '+fmtDate(date),'📅');
-  // 🔔 Push notification to Supabase so TL+Admin see it on ALL devices
-  try {
-    const nr = await fetch(_SUPA_URL+'/rest/v1/aifi_store?select=val&key=eq.notifs',{headers:_SUPA_HDR});
-    const nrows = nr.ok ? await nr.json() : [];
-    const notifs = (nrows.length && Array.isArray(nrows[0].val)) ? nrows[0].val : [];
-    notifs.unshift({
-      id: Date.now()+Math.random(), entryId: entry.id,
-      type:'plan', person,
-      name: NAMES[person]||person,
-      date, cases:0, quality:0,
-      status:'Pending', read:false,
-      time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-      isoTime: new Date().toISOString(),
-      msg:'📅 '+(NAMES[person]||person)+' submitted daily plan for '+fmtDate(date)
-    });
-    await window._dbSet('notifs', notifs.slice(0,50));
-  } catch(e) { console.warn('Notif push failed:', e.message); }
   document.getElementById('dp-person').value = '';
   document.getElementById('dp-date').value = '';
   document.getElementById('dp-internal-audits').value = '';
@@ -11714,187 +11469,95 @@ function saveDailyAchieved() {
   document.getElementById('dp-achieved-notes').value = '';
 }
 
-async function renderDailyPlanView() {
+function renderDailyPlanView() {
+  const personF = document.getElementById('dp-filter-person')?.value||'';
+  const dateF   = document.getElementById('dp-filter-date')?.value||'';
+  let all = load('daily_plans');
+  if(currentRole==='kings') all = all.filter(e=>e.person==='kings');
+  else if(currentRole==='swat') all = all.filter(e=>e.person==='swat');
+  // tl/admin see all
+  if(personF) all = all.filter(e=>e.person===personF);
+  if(dateF)   all = all.filter(e=>e.date===dateF);
+
+  // Separate plans from achieved entries
+  const plans    = all.filter(e=>!e.isAchieved);
+  const achieved = all.filter(e=>e.isAchieved);
+
+  // Group by person+date
+  const keys = [...new Set(plans.map(p=>p.person+'|'+p.date))].sort((a,b)=>b.localeCompare(a));
+  const NAMES = { tl:'John Paul Kimongo (TL)', kings:'Kingori — Team Kings QA', swat:'Rosemary Nyaleso — Team SWAT QA' };
+  const TEAM_C = { tl:'var(--green)', kings:'var(--accent)', swat:'var(--orange)' };
+
   const el = document.getElementById('dp-view-list');
-  if(!el) return;
-  el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:30px;text-align:center">⏳ Loading plans...</div>';
+  if(!plans.length){ el.innerHTML='<div style="color:var(--text3);font-size:12px">No plans yet.</div>'; return; }
 
-  // Always fetch fresh from Supabase
-  try {
-    const r = await fetch(_SUPA_URL+'/rest/v1/aifi_store?select=val&key=eq.daily_plans', {headers:_SUPA_HDR});
-    if(r.ok) {
-      const rows = await r.json();
-      if(rows.length && Array.isArray(rows[0].val)) window._dbCache['daily_plans'] = rows[0].val;
-    }
-  } catch(e) { console.warn('Plan fetch error:', e.message); }
+  el.innerHTML = keys.map(key => {
+    const [person, date] = key.split('|');
+    const plan = plans.find(p=>p.person===person&&p.date===date);
+    const ach  = achieved.find(a=>a.person===person&&a.date===date);
+    const tc   = TEAM_C[person] || 'var(--text)';
 
-  // Clear date filter
-  const dpDateEl = document.getElementById('dp-filter-date');
-  const dateF = dpDateEl?.value || '';
+    // Audit comparison
+    const intPct  = plan.internalAudits > 0 && ach ? Math.round((ach.internalDone/plan.internalAudits)*100) : null;
+    const globPct = plan.globalAudits   > 0 && ach ? Math.round((ach.globalDone/plan.globalAudits)*100)     : null;
+    const intCol  = intPct  === null ? 'var(--text3)' : intPct  >= 100 ? 'var(--green)' : intPct  >= 70 ? 'var(--amber)' : 'var(--red)';
+    const globCol = globPct === null ? 'var(--text3)' : globPct >= 100 ? 'var(--green)' : globPct >= 70 ? 'var(--amber)' : 'var(--red)';
 
-  let all = window._dbCache['daily_plans'] || [];
-
-  // Role filter — STRICT:
-  // Kingori (kings) → ONLY sees his own plans
-  // Rosemary (swat) → ONLY sees her own plans
-  // TL + Admin      → see ALL plans from everyone
-  if(currentRole === 'kings') {
-    all = all.filter(e => e.person === 'kings');
-  } else if(currentRole === 'swat') {
-    all = all.filter(e => e.person === 'swat');
-  }
-  // TL and Admin: no filter — see everything
-
-  // Date filter only if user explicitly picked one
-  if(dateF) all = all.filter(e => e.date === dateF);
-
-  const plans    = all.filter(e => !e.isAchieved);
-  const achieved = all.filter(e =>  e.isAchieved);
-
-  if(!plans.length) {
-    el.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:30px;text-align:center">
-      No plans found.<br>
-      <button onclick="refreshDPView()" style="margin-top:12px;color:var(--accent);background:none;border:1px solid var(--accent);border-radius:8px;padding:6px 16px;cursor:pointer;font-weight:700;font-size:13px">🔄 Refresh</button>
-    </div>`;
-    return;
-  }
-
-  // Sort newest first
-  plans.sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
-
-  const NAMES  = { tl:'John Paul Kimongo (TL)', kings:'Kingori — Team Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
-  const COLORS = { tl:'var(--green)', kings:'var(--accent)', swat:'var(--violet)' };
-  const isTLAdmin = currentRole==='tl'||currentRole==='admin';
-
-  el.innerHTML = plans.map(plan => {
-    const ach    = achieved.find(a => a.person===plan.person && a.date===plan.date);
-    const tc     = COLORS[plan.person] || 'var(--text)';
-    const name   = NAMES[plan.person]  || plan.person;
-
-    // Calculate scores
-    const intPct  = (plan.internalAudits > 0 && ach?.internalDone != null)
-                    ? Math.round((ach.internalDone / plan.internalAudits) * 100) : null;
-    const globPct = (plan.globalAudits > 0 && ach?.globalDone != null)
-                    ? Math.round((ach.globalDone / plan.globalAudits) * 100) : null;
-    const intCol  = intPct  == null ? 'var(--text3)' : intPct  >= 100 ? 'var(--green)' : intPct  >= 70 ? 'var(--amber)' : 'var(--red)';
-    const globCol = globPct == null ? 'var(--text3)' : globPct >= 100 ? 'var(--green)' : globPct >= 70 ? 'var(--amber)' : 'var(--red)';
-
-    // Overall score (if achieved) — average of int + glob completion
-    const scores = [intPct, globPct].filter(x => x != null);
-    const overallScore = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : null;
-    const scoreColor = overallScore == null ? 'var(--text3)' : overallScore >= 90 ? 'var(--green)' : overallScore >= 70 ? 'var(--amber)' : 'var(--red)';
-    const scoreLetter = overallScore == null ? '—' : overallScore >= 90 ? 'A' : overallScore >= 75 ? 'B' : overallScore >= 60 ? 'C' : 'D';
-
-    // Status colour
-    const statusBg  = plan.status==='Approved' ? 'rgba(0,212,160,0.15)' : plan.status==='Rejected' ? 'rgba(255,94,110,0.15)' : 'rgba(255,170,68,0.12)';
-    const statusCol = plan.status==='Approved' ? 'var(--green)' : plan.status==='Rejected' ? 'var(--red)' : 'var(--amber)';
-
-    // Scoring input shown only when TL/Admin approves
-    const scoreInput = isTLAdmin && plan.status !== 'Approved' && plan.status !== 'Rejected' ? `
-      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px;margin-top:14px">
-        <div style="font-size:10px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⭐ Score This Plan</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-          <div>
-            <label style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:4px;display:block">Internal Audits Score (0-10)</label>
-            <input type="number" id="score-int-${plan.id}" min="0" max="10" step="0.5" placeholder="e.g. 8"
-              style="width:100%;padding:8px;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;font-size:13px"/>
-          </div>
-          <div>
-            <label style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:4px;display:block">Global Audits Score (0-10)</label>
-            <input type="number" id="score-glob-${plan.id}" min="0" max="10" step="0.5" placeholder="e.g. 7"
-              style="width:100%;padding:8px;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;font-size:13px"/>
-          </div>
-          <div>
-            <label style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:4px;display:block">Quality Score (0-10)</label>
-            <input type="number" id="score-qual-${plan.id}" min="0" max="10" step="0.5" placeholder="e.g. 9"
-              style="width:100%;padding:8px;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;font-size:13px"/>
-          </div>
-          <div>
-            <label style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:4px;display:block">Overall Effort (0-10)</label>
-            <input type="number" id="score-effort-${plan.id}" min="0" max="10" step="0.5" placeholder="e.g. 8"
-              style="width:100%;padding:8px;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;font-size:13px"/>
-          </div>
-        </div>
-        <div style="margin-bottom:10px">
-          <label style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:4px;display:block">Feedback / Comments</label>
-          <textarea id="score-note-${plan.id}" rows="2" placeholder="Add feedback for ${name}..."
-            style="width:100%;padding:8px;background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:8px;font-size:12px;resize:vertical"></textarea>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-green" style="flex:1;padding:9px" onclick="approveDPWithScore(${plan.id})">✓ Approve with Score</button>
-          <button class="btn btn-danger" style="padding:9px 16px" onclick="rejectDP(${plan.id})">✗ Reject</button>
-        </div>
-      </div>` : '';
-
-    // Show saved score if approved
-    const savedScore = (plan.status==='Approved' && plan.scores) ? `
-      <div style="background:rgba(0,212,160,0.08);border:1px solid rgba(0,212,160,0.25);border-radius:10px;padding:14px;margin-top:14px">
-        <div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⭐ Score Card</div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
-          ${plan.scores.internal!=null?`<div style="text-align:center;background:var(--surface2);border-radius:8px;padding:8px"><div style="font-size:20px;font-weight:900;color:var(--teal)">${plan.scores.internal}/10</div><div style="font-size:9px;color:var(--text3)">INTERNAL</div></div>`:''}
-          ${plan.scores.global!=null?`<div style="text-align:center;background:var(--surface2);border-radius:8px;padding:8px"><div style="font-size:20px;font-weight:900;color:var(--violet)">${plan.scores.global}/10</div><div style="font-size:9px;color:var(--text3)">GLOBAL</div></div>`:''}
-          ${plan.scores.quality!=null?`<div style="text-align:center;background:var(--surface2);border-radius:8px;padding:8px"><div style="font-size:20px;font-weight:900;color:var(--amber)">${plan.scores.quality}/10</div><div style="font-size:9px;color:var(--text3)">QUALITY</div></div>`:''}
-          ${plan.scores.effort!=null?`<div style="text-align:center;background:var(--surface2);border-radius:8px;padding:8px"><div style="font-size:20px;font-weight:900;color:var(--accent)">${plan.scores.effort}/10</div><div style="font-size:9px;color:var(--text3)">EFFORT</div></div>`:''}
-        </div>
-        ${plan.scores.avg!=null?`<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface);border-radius:8px">
-          <div style="font-size:28px;font-weight:900;color:${scoreColor};font-family:'DM Mono',monospace">${plan.scores.avg.toFixed(1)}</div>
-          <div style="font-size:32px;font-weight:900;color:${scoreColor}">${scoreLetter}</div>
-          <div style="font-size:11px;color:var(--text2)">/10 overall score</div>
-        </div>`:''}
-        ${plan.scores.note?`<div style="margin-top:10px;font-size:12px;color:var(--text2);font-style:italic;padding:8px;background:var(--surface);border-radius:8px">💬 ${plan.scores.note}</div>`:''}
-      </div>` : '';
-
-    return `<div class="card" style="margin-bottom:14px;border-left:3px solid ${tc}">
+    return `<div class="card" style="margin-bottom:14px;border-color:${tc}30">
+      <!-- Header -->
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-        <div style="font-size:14px;font-weight:900;color:${tc}">${name}</div>
-        <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">${fmtDate(plan.date)}</div>
-        <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;background:${statusBg};color:${statusCol}">${plan.status||'Pending'}</span>
-        ${plan.scores?.avg != null ? `<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:900;background:${statusBg};color:${scoreColor}">⭐ ${plan.scores.avg.toFixed(1)}/10 ${scoreLetter}</span>` : ''}
-        ${isTLAdmin ? `<button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="deleteDP(${plan.id})">✕</button>` : ''}
+        <div style="font-size:14px;font-weight:900;color:${tc}">${NAMES[person]||person}</div>
+        <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">${fmtDate(date)}</div>
+        <span class="badge" style="background:${plan.status==='Approved'?'rgba(0,212,160,0.18)':plan.status==='Rejected'?'rgba(255,94,110,0.18)':'rgba(255,170,68,0.18)'};color:${plan.status==='Approved'?'var(--green)':plan.status==='Rejected'?'var(--red)':'var(--amber)'}">${plan.status||'Pending'}</span>
+        <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          ${(currentRole==='tl'||currentRole==='admin')&&plan.status!=='Approved'&&plan.status!=='Rejected'?`
+            <button class="btn btn-green btn-sm" onclick="approveDP(${plan.id})">✓ Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectDP(${plan.id})">✗ Reject</button>`:''}`+
+          `${(currentRole==='tl'||currentRole==='admin')?`<button class="btn btn-danger btn-sm" onclick="deleteDP(${plan.id})">✕ Delete</button>`:''}</span>
       </div>
 
+      <!-- Plan + Achieved side by side -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-        <div style="background:var(--surface2);border-radius:10px;padding:14px">
-          <div style="font-size:10px;font-weight:800;color:var(--accent);text-transform:uppercase;margin-bottom:10px">📅 Plan for the day</div>
+
+        <!-- PLAN -->
+        <div style="background:var(--surface2);border-radius:10px;padding:14px;border:1px solid var(--border2)">
+          <div style="font-size:10px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">📅 Plan</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
             <div style="text-align:center;background:var(--surface);border-radius:8px;padding:10px">
-              <div style="font-size:22px;font-weight:900;color:var(--teal)">${plan.internalAudits||0}</div>
-              <div style="font-size:9px;color:var(--text3);margin-top:3px">INTERNAL AUDITS</div>
+              <div style="font-size:22px;font-weight:900;color:var(--teal);font-family:'DM Mono',monospace">${plan.internalAudits||0}</div>
+              <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Internal Audits</div>
             </div>
             <div style="text-align:center;background:var(--surface);border-radius:8px;padding:10px">
-              <div style="font-size:22px;font-weight:900;color:var(--violet)">${plan.globalAudits||0}</div>
-              <div style="font-size:9px;color:var(--text3);margin-top:3px">GLOBAL AUDITS</div>
+              <div style="font-size:22px;font-weight:900;color:var(--violet);font-family:'DM Mono',monospace">${plan.globalAudits||0}</div>
+              <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Global Audits</div>
             </div>
           </div>
-          <div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap">${plan.objectives||'—'}</div>
+          <div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap">${plan.objectives||'No plan text.'}</div>
         </div>
 
+        <!-- ACHIEVED -->
         <div style="background:var(--surface2);border-radius:10px;padding:14px;border:1px solid ${ach?'rgba(0,212,160,0.25)':'var(--border2)'}">
-          <div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;margin-bottom:10px">✅ End of day achieved</div>
+          <div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">✅ Achieved</div>
           ${ach ? `
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-            <div style="text-align:center;background:var(--surface);border-radius:8px;padding:10px;border:1px solid ${intCol}55">
-              <div style="font-size:22px;font-weight:900;color:${intCol}">${ach.internalDone||0}</div>
-              <div style="font-size:9px;color:var(--text3);margin-top:3px">INTERNAL DONE</div>
-              ${intPct!=null?`<div style="font-size:11px;font-weight:800;color:${intCol};margin-top:3px">${intPct}%</div>`:''}
+            <div style="text-align:center;background:var(--surface);border-radius:8px;padding:10px;border:1px solid ${intCol}44">
+              <div style="font-size:22px;font-weight:900;color:${intCol};font-family:'DM Mono',monospace">${ach.internalDone||0}</div>
+              <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Internal Done</div>
+              ${intPct !== null ? `<div style="font-size:10px;font-weight:800;color:${intCol};margin-top:2px">${intPct}%</div>` : ''}
             </div>
-            <div style="text-align:center;background:var(--surface);border-radius:8px;padding:10px;border:1px solid ${globCol}55">
-              <div style="font-size:22px;font-weight:900;color:${globCol}">${ach.globalDone||0}</div>
-              <div style="font-size:9px;color:var(--text3);margin-top:3px">GLOBAL DONE</div>
-              ${globPct!=null?`<div style="font-size:11px;font-weight:800;color:${globCol};margin-top:3px">${globPct}%</div>`:''}
+            <div style="text-align:center;background:var(--surface);border-radius:8px;padding:10px;border:1px solid ${globCol}44">
+              <div style="font-size:22px;font-weight:900;color:${globCol};font-family:'DM Mono',monospace">${ach.globalDone||0}</div>
+              <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Global Done</div>
+              ${globPct !== null ? `<div style="font-size:10px;font-weight:800;color:${globCol};margin-top:2px">${globPct}%</div>` : ''}
             </div>
           </div>
           <div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap">${ach.achievedNotes||''}</div>
-          ` : '<div style="color:var(--text3);font-size:12px;font-style:italic">Not filled in yet.</div>'}
+          ` : `<div style="color:var(--text3);font-size:12px;font-style:italic;padding:8px 0">Not filled in yet — update at end of shift.</div>`}
         </div>
       </div>
-
-      ${scoreInput}
-      ${savedScore}
     </div>`;
   }).join('');
 }
-
 
 
 // ════════════════════════════════════════════════════════════════
@@ -12105,65 +11768,19 @@ function initMgmtShifts() {
   renderMgmtShiftCalendar();
 }
 
-function approveDPWithScore(id) {
-  const a = load('daily_plans');
-  const e = a.find(x => x.id === id);
-  if(!e) return;
-
-  const intV    = parseFloat(document.getElementById('score-int-'+id)?.value);
-  const globV   = parseFloat(document.getElementById('score-glob-'+id)?.value);
-  const qualV   = parseFloat(document.getElementById('score-qual-'+id)?.value);
-  const effortV = parseFloat(document.getElementById('score-effort-'+id)?.value);
-  const note    = document.getElementById('score-note-'+id)?.value || '';
-
-  // Build scores object — only include filled fields
-  const scores = {};
-  if(!isNaN(intV))    scores.internal = Math.min(10, Math.max(0, intV));
-  if(!isNaN(globV))   scores.global   = Math.min(10, Math.max(0, globV));
-  if(!isNaN(qualV))   scores.quality  = Math.min(10, Math.max(0, qualV));
-  if(!isNaN(effortV)) scores.effort   = Math.min(10, Math.max(0, effortV));
-  if(note) scores.note = note;
-
-  // Calculate average of provided scores
-  const vals = [scores.internal, scores.global, scores.quality, scores.effort].filter(v => v != null);
-  if(vals.length) scores.avg = +(vals.reduce((a,b)=>a+b,0) / vals.length).toFixed(2);
-
-  e.status = 'Approved';
-  e.scores = scores;
-  e.approvedBy = currentName || currentRole;
-  e.approvedAt = new Date().toISOString();
-
-  save('daily_plans', a);
-  if(typeof pushFeedbackNotif === 'function') pushFeedbackNotif(e, 'plan', 'Approved');
-  renderDailyPlanView();
-  const grade = scores.avg != null ? ` — Score: ${scores.avg.toFixed(1)}/10` : '';
-  toast('Plan approved' + grade, '✅');
-}
-
 function approveDP(id) {
-  // Quick approve without score
-  const a = load('daily_plans'), e = a.find(x=>x.id===id); if(!e) return;
-  e.status = 'Approved';
-  e.approvedBy = currentName || currentRole;
-  e.approvedAt = new Date().toISOString();
-  save('daily_plans', a);
-  if(typeof pushFeedbackNotif === 'function') pushFeedbackNotif(e, 'plan', 'Approved');
+  const a=load('daily_plans'), e=a.find(x=>x.id===id); if(!e) return;
+  e.status='Approved'; recalcPlanScore(e,a,'Approved'); save('daily_plans',a);
+  pushFeedbackNotif(e,'plan','Approved');
   renderDailyPlanView(); toast('Plan approved ✓','✅');
 }
-
 function rejectDP(id) {
-  const a = load('daily_plans'), e = a.find(x=>x.id===id); if(!e) return;
-  e.status = 'Rejected';
-  e.rejectedBy = currentName || currentRole;
-  save('daily_plans', a);
-  if(typeof pushFeedbackNotif === 'function') pushFeedbackNotif(e, 'plan', 'Rejected');
+  const a=load('daily_plans'), e=a.find(x=>x.id===id); if(!e) return;
+  e.status='Rejected'; recalcPlanScore(e,a,'Rejected'); save('daily_plans',a);
+  pushFeedbackNotif(e,'plan','Rejected');
   renderDailyPlanView(); toast('Plan rejected','❌');
 }
-
-function deleteDP(id) {
-  save('daily_plans', load('daily_plans').filter(e=>e.id!==id));
-  renderDailyPlanView();
-}
+function deleteDP(id) { save('daily_plans',load('daily_plans').filter(e=>e.id!==id));renderDailyPlanView(); }
 
 // ════════════════════════════════════════════════════════════════
 // TEAM PERFORMANCE TRACKER
@@ -13197,416 +12814,6 @@ window.dbInit().then(() => {
   renderDashProdKPIs();
   renderDashPerfChart();
 }).catch(() => checkSession());
-
-// ════════════════════════════════════════════════════════════════
-// AUTO-FILL DAILY REPORT FROM PRODUCTION DATA + EXTENSION LOGS
-// ════════════════════════════════════════════════════════════════
-
-async function autoFillDRFromProd() {
-  const today_str = today();
-
-  // Get today's production data
-  const allProd = load('prod');
-  const todayProd = allProd.filter(p => p.date === today_str);
-
-  // Get today's WFH logs (from extension — live submissions)
-  let wfhLogs = [];
-  try {
-    const r = await fetch(_SUPA_URL + '/rest/v1/wfh_logs?date=eq.' + today_str + '&select=*', {headers: _SUPA_HDR});
-    if(r.ok) wfhLogs = await r.json();
-  } catch(e) {}
-
-  // Get errors for today
-  const allErrors = load('errors');
-  const todayErrors = allErrors.filter(e => e.date === today_str);
-
-  // Get attendance
-  const allAtt = load('attendance');
-  const todayAtt = allAtt.filter(a => a.date === today_str);
-
-  // ── Calculate Kings stats ──────────────────────────────────
-  const kingsProd = todayProd.filter(p => p.team === 'Kings');
-  const kingsCases = kingsProd.reduce((s,r) => s + (+r.cases||0), 0);
-  const kingsAHT = kingsProd.length
-    ? +(kingsProd.reduce((s,r) => s + (+r.aht||0), 0) / kingsProd.length).toFixed(2)
-    : null;
-  const kingsOcc = kingsProd.length
-    ? +(kingsProd.reduce((s,r) => s + (+r.occ||0), 0) / kingsProd.length).toFixed(2)
-    : null;
-  const kingsErrors = todayErrors.filter(e => e.team === 'Kings' || kingsProd.some(p => p.operator === e.operator));
-  const kingsAbsent = todayAtt.filter(a => a.team === 'Kings' && (a.status === 'absent' || a.status === 'leave'));
-
-  // Also check WFH logs for Kings (extension data)
-  const kingsWFH = wfhLogs.filter(l => {
-    const KINGS_OPS = ['alfred.korir','dennis.sangolo','jenipher.otieno','melody.mapenzi',
-      'pauline.safari','sila.juma','stacy.wanjiku','noah.njiri','mark.obara','collins.marigu',
-      'aisha.adhiambo','christopher.wanyama','gibson.majimbo','synthia.kaneotieno','ken.okoth',
-      'ivy.njerese','joy.mackenzie','adhiambo.vivian','dennis.keter','richard.otieno'];
-    return KINGS_OPS.some(k => l.op_id?.includes(k));
-  });
-  const kingsExtCases = kingsWFH.length
-    ? Math.max(...kingsWFH.map(l => l.cases || 0))
-    : 0;
-  const finalKingsCases = Math.max(kingsCases, kingsExtCases);
-
-  // ── Calculate SWAT stats ───────────────────────────────────
-  const swatProd = todayProd.filter(p => p.team === 'SWAT');
-  const swatCases = swatProd.reduce((s,r) => s + (+r.cases||0), 0);
-  const swatAHT = swatProd.length
-    ? +(swatProd.reduce((s,r) => s + (+r.aht||0), 0) / swatProd.length).toFixed(2)
-    : null;
-  const swatOcc = swatProd.length
-    ? +(swatProd.reduce((s,r) => s + (+r.occ||0), 0) / swatProd.length).toFixed(2)
-    : null;
-  const swatErrors = todayErrors.filter(e => e.team === 'SWAT' || swatProd.some(p => p.operator === e.operator));
-  const swatAbsent = todayAtt.filter(a => a.team === 'SWAT' && (a.status === 'absent' || a.status === 'leave'));
-
-  const swatWFH = wfhLogs.filter(l => !kingsWFH.includes(l));
-  const swatExtCases = swatWFH.length ? Math.max(...swatWFH.map(l => l.cases||0)) : 0;
-  const finalSwatCases = Math.max(swatCases, swatExtCases);
-
-  // ── Fill Kings form ────────────────────────────────────────
-  const kpfx = 'dr-kings-';
-  const kdateEl = document.getElementById(kpfx+'date');
-  if(kdateEl && !kdateEl.value) kdateEl.value = today_str;
-
-  if(finalKingsCases > 0) {
-    const kCasesEl = document.getElementById(kpfx+'cases');
-    if(kCasesEl && !kCasesEl.value) kCasesEl.value = finalKingsCases;
-  }
-  if(kingsAHT) {
-    const kAHTEl = document.getElementById(kpfx+'aht');
-    if(kAHTEl && !kAHTEl.value) kAHTEl.value = kingsAHT;
-  }
-  if(kingsErrors.length > 0) {
-    const kErrEl = document.getElementById(kpfx+'errors');
-    if(kErrEl && !kErrEl.value) kErrEl.value = kingsErrors.length;
-  }
-  if(kingsAbsent.length > 0) {
-    const kAbsEl = document.getElementById(kpfx+'absent');
-    if(kAbsEl && !kAbsEl.value) kAbsEl.value = kingsAbsent.map(a=>a.operator?.split('.')[0]||'').join(', ');
-  }
-
-  // Auto-generate Kings report summary
-  const kReportEl = document.getElementById(kpfx+'team-report');
-  if(kReportEl && !kReportEl.value && finalKingsCases > 0) {
-    const topKings = kingsProd.sort((a,b)=>b.cases-a.cases).slice(0,3).map(p=>{
-      const name = p.operator?.split('.').slice(0,2).map(s=>s.charAt(0).toUpperCase()+s.slice(1)).join(' ');
-      return `${name} (${p.cases} cases, AHT ${p.aht}s)`;
-    }).join(', ');
-    kReportEl.value = `Team Kings performance for ${today_str}:
-• Total cases: ${finalKingsCases}
-• Avg AHT: ${kingsAHT||'—'}s${kingsOcc?`
-• Avg Occupancy: ${kingsOcc}%`:''}
-• Top performers: ${topKings||'—'}
-• Errors logged: ${kingsErrors.length}
-• Absentees: ${kingsAbsent.length ? kingsAbsent.map(a=>a.operator?.split('.')[0]).join(', ') : 'None'}`;
-  }
-
-  // ── Fill SWAT form ─────────────────────────────────────────
-  const spfx = 'dr-swat-';
-  const sdateEl = document.getElementById(spfx+'date');
-  if(sdateEl && !sdateEl.value) sdateEl.value = today_str;
-
-  if(finalSwatCases > 0) {
-    const sCasesEl = document.getElementById(spfx+'cases');
-    if(sCasesEl && !sCasesEl.value) sCasesEl.value = finalSwatCases;
-  }
-  if(swatAHT) {
-    const sAHTEl = document.getElementById(spfx+'aht');
-    if(sAHTEl && !sAHTEl.value) sAHTEl.value = swatAHT;
-  }
-  if(swatErrors.length > 0) {
-    const sErrEl = document.getElementById(spfx+'errors');
-    if(sErrEl && !sErrEl.value) sErrEl.value = swatErrors.length;
-  }
-  if(swatAbsent.length > 0) {
-    const sAbsEl = document.getElementById(spfx+'absent');
-    if(sAbsEl && !sAbsEl.value) sAbsEl.value = swatAbsent.map(a=>a.operator?.split('.')[0]||'').join(', ');
-  }
-
-  const sReportEl = document.getElementById(spfx+'team-report');
-  if(sReportEl && !sReportEl.value && finalSwatCases > 0) {
-    const topSwat = swatProd.sort((a,b)=>b.cases-a.cases).slice(0,3).map(p=>{
-      const name = p.operator?.split('.').slice(0,2).map(s=>s.charAt(0).toUpperCase()+s.slice(1)).join(' ');
-      return `${name} (${p.cases} cases, AHT ${p.aht}s)`;
-    }).join(', ');
-    sReportEl.value = `Team SWAT performance for ${today_str}:
-• Total cases: ${finalSwatCases}
-• Avg AHT: ${swatAHT||'—'}s${swatOcc?`
-• Avg Occupancy: ${swatOcc}%`:''}
-• Top performers: ${topSwat||'—'}
-• Errors logged: ${swatErrors.length}
-• Absentees: ${swatAbsent.length ? swatAbsent.map(a=>a.operator?.split('.')[0]).join(', ') : 'None'}`;
-  }
-
-  // ── Fill Whole Team form (TL only) ─────────────────────────
-  if(currentRole === 'tl' || currentRole === 'admin') {
-    const tpfx = 'dr-team-';
-    const tdateEl = document.getElementById(tpfx+'date');
-    if(tdateEl && !tdateEl.value) tdateEl.value = today_str;
-
-    const totalCases = finalKingsCases + finalSwatCases;
-    const allAHT = todayProd.length
-      ? +(todayProd.reduce((s,r)=>s+(+r.aht||0),0)/todayProd.length).toFixed(2)
-      : null;
-    const allOcc = todayProd.length
-      ? +(todayProd.reduce((s,r)=>s+(+r.occ||0),0)/todayProd.length).toFixed(2)
-      : null;
-
-    if(totalCases > 0) {
-      const tCasesEl = document.getElementById(tpfx+'cases');
-      if(tCasesEl && !tCasesEl.value) tCasesEl.value = totalCases;
-    }
-    if(allAHT) {
-      const tAHTEl = document.getElementById(tpfx+'aht');
-      if(tAHTEl && !tAHTEl.value) tAHTEl.value = allAHT;
-    }
-    if(allOcc) {
-      const tOccEl = document.getElementById(tpfx+'occ');
-      if(tOccEl && !tOccEl.value) tOccEl.value = allOcc;
-    }
-    const tErrEl = document.getElementById(tpfx+'errors');
-    if(tErrEl && !tErrEl.value) tErrEl.value = todayErrors.length;
-  }
-
-  const filledCount = [finalKingsCases, finalSwatCases].filter(v=>v>0).length;
-  if(filledCount > 0) {
-    toast('📋 Report auto-filled from today\'s data', '✅');
-  }
-}
-
-// ── Auto-save daily report at end of shift (called by scheduler) ──
-async function autoSaveDailyReport() {
-  const today_str = today();
-  const allProd   = load('prod');
-  const todayProd = allProd.filter(p => p.date === today_str);
-  if(!todayProd.length) return; // no data to save
-
-  const SECTIONS = currentRole==='tl'||currentRole==='admin'
-    ? ['kings','swat','team']
-    : currentRole==='kings' ? ['kings']
-    : currentRole==='swat'  ? ['swat']
-    : [];
-
-  for(const section of SECTIONS) {
-    // Check if already saved today
-    const existing = load('dr_entries');
-    const alreadySaved = existing.find(e => e.date === today_str && e.section === section);
-    if(alreadySaved) continue; // don't overwrite manual entries
-
-    // Fill the form then save
-    await autoFillDRFromProd();
-    await new Promise(r => setTimeout(r, 300));
-
-    // Only auto-save if form has data
-    const pfx = 'dr-' + section + '-';
-    const cases = document.getElementById(pfx+'cases')?.value;
-    if(cases && parseInt(cases) > 0) {
-      await saveDRSection(section);
-      console.log(`✅ Auto-saved ${section} daily report for ${today_str}`);
-    }
-  }
-}
-
-// ── Schedule auto-save at shift end (18:00 and 18:30) ─────────────
-function scheduleAutoSave() {
-  const now  = new Date();
-  const h    = now.getHours();
-  const m    = now.getMinutes();
-  const SAVE_TIMES = [[18,0],[18,30],[19,0]];
-
-  SAVE_TIMES.forEach(([sh, sm]) => {
-    const msTill = ((sh - h) * 60 + (sm - m)) * 60000;
-    if(msTill > 0 && msTill < 3600000 * 4) { // within 4 hours ahead
-      setTimeout(async () => {
-        console.log(`⏰ Auto-save triggered at ${sh}:${String(sm).padStart(2,'0')}`);
-        await autoSaveDailyReport();
-        toast('📋 Daily report auto-saved for today', '✅');
-      }, msTill);
-    }
-  });
-}
-
-// Start scheduler when hub loads
-if(typeof today === 'function') scheduleAutoSave();
-
-// ── Filter clear helpers (avoids quote-escaping issues in innerHTML) ──
-function clearDPFilter() {
-  const d = document;
-  const df = d.getElementById('dp-filter-date');
-  const pf = d.getElementById('dp-filter-person');
-  if(df) df.value = '';
-  if(pf) pf.value = '';
-  refreshDPView();
-}
-function clearDRFilter() {
-  const d = document;
-  const df = d.getElementById('dr-view-date');
-  const pf = d.getElementById('dr-view-person');
-  if(df) df.value = '';
-  if(pf) pf.value = '';
-  renderDRView();
-}
-
-
-// ── WFH Operator Leave Application ────────────────────────────
-async function submitWFHLeave() {
-  const opId   = document.getElementById('wfh-op-self')?.value || localStorage.getItem('wfh_op_id');
-  const type   = document.getElementById('wfh-leave-type')?.value;
-  const days   = parseInt(document.getElementById('wfh-leave-days')?.value);
-  const start  = document.getElementById('wfh-leave-start')?.value;
-  const end    = document.getElementById('wfh-leave-end')?.value;
-  const reason = document.getElementById('wfh-leave-reason')?.value?.trim();
-  const msgEl  = document.getElementById('wfh-leave-msg');
-
-  const show = (text, ok) => {
-    msgEl.textContent = text;
-    msgEl.style.background  = ok ? 'rgba(0,212,160,0.1)' : 'rgba(255,94,110,0.1)';
-    msgEl.style.border = ok ? '1px solid rgba(0,212,160,0.3)' : '1px solid rgba(255,94,110,0.3)';
-    msgEl.style.color  = ok ? 'var(--green)' : 'var(--red)';
-    msgEl.style.display = 'block';
-  };
-
-  if(!opId)   return show('⚠️ Please select your name first', false);
-  if(!type)   return show('⚠️ Select leave type', false);
-  if(!days || days < 1) return show('⚠️ Enter number of days', false);
-  if(!start)  return show('⚠️ Select start date', false);
-  if(!end)    return show('⚠️ Select end date', false);
-  if(!reason) return show('⚠️ Enter reason for leave', false);
-
-  const application = {
-    id:          Date.now(),
-    operator:    opId + '.impact.nbo',
-    name:        operatorLabel(opId),
-    type, days, start, end, reason,
-    status:      'Pending',
-    appliedAt:   new Date().toISOString(),
-    appliedDate: today(),
-  };
-
-  // Save to leave tracker
-  const all = load('aifi_leaves') || [];
-  all.unshift(application);
-  save('aifi_leaves', all);
-
-  // Push notification to TL, Admin, Kings QA, SWAT QA
-  const team = OPERATOR_ROSTER.find(o => o.id === opId)?.team || 'unknown';
-  try {
-    const nr = await fetch(_SUPA_URL+'/rest/v1/aifi_store?select=val&key=eq.notifs', {headers:_SUPA_HDR});
-    const nrows = nr.ok ? await nr.json() : [];
-    const notifs = (nrows.length && Array.isArray(nrows[0].val)) ? nrows[0].val : [];
-    notifs.unshift({
-      id: Date.now(), type: 'leave',
-      msg: '🏖️ ' + operatorLabel(opId) + ' applied for ' + days + ' day(s) ' + type + ' leave (' + start + ' to ' + end + ')',
-      operator: opId, team, days, start, end, leaveType: type, reason,
-      status: 'Pending', read: false,
-      time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-      isoTime: new Date().toISOString()
-    });
-    await window._dbSet('notifs', notifs.slice(0,50));
-  } catch(e) { console.warn('Leave notif failed:', e.message); }
-
-  show('✅ Leave application submitted! Your Team Lead will review it.', true);
-
-  // Clear form
-  document.getElementById('wfh-leave-days').value = '';
-  document.getElementById('wfh-leave-reason').value = '';
-  document.getElementById('wfh-leave-start').value = '';
-  document.getElementById('wfh-leave-end').value = '';
-
-  // Refresh balance
-  loadWFHLeaveBalance(opId);
-}
-
-async function loadWFHLeaveBalance(opId) {
-  const balEl  = { annual: document.getElementById('wfh-bal-annual'), sick: document.getElementById('wfh-bal-sick'), other: document.getElementById('wfh-bal-other') };
-  const histEl = document.getElementById('wfh-my-leaves');
-  if(!opId || !balEl.annual) return;
-
-  const op = opId + '.impact.nbo';
-  const all = load('aifi_leaves') || [];
-  const mine = all.filter(l => l.operator === op);
-
-  // Calculate used days
-  const used = { annual:0, sick:0, other:0 };
-  mine.filter(l => l.status === 'Approved').forEach(l => {
-    if(l.type === 'annual') used.annual += l.days;
-    else if(l.type === 'sick') used.sick += l.days;
-    else used.other += (l.days||0);
-  });
-
-  // Entitlement (standard)
-  const ent = { annual:21, sick:7, other:5 };
-  if(balEl.annual) balEl.annual.textContent = (ent.annual - used.annual) + ' days';
-  if(balEl.sick)   balEl.sick.textContent   = (ent.sick   - used.sick)   + ' days';
-  if(balEl.other)  balEl.other.textContent  = (ent.other  - used.other)  + ' days';
-
-  if(histEl) {
-    if(!mine.length) { histEl.textContent = 'No applications yet.'; return; }
-    histEl.innerHTML = mine.slice(0,5).map(l => {
-      const col = l.status==='Approved'?'var(--green)':l.status==='Rejected'?'var(--red)':'var(--amber)';
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)">
-        <div><span style="font-weight:700">${l.type}</span> · ${l.days}d · ${l.start}</div>
-        <span style="color:${col};font-weight:700;font-size:11px">${l.status}</span>
-      </div>`;
-    }).join('');
-  }
-}
-
-// Leave balance loaded on demand via loadWFHLeaveBalance()
-
-// ── Leave Approval from Notification ──────────────────────────
-async function approveLeaveNotif(notifId) {
-  const notifs = load('notifs') || [];
-  const notif  = notifs.find(n => n.id === notifId);
-  if(!notif) return;
-
-  // Approve leave in aifi_leaves
-  const leaves = load('aifi_leaves') || [];
-  const op     = notif.operator + '.impact.nbo';
-  const leaf   = leaves.find(l => l.operator === op && l.start === notif.start && l.status === 'Pending');
-  if(leaf) {
-    leaf.status     = 'Approved';
-    leaf.approvedBy = currentName || currentRole;
-    leaf.approvedAt = new Date().toISOString();
-    save('aifi_leaves', leaves);
-  }
-
-  // Mark notif as approved
-  notif.status = 'Approved';
-  notif.read   = true;
-  save('notifs', notifs);
-
-  // Push approval notif back to operator (via notifs with operator tag)
-  const replyNotifs = load('notifs') || [];
-  replyNotifs.unshift({
-    id: Date.now(), type: 'leave_approved',
-    msg: '✅ Your ' + (notif.leaveType||'') + ' leave (' + notif.start + ' to ' + notif.end + ') has been APPROVED by ' + (currentName||'Team Lead'),
-    operator: notif.operator, status: 'Approved', read: false,
-    time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-    isoTime: new Date().toISOString()
-  });
-  await window._dbSet('notifs', replyNotifs.slice(0,50));
-  renderNotifs(); renderNotifDropdown(); updateBellCount();
-  toast('✅ Leave approved for ' + operatorLabel(notif.operator), '✅');
-}
-
-async function rejectLeaveNotif(notifId) {
-  const notifs = load('notifs') || [];
-  const notif  = notifs.find(n => n.id === notifId);
-  if(!notif) return;
-
-  const leaves = load('aifi_leaves') || [];
-  const op     = notif.operator + '.impact.nbo';
-  const leaf   = leaves.find(l => l.operator === op && l.start === notif.start && l.status === 'Pending');
-  if(leaf) { leaf.status = 'Rejected'; save('aifi_leaves', leaves); }
-
-  notif.status = 'Rejected'; notif.read = true;
-  save('notifs', notifs);
-  renderNotifs(); renderNotifDropdown(); updateBellCount();
-  toast('Leave rejected for ' + operatorLabel(notif.operator), '❌');
-}
 </script>
 </body>
 </html>
