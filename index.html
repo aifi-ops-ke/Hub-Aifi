@@ -7898,34 +7898,53 @@ function renderWFHMonitor() {
         const id = l.opId || l.op_id;
         if(!id) return;
         if(!byOp[id]) byOp[id] = {submits:0, cases:0, ahts:[], lastTime:'', eodDone:false, tabBreaches:0};
-        const e = byOp[id];
+        const e  = byOp[id];
         const lt = l.type || l.log_type || '';
-        if(!['break','resume','checkout','checkin','tab_switch'].includes(lt)) {
+        const lc = +(l.cases || 0);
+
+        // ONLY count as a real submission if:
+        // log_type is 'submission' OR cases > 0 (actual work done)
+        // Heartbeats have no cases and no submission type — exclude them
+        const isRealSubmit = lt === 'submission' || (lc > 0 && !['break','resume','checkout','checkin','tab_switch','eod'].includes(lt));
+
+        if(isRealSubmit) {
           e.submits++;
-          if((+l.cases||0) > e.cases) e.cases = +l.cases||0;
-          if(l.aht) e.ahts.push(+l.aht);
+          if(lc > e.cases) e.cases = lc; // track highest case count
+          if(l.aht && +l.aht > 0) e.ahts.push(+l.aht);
           if(!e.lastTime || l.isoTime > e.lastTime) e.lastTime = l.isoTime;
         }
-        if(lt==='eod'||l.is_eod) e.eodDone = true;
-        if(lt==='tab_switch') e.tabBreaches++;
+        if(lt === 'eod' || l.is_eod) e.eodDone = true;
+        if(lt === 'tab_switch') e.tabBreaches++;
       });
-      subTbody.innerHTML = Object.entries(byOp)
-        .sort((a,b)=>b[1].cases-a[1].cases)
-        .map(([id,d]) => {
-          const avg = d.ahts.length ? +(d.ahts.reduce((s,v)=>s+v,0)/d.ahts.length).toFixed(1) : '–';
-          const lt  = d.lastTime ? new Date(d.lastTime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
-          const ec  = d.eodDone?'var(--green)':'var(--red)';
-          const tc  = d.tabBreaches>3?'var(--red)':d.tabBreaches>0?'var(--amber)':'var(--text3)';
-          return `<tr>
-            <td style="font-weight:700;font-size:11px">${operatorLabel(id)}</td>
-            <td style="text-align:center;color:var(--teal);font-weight:700">${d.submits}</td>
-            <td style="font-size:10px;font-family:monospace">${lt}</td>
-            <td style="color:var(--green);font-weight:700;text-align:right">${d.cases||'–'}</td>
-            <td style="font-family:monospace;text-align:right">${avg}${avg!=='–'?'s':''}</td>
-            <td style="text-align:center"><span style="color:${ec};font-weight:800">${d.eodDone?'✅':'❌'}</span></td>
-            <td style="text-align:center;color:${tc};font-weight:700">${d.tabBreaches||0}</td>
-          </tr>`;
-        }).join('');
+
+      // Clean up operator names — remove ".impact.nbo" suffix
+      const cleanName = id => {
+        const base = id.replace('.impact.nbo','').replace('impact.nbo','');
+        return operatorLabel(base) || operatorLabel(id) || base;
+      };
+
+      const rows = Object.entries(byOp).filter(([,d]) => d.submits > 0 || d.cases > 0);
+      if(!rows.length) {
+        subTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3)">No submissions recorded yet.</td></tr>';
+      } else {
+        subTbody.innerHTML = rows
+          .sort((a,b) => b[1].cases - a[1].cases || b[1].submits - a[1].submits)
+          .map(([id,d]) => {
+            const avg = d.ahts.length ? +(d.ahts.reduce((s,v)=>s+v,0)/d.ahts.length).toFixed(1) : '–';
+            const lt  = d.lastTime ? new Date(d.lastTime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+            const ec  = d.eodDone ? 'var(--green)' : 'var(--red)';
+            const tc  = d.tabBreaches > 3 ? 'var(--red)' : d.tabBreaches > 0 ? 'var(--amber)' : 'var(--text3)';
+            return '<tr>' +
+              '<td style="font-weight:700;font-size:11px">' + cleanName(id) + '</td>' +
+              '<td style="text-align:center;color:var(--teal);font-weight:700">' + d.submits + '</td>' +
+              '<td style="font-size:10px;font-family:monospace">' + lt + '</td>' +
+              '<td style="color:var(--green);font-weight:700;text-align:right">' + (d.cases || '–') + '</td>' +
+              '<td style="font-family:monospace;text-align:right">' + avg + (avg !== '–' ? 's' : '') + '</td>' +
+              '<td style="text-align:center"><span style="color:' + ec + ';font-weight:800">' + (d.eodDone ? '✅' : '❌') + '</span></td>' +
+              '<td style="text-align:center;color:' + tc + ';font-weight:700">' + (d.tabBreaches || 0) + '</td>' +
+              '</tr>';
+          }).join('');
+      }
     }
   }
 }
