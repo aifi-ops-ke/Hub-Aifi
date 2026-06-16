@@ -7099,10 +7099,15 @@ async function dbGetSessions(date) {
     const out = {};
     // Normalize legacy op_ids
     const normalizeId = id => {
+      if(!id) return id;
+      // Normalize short IDs
       if(id === 'rading.yvonne') return 'rading.yvonne2';
-      if(id === 'rading.yvonne.impact.nbo') return 'rading.yvonne2.impact.nbo';
       if(id === 'christopher.wanyama') return 'christopher.wanyama2';
       if(id === 'synthia.kaneotieno') return 'synthiakane.otieno';
+      // Normalize .impact.nbo IDs
+      if(id === 'rading.yvonne.impact.nbo') return 'rading.yvonne2.impact.nbo';
+      if(id === 'christopher.wanyama.impact.nbo') return 'christopher.wanyama2.impact.nbo';
+      if(id === 'synthia.kaneotieno.impact.nbo') return 'synthiakane.otieno.impact.nbo';
       return id;
     };
     rows.forEach(row => {
@@ -8892,7 +8897,14 @@ async function renderCamGrid() {
     return true;
   });
 
-  const sessions  = getSessions()[date] || {};
+  // Normalize session keys to remove duplicates
+  const _rawSess = getSessions()[date] || {};
+  const sessions = {};
+  Object.keys(_rawSess).forEach(id => {
+    const norm = id.replace('rading.yvonne.impact.nbo','rading.yvonne2.impact.nbo')
+                   .replace('christopher.wanyama.impact.nbo','christopher.wanyama2.impact.nbo');
+    if(!sessions[norm]) sessions[norm] = _rawSess[id];
+  });
   const evLog     = document.getElementById('cam-event-log');
   const banner    = document.getElementById('cam-alert-banner');
   const alertT    = document.getElementById('cam-alert-text');
