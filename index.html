@@ -8832,115 +8832,6 @@ async function opCheckFace() {
 
 // ── TL: Render Cam Grid ─────────────────────────────────────────
 async function renderCamGrid() {
-  const grid = document.getElementById('wfh-cam-grid');
-  if(!grid) return;
-
-  const date = document.getElementById('wfh-filter-date')?.value || today();
-
-  // Show loading state
-  grid.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:30px 0">⏳ Loading snapshots...</div>';
-
-  try {
-    // Fetch latest snapshots
-    const url = _SUPA_URL + '/rest/v1/wfh_snapshots?date=eq.' + date + '&order=captured_at.desc&limit=200';
-    const resp = await fetch(url, {
-      headers: { 'apikey': _SUPA_KEY, 'Authorization': 'Bearer ' + _SUPA_KEY }
-    });
-    const snaps = await resp.json();
-    if(!Array.isArray(snaps) || !snaps.length) {
-      grid.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:30px 0">No snapshots yet today.</div>';
-      return;
-    }
-
-    // Build latest-per-operator map
-    const latest = {};
-    snaps.forEach(s => {
-      if(!latest[s.op_id] || s.captured_at > latest[s.op_id].captured_at)
-        latest[s.op_id] = s;
-    });
-
-    // Also fetch face events for away detection
-    let events = [];
-    try {
-      const er = await fetch(_SUPA_URL+'/rest/v1/wfh_face_events?date=eq.'+date+'&order=event_at.desc&limit=100', {
-        headers: { 'apikey': _SUPA_KEY, 'Authorization': 'Bearer ' + _SUPA_KEY }
-      });
-      events = await er.json();
-      if(!Array.isArray(events)) events = [];
-    } catch(e) { events = []; }
-
-    const currentlyAway = [];
-    events.filter(e=>e.event_type==='face_away').forEach(e=>{
-      const back = events.find(r=>r.op_id===e.op_id&&r.event_type==='face_back'&&r.event_at>e.event_at);
-      if(!back) currentlyAway.push(e.op_id);
-    });
-    const uniqueAway = [...new Set(currentlyAway)];
-
-    // Banner
-    const banner = document.getElementById('cam-alert-banner');
-    const alertT = document.getElementById('cam-alert-text');
-    if(uniqueAway.length && banner && alertT) {
-      banner.style.display='block';
-      alertT.textContent = uniqueAway.length+' operator(s) away from camera: '+uniqueAway.map(id=>operatorLabel(id)).join(', ');
-    } else if(banner) banner.style.display='none';
-
-    // Render tiles
-    const opIds = Object.keys(latest);
-    grid.innerHTML = opIds.map(opId => {
-      const snap = latest[opId];
-      const hasSnap = snap && snap.snapshot_b64;
-      const isAway = uniqueAway.includes(opId);
-      const t = snap ? new Date(snap.captured_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
-      const initials = operatorLabel(opId).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-      const snapCount = snaps.filter(s=>s.op_id===opId).length;
-      const awayCount = events.filter(e=>e.op_id===opId&&e.event_type==='face_away').length;
-      const tileClass = !hasSnap ? 'no-data' : isAway ? 'face-away' : 'face-ok';
-      const statusLbl = !hasSnap ? 'No Data' : isAway ? '⚠️ FACE AWAY' : '✅ Present';
-      const statusCls = !hasSnap ? 'nodata' : isAway ? 'away' : 'ok';
-
-      return `<div class="cam-tile ${tileClass}" onclick="tlViewOperatorCam('${opId}')">
-        ${hasSnap
-          ? `<img class="cam-img" src="data:image/jpeg;base64,${snap.snapshot_b64}" loading="lazy"/>`
-          : `<div class="cam-img-placeholder">
-               <div style="font-size:32px;font-weight:900;color:var(--text3);opacity:.4">${initials}</div>
-               <div style="font-size:10px;color:var(--text3)">No snapshot</div>
-             </div>`}
-        <div class="cam-overlay">
-          <div class="cam-overlay-name">${operatorLabel(opId)}</div>
-          <div class="cam-overlay-status ${statusCls}">${statusLbl}</div>
-        </div>
-        ${isAway ? '<div class="cam-face-banner">⚠️ AWAY FROM CAMERA</div>' : ''}
-        <div class="cam-footer">
-          <div class="cam-footer-time">📸 ${t} · ${snapCount} snaps</div>
-          ${awayCount>0?`<div class="cam-footer-away">⚠️ ${awayCount}×</div>`:''}
-        </div>
-      </div>`;
-    }).join('');
-
-    // Event log
-    const evLog = document.getElementById('cam-event-log');
-    if(evLog) {
-      evLog.innerHTML = events.length
-        ? events.slice(0,40).map(e=>{
-            const t2 = new Date(e.event_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-            const icon = e.event_type==='face_away'?'🔴':e.event_type==='face_back'?'🟢':'📷';
-            const col  = e.event_type==='face_away'?'var(--red)':'var(--green)';
-            return `<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
-              <div style="font-family:'DM Mono',monospace;color:var(--text3);font-size:10px">${t2}</div>
-              <div style="font-weight:700;font-size:11px">${operatorLabel(e.op_id)}</div>
-              <div style="font-size:11px;color:${col}">${icon} ${e.event_type.replace('_',' ')}</div>
-            </div>`;
-          }).join('')
-        : '<div style="color:var(--text3)">No face-away events today ✅</div>';
-    }
-
-  } catch(err) {
-    grid.innerHTML = '<div style="color:var(--red);padding:20px;grid-column:span 6">Error loading snapshots: '+err.message+'</div>';
-  }
-}
-
-// ── TL: View single operator cam history ────────────────────────
-async function renderCamGrid() {
   const date      = document.getElementById('wfh-filter-date')?.value || today();
   const grid      = document.getElementById('wfh-cam-grid');
   if(!grid) return;
@@ -8948,13 +8839,8 @@ async function renderCamGrid() {
   const snapshots = await fetchLatestSnapshots(date);
   const events    = await fetchFaceEvents(date);
 
-  // Build operator list from snapshots + sessions + approved
-  let approved = getApproved();
-  const snapOpIds = [...new Set(snapshots.map(s=>s.op_id))];
-  const sessOpIds = Object.keys(getSessions()[date] || {});
-  const allOpIds  = [...new Set([...approved, ...snapOpIds, ...sessOpIds])];
-  const knownIds  = new Set(OPERATOR_ROSTER.map(o=>o.id));
-  approved        = allOpIds.filter(id => knownIds.has(id));
+  // ONLY show approved operators — nothing else
+  const approved = getApproved().filter(id => OPERATOR_ROSTER.some(o=>o.id===id));
 
   const sessions  = getSessions()[date] || {};
   const evLog     = document.getElementById('cam-event-log');
