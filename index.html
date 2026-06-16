@@ -8572,13 +8572,11 @@ async function fetchLatestSnapshots(date) {
 }
 
 async function fetchFaceEvents(date) {
-  if(!_SUPA_URL_CAM) return [];
   try {
-    const r = await fetch(
-      _SUPA_URL_CAM+'/rest/v1/wfh_face_events?date=eq.'+date+
-      '&order=event_at.desc&limit=100',
-      { headers:{ 'apikey':_SUPA_KEY_CAM, 'Authorization':'Bearer '+_SUPA_KEY_CAM } }
-    );
+    const url = (_SUPA_URL_CAM || _SUPA_URL) + '/rest/v1/wfh_face_events?date=eq.'+date+'&order=event_at.desc&limit=100';
+    const key = _SUPA_KEY_CAM || _SUPA_KEY;
+    const r = await fetch(url, { headers:{ 'apikey':key, 'Authorization':'Bearer '+key } });
+    if(!r.ok) return [];  // table may not exist — return empty safely
     return await r.json();
   } catch(e) { return []; }
 }
@@ -8843,7 +8841,8 @@ async function renderCamGrid() {
   if(!grid) return;
 
   const snapshots = await fetchLatestSnapshots(date);
-  const events    = await fetchFaceEvents(date);
+  const _evRaw    = await fetchFaceEvents(date);
+  const events    = Array.isArray(_evRaw) ? _evRaw : [];
 
   // ONLY show approved operators — deduplicate by display name
   const _rawApproved = getApproved().filter(id => OPERATOR_ROSTER.some(o=>o.id===id));
