@@ -7299,19 +7299,20 @@ function getEODs() {
   return {};  // replaced by dbGetEODs
 }
 function getApproved() {
-  // Normalize legacy IDs and deduplicate by display name
-  const normalized = (_approvedCache || []).map(id => {
-    if(id === 'rading.yvonne') return 'rading.yvonne2';
-    if(id === 'christopher.wanyama') return 'christopher.wanyama2';
-    if(id === 'synthia.kaneotieno') return 'synthiakane.otieno';
-    return id;
+  const raw = _approvedCache || [];
+  // Step 1: normalize all IDs to canonical form
+  const normed = raw.map(id => {
+    const s = id.replace('.impact.nbo','').toLowerCase().trim();
+    if(s.startsWith('rading.yvonne') && !s.includes('yvonne2')) return 'rading.yvonne2';
+    if(s === 'christopher.wanyama') return 'christopher.wanyama2';
+    if(s === 'synthia.kaneotieno') return 'synthiakane.otieno';
+    return s; // use short form without .impact.nbo
   });
-  // Deduplicate by display name — keep first occurrence
+  // Step 2: deduplicate — one entry per person, period
   const seen = new Set();
-  return normalized.filter(id => {
-    const lbl = operatorLabel(id);
-    if(seen.has(lbl)) return false;
-    seen.add(lbl);
+  return normed.filter(id => {
+    if(seen.has(id)) return false;
+    seen.add(id);
     return true;
   });
 }
@@ -7588,15 +7589,8 @@ function renderWorkingNow(sessions, approved, date) {
   const checkedOut = [];
   const pending  = [];
 
-  // ONLY approved operators — deduplicate by display name
-  const _wwnSeen = new Set();
-  const _deduped = approved.filter(id => {
-    const lbl = operatorLabel(id);
-    if(_wwnSeen.has(lbl)) return false;
-    _wwnSeen.add(lbl);
-    return true;
-  });
-  _deduped.forEach(opId => {
+  // ONLY approved operators — already deduped by getApproved()
+  approved.forEach(opId => {
     const sess = sessions[opId];
     if(!sess) { pending.push(opId); return; }
     if(sess.checkOut || sess.status === 'offline' || sess.status === 'checked_out')
@@ -8888,14 +8882,8 @@ async function renderCamGrid() {
   const events    = Array.isArray(_evRaw) ? _evRaw : [];
 
   // ONLY show approved operators — deduplicate by display name
-  const _rawApproved = getApproved().filter(id => OPERATOR_ROSTER.some(o=>o.id===id));
-  const _seenLabels  = new Set();
-  const approved     = _rawApproved.filter(id => {
-    const lbl = operatorLabel(id);
-    if(_seenLabels.has(lbl)) return false;
-    _seenLabels.add(lbl);
-    return true;
-  });
+  // Get approved list — already normalized and deduped by getApproved()
+  const approved = getApproved();
 
   // Normalize session keys to remove duplicates
   const _rawSess = getSessions()[date] || {};
