@@ -7110,27 +7110,42 @@ async function dbGetSessions(date) {
       if(id === 'synthia.kaneotieno.impact.nbo') return 'synthiakane.otieno.impact.nbo';
       return id;
     };
+    const now = Date.now();
     rows.forEach(row => {
       row.op_id = normalizeId(row.op_id);
+      const hbMs   = row.last_heartbeat ? now - new Date(row.last_heartbeat).getTime() : Infinity;
+      const hbMins = hbMs / 60000;
+
+      // If checked out → force offline regardless of heartbeat
+      let effStatus = row.status || 'online';
+      if(row.check_out) {
+        effStatus = 'offline';
+      } else if(hbMins > 40) {
+        effStatus = 'offline';
+      } else if(hbMins > 20) {
+        effStatus = 'idle';
+      }
+
       out[row.op_id] = {
-        status:       row.status,
-        checkIn:      row.check_in,
-        checkOut:     row.check_out,
-        shift:        row.shift,
-        location:     row.location,
-        device:       row.device,
-        totalCases:   row.total_cases,
-        totalBreakMs: row.total_break_ms,
-        lastAHT:      row.last_aht,
-        lastFocus:    row.last_focus,
-        lastEnergy:   row.last_energy,
-        breakCount:   row.break_count,
-        preInternet:  row.pre_internet,
-        preEnv:       row.pre_env,
-        prePower:     row.pre_power,
-        preTools:     row.pre_tools,
-        workspace:    row.workspace,
-        totalHours:   row.total_hours,
+        status:        effStatus,
+        checkIn:       row.check_in,
+        checkOut:      row.check_out,
+        lastHeartbeat: row.last_heartbeat,  // ← WAS MISSING — root cause fixed
+        shift:         row.shift,
+        location:      row.location,
+        device:        row.device,
+        totalCases:    row.total_cases,
+        totalBreakMs:  row.total_break_ms,
+        lastAHT:       row.last_aht,
+        lastFocus:     row.last_focus,
+        lastEnergy:    row.last_energy,
+        breakCount:    row.break_count,
+        preInternet:   row.pre_internet,
+        preEnv:        row.pre_env,
+        prePower:      row.pre_power,
+        preTools:      row.pre_tools,
+        workspace:     row.workspace,
+        totalHours:    row.total_hours,
       };
     });
     return out;
@@ -7589,16 +7604,13 @@ function renderWorkingNow(sessions, approved, date) {
   const checkedOut = [];
   const pending  = [];
 
-  // ONLY approved operators — already deduped by getApproved()
+  // STRICT: only approved, only those truly active
   approved.forEach(opId => {
     const sess = sessions[opId];
-    if(!sess) { pending.push(opId); return; }
-    if(sess.checkOut || sess.status === 'offline' || sess.status === 'checked_out')
-      { checkedOut.push(opId); return; }
-    const recentHB = sess.lastHeartbeat &&
-      (Date.now() - new Date(sess.lastHeartbeat).getTime()) / 60000 < 40;
-    if(sess.checkIn || recentHB) active.push(opId);
-    else pending.push(opId);
+    const st   = opStatus(opId);
+    if(!sess || !sess.checkIn) { pending.push(opId); return; }
+    if(sess.checkOut || st === 'offline') { checkedOut.push(opId); return; }
+    active.push(opId);
   });
 
   // Update counter
@@ -7707,18 +7719,17 @@ function renderWFHMonitor() {
   // Determine status incl. idle detection
   function opStatus(id) {
     const s = sessions[id];
-    if(!s || !s.checkIn) return 'offline';
-    if(s.checkOut)              return 'logged_out';
-    if(s.status === 'logged_out') return 'logged_out';
-    if(s.status === 'offline')  return 'logged_out';
-    if(s.status === 'break')    return 'break';
-    if(s.status === 'idle')     return 'idle';
-    // Heartbeat stale check — no ping in 5+ min = not actually online
-    if(s.lastHeartbeat) {
-      const mins = (Date.now() - new Date(s.lastHeartbeat).getTime()) / 60000;
-      if(mins > 5) return 'logged_out';
-    }
-    return 'online';
+    // Checked out = ALWAYS offline, no exceptions
+    if(!s) return 'offline';
+    if(s.checkOut) return 'offline';
+    // Use effective status from dbGetSessions (already accounts for heartbeat age)
+    if(s.status === 'offline') return 'offline';
+    if(s.status === 'idle')    return 'idle';
+    if(s.status === 'break')   return 'break';
+    if(s.status === 'meeting') return 'meeting';
+    // Has checkIn = online
+    if(s.checkIn) return 'online';
+    return 'offline';
   }
 
   const allOps    = Object.keys(sessions);
