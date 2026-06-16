@@ -4164,7 +4164,7 @@ function closeWFHLogin() {
   document.getElementById('wfh-login-overlay').style.display = 'none';
 }
 
-function doWFHLogin() {
+async function doWFHLogin() {
   const opId = document.getElementById('wfh-login-name').value;
   const pw   = document.getElementById('wfh-login-pw').value.trim();
   const errEl= document.getElementById('wfh-login-error');
@@ -4181,7 +4181,42 @@ function doWFHLogin() {
     return;
   }
 
-  // ✅ Auth passed — go to WFH operator station
+  // ✅ Password correct — now check approval from Supabase (live, not cache)
+  errEl.textContent = '⏳ Checking approval...';
+  errEl.style.display = 'block';
+  const today_str = new Date().toISOString().split('T')[0];
+  try {
+    const ar = await fetch(
+      _SUPA_URL+'/rest/v1/wfh_approved?date=eq.'+today_str+'&op_id=eq.'+encodeURIComponent(opId)+'&select=op_id',
+      {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}}
+    );
+    const rows = ar.ok ? await ar.json() : [];
+    if(!rows.length) {
+      errEl.textContent = '🔒 You are not approved for WFH today. Wait for your Team Lead to approve you.';
+      errEl.style.color = '#ff5e6e';
+      errEl.style.fontWeight = '700';
+      document.getElementById('wfh-login-pw').value = '';
+      return;
+    }
+    // Check if already checked out today
+    const sr = await fetch(
+      _SUPA_URL+'/rest/v1/wfh_sessions?date=eq.'+today_str+'&op_id=eq.'+encodeURIComponent(opId)+'&select=check_out',
+      {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}}
+    );
+    const sessions = sr.ok ? await sr.json() : [];
+    if(sessions.length && sessions[0].check_out) {
+      errEl.textContent = '🔒 You already checked out today. Ask your Team Lead for re-approval.';
+      errEl.style.color = '#ff5e6e';
+      errEl.style.fontWeight = '700';
+      document.getElementById('wfh-login-pw').value = '';
+      return;
+    }
+  } catch(e) {
+    errEl.textContent = '❌ Cannot verify approval — check your connection.';
+    return;
+  }
+
+  // ✅ Approved and not checked out — allow login
   errEl.style.display = 'none';
   closeWFHLogin();
 
@@ -7519,10 +7554,16 @@ function renderWorkingNow(sessions, approved, date) {
   const checkedOut = [];
   const pending  = [];
 
+  // ONLY approved operators appear — nobody else
   approved.forEach(opId => {
     const sess = sessions[opId];
-    if(sess?.checkIn && !sess?.checkOut) active.push(opId);
-    else if(sess?.checkIn && sess?.checkOut) checkedOut.push(opId);
+    if(!sess) { pending.push(opId); return; }
+    if(sess.checkOut || sess.status === 'offline' || sess.status === 'checked_out')
+      { checkedOut.push(opId); return; }
+    // Active: has checkIn OR recent heartbeat (extension)
+    const recentHB = sess.lastHeartbeat &&
+      (Date.now() - new Date(sess.lastHeartbeat).getTime()) / 60000 < 40;
+    if(sess.checkIn || recentHB) active.push(opId);
     else pending.push(opId);
   });
 
@@ -7828,6 +7869,49 @@ function renderWFHMonitor() {
       </tr>`;
     }).join('');
   }
+
+  // ── Task Submit Tracker ──────────────────────────────────
+  const subTbody = document.getElementById('submit-tracker-tbody');
+  if(subTbody) {
+    const todayLogs = getLogs().filter(l => l.date === date);
+    if(!todayLogs.length) {
+      subTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3)">No submits yet.</td></tr>';
+    } else {
+      const byOp = {};
+      todayLogs.forEach(l => {
+        const id = l.opId || l.op_id;
+        if(!id) return;
+        if(!byOp[id]) byOp[id] = {submits:0, cases:0, ahts:[], lastTime:'', eodDone:false, tabBreaches:0};
+        const e = byOp[id];
+        const lt = l.type || l.log_type || '';
+        if(!['break','resume','checkout','checkin','tab_switch'].includes(lt)) {
+          e.submits++;
+          if((+l.cases||0) > e.cases) e.cases = +l.cases||0;
+          if(l.aht) e.ahts.push(+l.aht);
+          if(!e.lastTime || l.isoTime > e.lastTime) e.lastTime = l.isoTime;
+        }
+        if(lt==='eod'||l.is_eod) e.eodDone = true;
+        if(lt==='tab_switch') e.tabBreaches++;
+      });
+      subTbody.innerHTML = Object.entries(byOp)
+        .sort((a,b)=>b[1].cases-a[1].cases)
+        .map(([id,d]) => {
+          const avg = d.ahts.length ? +(d.ahts.reduce((s,v)=>s+v,0)/d.ahts.length).toFixed(1) : '–';
+          const lt  = d.lastTime ? new Date(d.lastTime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+          const ec  = d.eodDone?'var(--green)':'var(--red)';
+          const tc  = d.tabBreaches>3?'var(--red)':d.tabBreaches>0?'var(--amber)':'var(--text3)';
+          return `<tr>
+            <td style="font-weight:700;font-size:11px">${operatorLabel(id)}</td>
+            <td style="text-align:center;color:var(--teal);font-weight:700">${d.submits}</td>
+            <td style="font-size:10px;font-family:monospace">${lt}</td>
+            <td style="color:var(--green);font-weight:700;text-align:right">${d.cases||'–'}</td>
+            <td style="font-family:monospace;text-align:right">${avg}${avg!=='–'?'s':''}</td>
+            <td style="text-align:center"><span style="color:${ec};font-weight:800">${d.eodDone?'✅':'❌'}</span></td>
+            <td style="text-align:center;color:${tc};font-weight:700">${d.tabBreaches||0}</td>
+          </tr>`;
+        }).join('');
+    }
+  }
 }
 
 // Operator timeline popup
@@ -7999,9 +8083,25 @@ function checkIdleWarning(opId) {
   if(timer)  timer.classList.toggle('idle-flash', idle>=60 && !_wfhOnBreak);
 }
 
-function wfhCheckIn() {
+async function wfhCheckIn() {
   const opId = document.getElementById('wfh-op-self').value;
   if(!opId) { toast('Select your name first','⚠️'); return; }
+
+  // Check approval live from Supabase
+  const today_ci = new Date().toISOString().split('T')[0];
+  try {
+    const ar = await fetch(
+      _SUPA_URL+'/rest/v1/wfh_approved?date=eq.'+today_ci+'&op_id=eq.'+encodeURIComponent(opId)+'&select=op_id',
+      {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}}
+    );
+    const rows = ar.ok ? await ar.json() : [];
+    if(!rows.length) {
+      toast('🔒 Not approved for WFH today. Contact your Team Lead.','❌');
+      document.getElementById('wfh-session-status-text') &&
+        (document.getElementById('wfh-session-status-text').textContent = '🔒 Not approved — contact Team Lead');
+      return;
+    }
+  } catch(e) { toast('❌ Cannot verify approval — check connection','❌'); return; }
 
   // One-login rule: if already checked out today, require TL permission
   const existingSess = getSession(today(), opId);
@@ -8264,9 +8364,22 @@ async function submitEOD() {
     sess.lockedOut = true;  // requires TL to unlock before next login
     saveSession(today(),opId,sess);
   }
-  logWFHEntry(opId,'checkout',{notes:`Checked out. Total hours: ${sess?.totalHours||'–'}`});
+  logWFHEntry(opId,'checkout',{notes:'Checked out. Total hours: '+(sess?.totalHours||'–')});
   clearInterval(_wfhTimerInterval); clearInterval(_wfhIdleInterval);
   stopHeartbeat();
+  // Lock out: remove from approved, clear session heartbeat, clear status
+  const today_co = new Date().toISOString().split('T')[0];
+  const coTime   = new Date().toISOString();
+  const coHdr    = {'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'};
+  Promise.all([
+    fetch(_SUPA_URL+'/rest/v1/wfh_approved?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_co,
+      {method:'DELETE', headers:coHdr}),
+    fetch(_SUPA_URL+'/rest/v1/wfh_sessions?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_co,
+      {method:'PATCH', headers:coHdr,
+       body:JSON.stringify({status:'offline',check_out:coTime,last_heartbeat:null,updated_at:coTime})}),
+    fetch(_SUPA_URL+'/rest/v1/wfh_status?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_co,
+      {method:'DELETE', headers:coHdr})
+  ]).catch(e=>console.warn('Checkout cleanup error:',e.message));
   // Take final checkout snapshot, then stop camera
   opTakeSnapshot('checkout').then(()=>{ setTimeout(opStopCam, 1500); });
   document.getElementById('wfh-eod-form-card').style.display='none';
