@@ -7564,13 +7564,19 @@ function renderWorkingNow(sessions, approved, date) {
   const checkedOut = [];
   const pending  = [];
 
-  // ONLY approved operators appear — nobody else
-  approved.forEach(opId => {
+  // ONLY approved operators — deduplicate by display name
+  const _wwnSeen = new Set();
+  const _deduped = approved.filter(id => {
+    const lbl = operatorLabel(id);
+    if(_wwnSeen.has(lbl)) return false;
+    _wwnSeen.add(lbl);
+    return true;
+  });
+  _deduped.forEach(opId => {
     const sess = sessions[opId];
     if(!sess) { pending.push(opId); return; }
     if(sess.checkOut || sess.status === 'offline' || sess.status === 'checked_out')
       { checkedOut.push(opId); return; }
-    // Active: has checkIn OR recent heartbeat (extension)
     const recentHB = sess.lastHeartbeat &&
       (Date.now() - new Date(sess.lastHeartbeat).getTime()) / 60000 < 40;
     if(sess.checkIn || recentHB) active.push(opId);
@@ -8839,8 +8845,15 @@ async function renderCamGrid() {
   const snapshots = await fetchLatestSnapshots(date);
   const events    = await fetchFaceEvents(date);
 
-  // ONLY show approved operators — nothing else
-  const approved = getApproved().filter(id => OPERATOR_ROSTER.some(o=>o.id===id));
+  // ONLY show approved operators — deduplicate by display name
+  const _rawApproved = getApproved().filter(id => OPERATOR_ROSTER.some(o=>o.id===id));
+  const _seenLabels  = new Set();
+  const approved     = _rawApproved.filter(id => {
+    const lbl = operatorLabel(id);
+    if(_seenLabels.has(lbl)) return false;
+    _seenLabels.add(lbl);
+    return true;
+  });
 
   const sessions  = getSessions()[date] || {};
   const evLog     = document.getElementById('cam-event-log');
