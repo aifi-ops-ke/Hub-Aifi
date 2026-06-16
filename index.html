@@ -7080,7 +7080,12 @@ async function dbSetApproved(opIds, date) {
   const rows = opIds.map(id=>({op_id:id, date:d}));
   await fetch(_SUPA_URL+'/rest/v1/wfh_approved',
     {method:'POST', headers:WFH_HDR, body:JSON.stringify(rows)});
-  _approvedCache = opIds;
+  // Normalize IDs and deduplicate
+  _approvedCache = [...new Set(opIds.map(id => {
+    if(id === 'rading.yvonne') return 'rading.yvonne2';
+    if(id === 'christopher.wanyama') return 'christopher.wanyama2';
+    return id;
+  }))];
 }
 
 // ── Sessions ───────────────────────────────────────────────────────
@@ -7289,7 +7294,21 @@ function getEODs() {
   return {};  // replaced by dbGetEODs
 }
 function getApproved() {
-  return _approvedCache;
+  // Normalize legacy IDs and deduplicate by display name
+  const normalized = (_approvedCache || []).map(id => {
+    if(id === 'rading.yvonne') return 'rading.yvonne2';
+    if(id === 'christopher.wanyama') return 'christopher.wanyama2';
+    if(id === 'synthia.kaneotieno') return 'synthiakane.otieno';
+    return id;
+  });
+  // Deduplicate by display name — keep first occurrence
+  const seen = new Set();
+  return normalized.filter(id => {
+    const lbl = operatorLabel(id);
+    if(seen.has(lbl)) return false;
+    seen.add(lbl);
+    return true;
+  });
 }
 function getSession(date, opId) {
   return _sessionsCache[date]?.[opId] || null;
