@@ -4422,6 +4422,7 @@ function operatorLabel(op, showType=false) {
     'john.kingori':'John Kingori',
     'adhiambo.vivian':'Vivian Adhiambo',
     'rading.yvonne2':'Rading Yvonne',
+    'rading.yvonne':'Rading Yvonne',
     'christopher.wanyama2':'Christopher Wanyama',
     'sila.juma':'Sila Juma',
     'synthiakane.otieno':'Synthiakane Otieno',
@@ -7091,7 +7092,16 @@ async function dbGetSessions(date) {
     const rows = await r.json();
     if(!Array.isArray(rows)) return {};
     const out = {};
+    // Normalize legacy op_ids
+    const normalizeId = id => {
+      if(id === 'rading.yvonne') return 'rading.yvonne2';
+      if(id === 'rading.yvonne.impact.nbo') return 'rading.yvonne2.impact.nbo';
+      if(id === 'christopher.wanyama') return 'christopher.wanyama2';
+      if(id === 'synthia.kaneotieno') return 'synthiakane.otieno';
+      return id;
+    };
     rows.forEach(row => {
+      row.op_id = normalizeId(row.op_id);
       out[row.op_id] = {
         status:       row.status,
         checkIn:      row.check_in,
