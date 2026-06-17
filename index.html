@@ -7785,6 +7785,20 @@ async function renderEODReports() {
   }).join('');
 }
 
+// ── Determine an operator's effective status from their session record ──
+// Top-level so it's usable from renderWorkingNow, renderWFHMonitor, etc.
+function opStatus(id, sessionsMap) {
+  const s = (sessionsMap || _sessionsCache[document.getElementById('wfh-filter-date')?.value || today()] || {})[id];
+  if(!s) return 'offline';
+  if(s.checkOut) return 'offline';
+  if(s.status === 'offline') return 'offline';
+  if(s.status === 'idle')    return 'idle';
+  if(s.status === 'break')   return 'break';
+  if(s.status === 'meeting') return 'meeting';
+  if(s.checkIn) return 'online';
+  return 'offline';
+}
+
 function renderWorkingNow(sessions, approved, date) {
   const grid    = document.getElementById('working-now-grid');
   const notGrid = document.getElementById('not-working-grid');
@@ -7801,7 +7815,7 @@ function renderWorkingNow(sessions, approved, date) {
   // STRICT: only approved, only those truly active
   approved.forEach(opId => {
     const sess = sessions[opId];
-    const st   = opStatus(opId);
+    const st   = opStatus(opId, sessions);
     if(!sess || !sess.checkIn) { pending.push(opId); return; }
     if(sess.checkOut || st === 'offline') { checkedOut.push(opId); return; }
     active.push(opId);
@@ -7916,28 +7930,12 @@ async function renderWFHMonitor() {
   const lrEl = document.getElementById('wfh-last-refresh');
   if(lrEl) lrEl.textContent = '↺ '+new Date().toLocaleTimeString('en-GB');
 
-  // Determine status incl. idle detection
-  function opStatus(id) {
-    const s = sessions[id];
-    // Checked out = ALWAYS offline, no exceptions
-    if(!s) return 'offline';
-    if(s.checkOut) return 'offline';
-    // Use effective status from dbGetSessions (already accounts for heartbeat age)
-    if(s.status === 'offline') return 'offline';
-    if(s.status === 'idle')    return 'idle';
-    if(s.status === 'break')   return 'break';
-    if(s.status === 'meeting') return 'meeting';
-    // Has checkIn = online
-    if(s.checkIn) return 'online';
-    return 'offline';
-  }
-
   const allOps    = Object.keys(sessions);
-  const onlineOps = allOps.filter(id=>opStatus(id)==='online');
-  const breakOps  = allOps.filter(id=>opStatus(id)==='break');
+  const onlineOps = allOps.filter(id=>opStatus(id, sessions)==='online');
+  const breakOps  = allOps.filter(id=>opStatus(id, sessions)==='break');
   // idleOps = operators where cursor/cam system set status='idle' in Supabase
-  const idleOps   = allOps.filter(id=>opStatus(id)==='idle');
-  const offOps    = allOps.filter(id=>opStatus(id)==='offline');
+  const idleOps   = allOps.filter(id=>opStatus(id, sessions)==='idle');
+  const offOps    = allOps.filter(id=>opStatus(id, sessions)==='offline');
 
   // KPIs
   const totalCases  = allOps.reduce((s,id)=>s+(sessions[id].totalCases||0),0);
@@ -7971,8 +7969,8 @@ async function renderWFHMonitor() {
   // Status grid
   const gridEl = document.getElementById('wfh-status-grid');
   // Only show actively online operators on the Live Board
-  let gridOps  = allOps.filter(id => ['online','break','idle'].includes(opStatus(id)));
-  if(statusF) gridOps = gridOps.filter(id=>opStatus(id)===statusF);
+  let gridOps  = allOps.filter(id => ['online','break','idle'].includes(opStatus(id, sessions)));
+  if(statusF) gridOps = gridOps.filter(id=>opStatus(id, sessions)===statusF);
   if(searchF) gridOps = gridOps.filter(id=>operatorLabel(id).toLowerCase().includes(searchF));
 
   if(!gridOps.length) {
@@ -7981,7 +7979,7 @@ async function renderWFHMonitor() {
     const statusLabel = {online:'🟢 Online',break:'☕ On Break',idle:'🔴 Idle',offline:'⚫ Offline'};
     gridEl.innerHTML = gridOps.map(id => {
       const sess   = sessions[id];
-      const status = opStatus(id);
+      const status = opStatus(id, sessions);
       const cases  = sess.totalCases || 0;
       const score  = wfhComplianceScore(id, date);
       const opLogs = _logsCache.filter(l=>(l.opId||l.op_id)===id && l.date===date && (l.type||l.log_type)==='hourly');
@@ -8046,7 +8044,7 @@ async function renderWFHMonitor() {
   } else {
     compTbody.innerHTML = allOps.map(id=>{
       const sess  = sessions[id];
-      const status= opStatus(id);
+      const status= opStatus(id, sessions);
       const score = wfhComplianceScore(id, date);
       const sc    = scoreColor(score);
       const opLogs= logs.filter(l=>l.opId===id);
