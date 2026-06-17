@@ -7887,13 +7887,14 @@ function renderWorkingNow(sessions, approved, date) {
     </div>`;
   }).join('');
 
-  // ── Pending (not checked in) ──────────────────────────────────
+  // ── Pending (not checked in) + Checked-out, clearly separated ──
   if(!notGrid) return;
   if(!pending.length && !checkedOut.length) {
     notGrid.innerHTML = '<div style="color:var(--green);font-size:11px;font-weight:600">✅ All approved operators are checked in!</div>';
   } else {
-    notGrid.innerHTML =
-      pending.map(opId => {
+    let html = '';
+    if(pending.length) {
+      html += pending.map(opId => {
         const team    = getOpTeam(opId);
         const teamCol = team==='kings' ? 'rgba(0,212,160,0.4)' : 'rgba(255,133,52,0.4)';
         return `<div style="
@@ -7904,7 +7905,12 @@ function renderWorkingNow(sessions, approved, date) {
           <div style="width:6px;height:6px;border-radius:50%;background:var(--border2);flex-shrink:0"></div>
           <div style="font-size:11px;font-weight:600;color:var(--text3)">${operatorLabel(opId)}</div>
         </div>`;
-      }).join('') + (checkedOutHtml || '');
+      }).join('');
+    }
+    if(checkedOut.length) {
+      html += `<div style="width:100%;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px">⬛ Checked Out (${checkedOut.length})</div>` + checkedOutHtml;
+    }
+    notGrid.innerHTML = html;
   }
 }
 
