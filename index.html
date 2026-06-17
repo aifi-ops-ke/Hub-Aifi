@@ -1024,11 +1024,20 @@ window._dbSet = async function(key, val) {
     ...(_SUPA_HDR),
     'Prefer': 'resolution=merge-duplicates,return=minimal'
   };
-  const r = await fetch(_SUPA_URL+'/rest/v1/aifi_store',
+  const r = await fetch(_SUPA_URL+'/rest/v1/aifi_store?on_conflict=key',
     {method:'POST', headers:upsertHdr, body});
   if(!r.ok) {
     const e = await r.text();
     console.warn('DB write failed ['+key+']:', r.status, e);
+    // Fallback: if upsert still fails (e.g. older PostgREST), try a direct PATCH instead
+    try {
+      const patchR = await fetch(_SUPA_URL+'/rest/v1/aifi_store?key=eq.'+encodeURIComponent(key), {
+        method: 'PATCH',
+        headers: {..._SUPA_HDR, 'Content-Type':'application/json', 'Prefer':'return=minimal'},
+        body: JSON.stringify({val, updated_at: new Date().toISOString()})
+      });
+      if(!patchR.ok) console.warn('DB PATCH fallback also failed ['+key+']:', patchR.status, await patchR.text());
+    } catch(e2) { console.warn('DB PATCH fallback error ['+key+']:', e2.message); }
   }
 };
 
