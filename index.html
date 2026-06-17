@@ -3219,6 +3219,19 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
         </div>
       </div>
 
+      <!-- ── LIVE SHIFT ACTIVITY ─────────────────────────────────── -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📋 Live Shift Activity</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">One row per working operator · session count since shift start · click a row for full timeline</div>
+          </div>
+        </div>
+        <div id="shift-activity-table" style="margin-top:10px">
+          <div style="color:var(--text3);font-size:12px;font-style:italic">Loading…</div>
+        </div>
+      </div>
+
 
       <!-- ── SUBMIT TRACKER ───────────────────────────────────── -->
       <div class="card" style="margin-bottom:20px;border-color:rgba(255,133,52,0.18)">
@@ -7914,6 +7927,88 @@ function renderWorkingNow(sessions, approved, date) {
   }
 }
 
+// ── Live Shift Activity: session counts + full timeline per working operator ──
+function renderShiftActivity(sessions, approved, date) {
+  const el = document.getElementById('shift-activity-table');
+  if(!el) return;
+
+  const logs = getLogs().filter(l => l.date === date);
+  // Non-counted event types — everything else counts as a real "session"/submission
+  const NON_SESSION_TYPES = ['checkin','checkout','break','resume','idle','tab_switch','status_change','force_logout','cursor_return'];
+
+  // Normalize to canonical id and dedupe (fixes e.g. christopher.wanyama vs christopher.wanyama2)
+  const canon = id => {
+    const s = (id||'').replace('.impact.nbo','').toLowerCase().trim();
+    if(s.startsWith('rading.yvonne') && !s.includes('yvonne2')) return 'rading.yvonne2';
+    if(s === 'christopher.wanyama') return 'christopher.wanyama2';
+    if(s === 'synthia.kaneotieno') return 'synthiakane.otieno';
+    return s;
+  };
+
+  const working = [...new Set(approved.map(canon))].filter(opId => {
+    const sess = sessions[opId];
+    return sess?.checkIn && !sess?.checkOut;
+  });
+
+  if(!working.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;font-style:italic">No one is checked in right now.</div>';
+    return;
+  }
+
+  // Clock-skew guard: never show a negative "min ago" — floor at 0
+  const minsAgo = iso => {
+    if(!iso) return null;
+    const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    return Math.max(0, m);
+  };
+
+  const rows = working.map(opId => {
+    const sess     = sessions[opId];
+    const opLogs   = logs.filter(l => canon(l.opId || l.op_id) === opId)
+                          .sort((a,b) => (a.isoTime||'').localeCompare(b.isoTime||''));
+    const sessionLogs = opLogs.filter(l => !NON_SESSION_TYPES.includes(l.type || l.log_type));
+    const sessionCount = sessionLogs.length;
+    const totalCases = sessionLogs.reduce((s,l) => s + (+l.cases || 0), 0) || sess?.totalCases || 0;
+    const lastLog   = opLogs[opLogs.length - 1];
+    const lastTime  = lastLog?.timeStr || (sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–');
+    const hbAge     = minsAgo(sess?.lastHeartbeat);
+    const team      = getOpTeam(opId);
+    const checkInT  = sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+
+    return { opId, team, sessionCount, totalCases, lastTime, hbAge, checkInT, opLogs };
+  }).sort((a,b) => b.sessionCount - a.sessionCount);
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1.4fr 0.6fr 0.8fr 0.8fr 0.8fr 0.9fr;gap:0;font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;padding:0 4px 8px;border-bottom:1px solid var(--border)">
+      <div>Operator</div><div>Team</div><div>Since</div><div>Sessions</div><div>Cases</div><div>Last Activity</div>
+    </div>
+    ${rows.map(r => `
+      <div onclick="toggleShiftTimeline('${r.opId}')" style="display:grid;grid-template-columns:1.4fr 0.6fr 0.8fr 0.8fr 0.8fr 0.9fr;gap:0;align-items:center;padding:9px 4px;border-bottom:1px solid var(--border2);cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="font-weight:700;color:var(--text)">${operatorLabel(r.opId)}</div>
+        <div style="font-size:9px;font-weight:700;color:${r.team==='kings'?'var(--accent)':'var(--orange)'};text-transform:uppercase">${r.team}</div>
+        <div style="font-family:'DM Mono',monospace;color:var(--text3)">${r.checkInT}</div>
+        <div style="font-weight:700;color:var(--teal)">${r.sessionCount}</div>
+        <div style="font-weight:700;color:var(--green)">${r.totalCases || '–'}</div>
+        <div style="font-size:11px;color:var(--text3)">${r.lastTime}${r.hbAge!==null ? ` · hb ${r.hbAge}m ago` : ''}</div>
+      </div>
+      <div id="shift-timeline-${r.opId}" style="display:none;padding:10px 12px;background:var(--surface2);border-radius:8px;margin:4px 0 8px;font-size:11px">
+        ${r.opLogs.length ? r.opLogs.map(l => `
+          <div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border2)">
+            <div style="font-family:'DM Mono',monospace;color:var(--text3);min-width:48px">${l.timeStr||'–'}</div>
+            <div style="font-weight:700;color:var(--text2);min-width:90px">${(l.type||l.log_type||'').replace('_',' ')}</div>
+            <div style="color:var(--text3)">${l.cases ? 'Cases: '+l.cases+(l.aht?' · AHT '+l.aht+'s':'') : (l.notes||'')}</div>
+          </div>`).join('') : '<div style="color:var(--text3);font-style:italic">No activity logged yet this shift.</div>'}
+      </div>
+    `).join('')}
+  `;
+}
+
+function toggleShiftTimeline(opId) {
+  const el = document.getElementById('shift-timeline-' + opId);
+  if(!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
 async function renderWFHMonitor() {
   const date    = document.getElementById('wfh-filter-date')?.value || today();
   const statusF = document.getElementById('wfh-filter-status')?.value || '';
@@ -7932,6 +8027,7 @@ async function renderWFHMonitor() {
 
   // ── Render "Who's Working Now" panel ──────────────────────────
   renderWorkingNow(sessions, approved, date);
+  renderShiftActivity(sessions, approved, date);
 
   const lrEl = document.getElementById('wfh-last-refresh');
   if(lrEl) lrEl.textContent = '↺ '+new Date().toLocaleTimeString('en-GB');
