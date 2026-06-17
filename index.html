@@ -11436,6 +11436,7 @@ async function saveDRSection(section) {
   if(idx>=0) all[idx]=entry; else all.push(entry);
   save('dr_entries', all);
   toast(LABELS[section]+' report saved for '+fmtDate(date),'💾');
+  pushNotif(entry);
 
   // Clear fields
   document.querySelectorAll(`[id^="${pfx}"]`).forEach(el=>{
@@ -11609,9 +11610,12 @@ function saveCallReport() {
     feedback:  document.getElementById('cr-feedback').value,
     nextDate:  document.getElementById('cr-next').value,
     prepared:  document.getElementById('cr-prepared').value,
+    person:    currentRole,
+    name:      (currentRole==='kings'?'Kingori — Team Kings QA':currentRole==='swat'?'Rosemary Nyaleso — Team SWAT QA':currentRole==='tl'?'John Paul Kimongo (TL)':'Admin') + ' — Call Report',
   };
   const all = load('call_reports'); all.push(entry); save('call_reports',all);
   toast('Call report saved ✓','📞');
+  pushNotif({ ...entry, type: 'call_report' });
   // Clear form
   ['cr-initiated','cr-attendees','cr-client','cr-discussion','cr-actions','cr-feedback','cr-prepared','cr-next'].forEach(id=>{
     const el=document.getElementById(id); if(el&&id!=='cr-prepared')el.value='';
@@ -11818,6 +11822,7 @@ async function saveDailyPlan() {
   if(idx>=0) all[idx]=entry; else all.push(entry);
   save('daily_plans', all);
   toast(NAMES[person]+' plan saved for '+fmtDate(date),'📅');
+  pushNotif({ ...entry, type: 'plan' });
   document.getElementById('dp-person').value = '';
   document.getElementById('dp-date').value = '';
   document.getElementById('dp-internal-audits').value = '';
@@ -12588,33 +12593,35 @@ function renderNotifDropdown() {
 
 function buildNotifCard(n, compact) {
   const TEAM_COLOR = { kings:'var(--accent)', swat:'var(--violet)', tl:'var(--green)' };
-  const TYPE_ICON  = { plan:'📅', report:'📝' };
+  const TYPE_ICON  = { plan:'📅', report:'📝', call_report:'📞' };
+  const TYPE_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report' };
   const sc = n.status==='Approved'?'var(--green)':n.status==='Rejected'?'var(--red)':'var(--amber)';
   const name = n.name || (n.person==='kings'?'Kingori':n.person==='swat'?'Rosemary Nyaleso':'Team Lead');
+  const isApprovable = n.type==='plan' || n.type==='report'; // call reports have no approval workflow
   return `
   <div class="notif-item ${n.read?'':'unread'}" onclick="openFromNotif('${n.type}','${n.person}','${n.date}',${n.entryId})">
     <div class="notif-icon">${TYPE_ICON[n.type]||'🔔'}</div>
     <div style="flex:1;min-width:0">
       <div class="notif-title">
         ${n.isFeedback
-          ? `<span style="color:${sc}">Your ${n.type==='plan'?'Daily Plan':'Daily Report'} was ${n.status}</span>`
+          ? `<span style="color:${sc}">Your ${TYPE_LABEL[n.type]||'submission'} was ${n.status}</span>`
           : n.notifType==='own'
-            ? `<span style="color:var(--teal)">✅ ${n.type==='plan'?'Plan':'Report'} submitted</span>`
+            ? `<span style="color:var(--teal)">✅ ${TYPE_LABEL[n.type]||'Submission'} submitted</span>`
             : `<span style="color:${TEAM_COLOR[n.person]||'var(--text)'}">${name}</span>
-               <span style="font-weight:400;color:var(--text3)"> — ${n.type==='plan'?'Daily Plan':'Daily Report'}</span>`
+               <span style="font-weight:400;color:var(--text3)"> — ${TYPE_LABEL[n.type]||'Submission'}</span>`
         }
       </div>
       <div class="notif-body">
-        ${n.isFeedback?`<span style="font-weight:700">Your ${n.type==='plan'?'plan':'report'} was </span>`:''}
+        ${n.isFeedback?`<span style="font-weight:700">Your ${(TYPE_LABEL[n.type]||'submission').toLowerCase()} was </span>`:''}
         📆 ${fmtDate(n.date)}
         ${n.cases?` · 🎯 ${Number(n.cases).toLocaleString()} cases`:''}
         ${n.quality?` · ✅ ${n.quality}% quality`:''}
-        · <span style="color:${sc};font-weight:${n.isFeedback?700:400}">${n.status}</span>
+        ${isApprovable ? ` · <span style="color:${sc};font-weight:${n.isFeedback?700:400}">${n.status}</span>` : (n.status ? ` · <span style="color:var(--text3)">${n.status}</span>` : '')}
         ${n.score!=null?`· <span style="font-weight:800;color:${scoreColor(n.score)}">${scoreEmoji(n.score)} Score: ${n.score}%</span>`:''}
       </div>
       <div class="notif-time">${n.time}</div>
       ${!compact ? `<div class="notif-actions">
-        ${n.status==='Pending'?`<button class="btn btn-green btn-sm" onclick="event.stopPropagation();approveFromNotif('${n.type}',${n.entryId},${n.id})">✓ Approve</button>
+        ${isApprovable && n.status==='Pending'?`<button class="btn btn-green btn-sm" onclick="event.stopPropagation();approveFromNotif('${n.type}',${n.entryId},${n.id})">✓ Approve</button>
         <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();rejectFromNotif('${n.type}',${n.entryId},${n.id})">✗ Reject</button>`:''}
         <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();dismissNotif(${n.id})">✕</button>
       </div>` : ''}
@@ -12635,7 +12642,16 @@ function openFromNotif(type, person, date, entryId) {
   const notifs = getNotifs().map(n => n.entryId===entryId ? {...n,read:true} : n);
   saveNotifs(notifs); renderNotifs(); updateNavBadges(); updateBellCount();
   // Navigate and auto-filter
-  nav(type==='plan' ? 'daily-plan' : 'daily-report');
+  const PAGE_MAP = { plan:'daily-plan', report:'daily-report', call_report:'call-reports' };
+  nav(PAGE_MAP[type] || 'daily-report');
+  if(type === 'call_report') {
+    setTimeout(() => {
+      const dEl = document.getElementById('cr-filter-date');
+      if(dEl) dEl.value = date;
+      renderCallReports();
+    }, 300);
+    return;
+  }
   setTimeout(() => {
     const pEl = document.getElementById(type==='plan'?'dp-filter-person':'dr-view-person');
     const dEl = document.getElementById(type==='plan'?'dp-filter-date':'dr-view-date');
