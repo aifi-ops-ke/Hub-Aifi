@@ -355,6 +355,9 @@
   .btn-primary { background: var(--accent); color: white; }
   .btn-primary:hover { opacity: 0.88; }
   .btn-secondary { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); }
+  .tab-btn { background: var(--surface2); color: var(--text3); border: 1px solid var(--border2); padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .tab-btn:hover { color: var(--text2); }
+  .tab-btn.active { background: rgba(0,212,160,0.12); color: var(--accent); border-color: rgba(0,212,160,0.4); }
   .btn-secondary:hover { border-color: var(--border); color: var(--text); }
   .btn-danger { background: rgba(240,92,92,0.12); color: var(--red); border: 1px solid rgba(240,92,92,0.25); }
   .btn-green { background: rgba(52,201,122,0.12); color: var(--green); border: 1px solid rgba(52,201,122,0.25); }
@@ -2779,8 +2782,13 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
         <h1>🔵 Team Kings — Performance Tracker</h1>
         <p>Individual operator metrics. Feed daily data to track AHT, quality, abandoned %, refreshed % and reported %. Red = needs coaching.</p>
       </div>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button class="tab-btn active" id="kperf-tab-daily"   onclick="setPerfView('kings','daily')">📅 Daily</button>
+        <button class="tab-btn"        id="kperf-tab-weekly"  onclick="setPerfView('kings','weekly')">📈 Weekly</button>
+        <button class="tab-btn"        id="kperf-tab-monthly" onclick="setPerfView('kings','monthly')">📆 Monthly</button>
+      </div>
       <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
-        <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="kperf-date" onchange="renderTeamPerf('kings')" style="width:150px"/></div>
+        <div class="form-group" style="margin:0" id="kperf-date-wrap"><label>Date</label><input type="date" id="kperf-date" onchange="renderTeamPerf('kings')" style="width:150px"/></div>
         <button class="btn btn-primary" onclick="openFeedModal('kings')">+ Feed Data</button>
         <button class="btn btn-secondary" onclick="renderTeamPerf('kings')">↺ Refresh</button>
       </div>
@@ -2795,13 +2803,19 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
         <h1>🟣 Team SWAT — Performance Tracker</h1>
         <p>Individual operator metrics. Feed daily data to track AHT, quality, abandoned %, refreshed % and reported %. Red = needs coaching.</p>
       </div>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button class="tab-btn active" id="sperf-tab-daily"   onclick="setPerfView('swat','daily')">📅 Daily</button>
+        <button class="tab-btn"        id="sperf-tab-weekly"  onclick="setPerfView('swat','weekly')">📈 Weekly</button>
+        <button class="tab-btn"        id="sperf-tab-monthly" onclick="setPerfView('swat','monthly')">📆 Monthly</button>
+      </div>
       <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
-        <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="sperf-date" onchange="renderTeamPerf('swat')" style="width:150px"/></div>
+        <div class="form-group" style="margin:0" id="sperf-date-wrap"><label>Date</label><input type="date" id="sperf-date" onchange="renderTeamPerf('swat')" style="width:150px"/></div>
         <button class="btn btn-primary" onclick="openFeedModal('swat')">+ Feed Data</button>
         <button class="btn btn-secondary" onclick="renderTeamPerf('swat')">↺ Refresh</button>
       </div>
       <div id="team-perf-swat-grid"></div>
     </div>
+
 
     <!-- ══════════════════════════════════════════════════════════
          PAGE: TEAM KINGS DASHBOARD
@@ -12340,6 +12354,111 @@ function renderTeamPerf(team) {
 }
 
 
+
+// ── Daily / Weekly / Monthly view switcher for team performance pages ──
+let _perfView = { kings: 'daily', swat: 'daily' };
+
+function setPerfView(team, view) {
+  _perfView[team] = view;
+  const prefix = team === 'kings' ? 'kperf' : 'sperf';
+  ['daily','weekly','monthly'].forEach(v => {
+    const btn = document.getElementById(`${prefix}-tab-${v}`);
+    if(btn) btn.classList.toggle('active', v === view);
+  });
+  const dateWrap = document.getElementById(`${prefix}-date-wrap`);
+  if(dateWrap) dateWrap.style.display = view === 'daily' ? 'block' : 'none';
+
+  if(view === 'daily') renderTeamPerf(team);
+  else renderTeamPerfAggregate(team, view);
+}
+
+// Group op_perf entries into ISO week (Mon–Sun) or calendar month buckets
+function perfBucketKey(dateStr, view) {
+  const d = new Date(dateStr + 'T00:00:00');
+  if(view === 'monthly') return dateStr.slice(0, 7); // YYYY-MM
+  // weekly: find Monday of that week
+  const day = d.getDay(); // 0=Sun..6=Sat
+  const diffToMon = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMon);
+  return monday.toISOString().split('T')[0]; // week key = Monday's date
+}
+
+function renderTeamPerfAggregate(team, view) {
+  const pool = team === 'kings' ? KINGS_OPS : SWAT_OPS;
+  const allPerf = load('op_perf').filter(e => e.team === team);
+  const elId = `team-perf-${team}-grid`;
+  const el = document.getElementById(elId);
+  if(!el) return;
+
+  if(!allPerf.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px">No performance data yet. Click "+ Feed Data" to add.</div>';
+    return;
+  }
+
+  // Bucket all entries by week or month
+  const buckets = {};
+  allPerf.forEach(e => {
+    const key = perfBucketKey(e.date, view);
+    if(!buckets[key]) buckets[key] = [];
+    buckets[key].push(e);
+  });
+  const sortedKeys = Object.keys(buckets).sort().reverse().slice(0, view === 'monthly' ? 6 : 8);
+
+  const fields = ['cases','aht','quality','abandoned','refreshed','reported'];
+  const avg = (entries, field) => entries.length ? (entries.reduce((s,e)=>s+(+e[field]||0),0)/entries.length) : 0;
+  const sum = (entries, field) => entries.reduce((s,e)=>s+(+e[field]||0),0);
+
+  const bucketLabel = key => {
+    if(view === 'monthly') {
+      const [y,m] = key.split('-');
+      return new Date(+y, +m-1, 1).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+    }
+    const start = new Date(key + 'T00:00:00');
+    const end = new Date(start); end.setDate(start.getDate()+6);
+    return start.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' – ' + end.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+  };
+
+  const rowsHtml = sortedKeys.map(key => {
+    const entries = buckets[key];
+    const opIds = [...new Set(entries.map(e=>e.opId))];
+    const c = {
+      cases: sum(entries,'cases'),
+      aht: avg(entries,'aht').toFixed(1),
+      quality: avg(entries,'quality').toFixed(1),
+      abandoned: avg(entries,'abandoned').toFixed(1),
+      refreshed: avg(entries,'refreshed').toFixed(1),
+      reported: avg(entries,'reported').toFixed(1),
+    };
+    return `<tr style="border-bottom:1px solid var(--border2)">
+      <td style="padding:10px 12px;font-weight:700;font-size:12px">${bucketLabel(key)}</td>
+      <td style="padding:10px 8px;text-align:center;font-size:11px;color:var(--text3)">${opIds.length} ops · ${entries.length} entries</td>
+      <td style="padding:10px 8px;text-align:right;font-weight:700;color:var(--green)">${c.cases.toLocaleString()}</td>
+      <td style="padding:10px 8px;text-align:right;font-family:'DM Mono',monospace">${c.aht}s</td>
+      <td style="padding:10px 8px;text-align:right;color:var(--teal)">${c.quality}%</td>
+      <td style="padding:10px 8px;text-align:right;color:var(--amber)">${c.abandoned}%</td>
+      <td style="padding:10px 8px;text-align:right;color:var(--violet)">${c.refreshed}%</td>
+      <td style="padding:10px 8px;text-align:right;color:var(--orange)">${c.reported}%</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--surface2)">
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase">${view === 'monthly' ? 'Month' : 'Week'}</th>
+          <th style="padding:8px;font-size:10px;color:var(--text3);text-transform:uppercase">Coverage</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Total Cases</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Avg AHT</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Avg Quality</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Avg Abandoned</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Avg Refreshed</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Avg Reported</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+}
 
 function testFirebase() {
   // Write a test value to Firebase and read it back
