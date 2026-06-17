@@ -7494,6 +7494,7 @@ function openWFHFlagModal() {
 }
 // ── TL MONITOR ───────────────────────────────────────────────────
 let _camGridInterval = null;
+let _lastRenderedWFHDate = null;
 
 async function initWFH() {
   const dateEl = document.getElementById('wfh-filter-date');
@@ -7700,15 +7701,21 @@ function renderWorkingNow(sessions, approved, date) {
   }
 }
 
-function renderWFHMonitor() {
+async function renderWFHMonitor() {
   const date    = document.getElementById('wfh-filter-date')?.value || today();
   const statusF = document.getElementById('wfh-filter-status')?.value || '';
   const searchF = (document.getElementById('wfh-filter-search')?.value||'').toLowerCase();
 
+  // If looking at a date not yet cached (e.g. TL picked a past day), fetch it fresh
+  if(!_sessionsCache[date] || date !== _lastRenderedWFHDate) {
+    await refreshWFHCache(date);
+    _lastRenderedWFHDate = date;
+  }
+
   const sessions = getSessions()[date] || {};
   const logs     = getLogs().filter(l=>l.date===date);
   const eods     = getEODs()[date]   || {};
-  const approved = getApproved();
+  const approved = date === today() ? getApproved() : Object.keys(sessions);
 
   // ── Render "Who's Working Now" panel ──────────────────────────
   renderWorkingNow(sessions, approved, date);
