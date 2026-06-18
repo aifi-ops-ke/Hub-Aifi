@@ -4688,6 +4688,25 @@ function save(key, val) {
   if(window._dbSet) window._dbSet(key, val).catch(e => console.warn('DB ['+key+']:', e.message));
 }
 
+// Like save(), but actually waits for the write and confirms it landed —
+// used for Daily Report / Daily Plan / Call Reports so a failure is never silent.
+async function saveAndVerify(key, val) {
+  if(window._dbCache) window._dbCache[key] = val;
+  if(!window._dbSet) return false;
+  try {
+    await window._dbSet(key, val);
+    // Double-check directly against Supabase that it actually landed
+    const r = await fetch(_SUPA_URL+'/rest/v1/aifi_store?select=val&key=eq.'+key, {headers:_SUPA_HDR});
+    if(!r.ok) return false;
+    const rows = await r.json();
+    const landed = rows.length && Array.isArray(rows[0].val) && rows[0].val.length === val.length;
+    return !!landed;
+  } catch(e) {
+    console.warn('saveAndVerify failed ['+key+']:', e.message);
+    return false;
+  }
+}
+
 // ════════════════════════════════════════════════════════════════
 //  NAVIGATION
 // ════════════════════════════════════════════════════════════════
@@ -11443,9 +11462,15 @@ async function saveDRSection(section) {
   const all = load('dr_entries');
   const idx = all.findIndex(e=>(e.section||e.person)===section && e.date===date);
   if(idx>=0) all[idx]=entry; else all.push(entry);
-  save('dr_entries', all);
-  toast(LABELS[section]+' report saved for '+fmtDate(date),'💾');
-  pushNotif(entry);
+
+  const ok = await saveAndVerify('dr_entries', all);
+  if(ok) {
+    toast(LABELS[section]+' report saved for '+fmtDate(date),'💾');
+    pushNotif(entry);
+  } else {
+    toast('⚠️ Save failed — check your connection and try again','🚫');
+    return; // don't clear the form if the save didn't actually land
+  }
 
   // Clear fields
   document.querySelectorAll(`[id^="${pfx}"]`).forEach(el=>{
@@ -11605,7 +11630,7 @@ function crTab(tab) {
   document.getElementById('cr-tab-list').style.display = tab==='list' ? 'block' : 'none';
 }
 
-function saveCallReport() {
+async function saveCallReport() {
   const entry = {
     id:        Date.now(),
     date:      document.getElementById('cr-date').value||today(),
@@ -11622,7 +11647,13 @@ function saveCallReport() {
     person:    currentRole,
     name:      (currentRole==='kings'?'Kingori — Team Kings QA':currentRole==='swat'?'Rosemary Nyaleso — Team SWAT QA':currentRole==='tl'?'John Paul Kimongo (TL)':'Admin') + ' — Call Report',
   };
-  const all = load('call_reports'); all.push(entry); save('call_reports',all);
+  const all = load('call_reports'); all.push(entry);
+
+  const ok = await saveAndVerify('call_reports', all);
+  if(!ok) {
+    toast('⚠️ Save failed — check your connection and try again','🚫');
+    return; // keep the form filled in so nothing is lost
+  }
   toast('Call report saved ✓','📞');
   pushNotif({ ...entry, type: 'call_report' });
   // Clear form
@@ -11829,7 +11860,12 @@ async function saveDailyPlan() {
   const all = load('daily_plans');
   const idx = all.findIndex(e=>e.person===person&&e.date===date&&!e.isAchieved);
   if(idx>=0) all[idx]=entry; else all.push(entry);
-  save('daily_plans', all);
+
+  const ok = await saveAndVerify('daily_plans', all);
+  if(!ok) {
+    toast('⚠️ Save failed — check your connection and try again','🚫');
+    return; // keep the form filled in so nothing is lost
+  }
   toast(NAMES[person]+' plan saved for '+fmtDate(date),'📅');
   pushNotif({ ...entry, type: 'plan' });
   document.getElementById('dp-person').value = '';
