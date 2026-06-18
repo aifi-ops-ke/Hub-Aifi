@@ -12562,32 +12562,16 @@ function saveNotifs(n) {
 }
 
 function pushNotif(data) {
-  // Routing rules:
-  // Kingori/Rosemary submit   → TL + Admin notified
-  // John Paul submits         → Admin notified
-  // Gidraph submits           → TL notified
-  // Approved/Rejected         → submitter notified (feedback)
-  // Submitter always sees their own in their dashboard
+  // The submitter ALWAYS records the notification — who SEES it is decided later,
+  // at render time, based on the viewer's own role. Gating creation on the
+  // submitter's currentRole was the bug: Kingori/Rosemary's own browser would
+  // check "am I TL or Admin?", say no, and silently skip writing anything —
+  // so TL/Admin never got notified unless their own browser happened to be
+  // the one running this code (which it never is for someone else's submission).
 
-  // Approval/rejection feedback — always deliver to the submitter
-  if(data.notifType === 'feedback') {
-    // Only notify the submitter of this entry
-    const submitterRole = data.person; // 'kings','swat','tl','admin'
-    if(currentRole !== submitterRole && currentRole !== 'tl' && currentRole !== 'admin') return;
-  } else {
-    // New submission routing
-    const isOwn = (currentRole === data.person) || currentRole === 'tl' || currentRole === 'admin';
-    const isTL    = currentRole === 'tl' || currentRole === 'admin';
-    const isAdmin = currentRole === 'admin';
-    // TL sees: kings, swat, admin submissions (not own)
-    // Admin sees: kings, swat, tl submissions (not own)
-    // QAs only see their own (handled via dashboard, not push notif)
-    if(!isTL && !isAdmin) return;
-    if(isOwn) return; // skip own for TL/Admin (they submitted it)
-  }
   const notifs = getNotifs();
   // Avoid duplicates by entry id
-  if(notifs.find(n => n.entryId === data.id)) return;
+  if(notifs.find(n => n.entryId === data.id && n.notifType !== 'feedback')) return;
   const entry = {
     id:      Date.now() + Math.random(),
     entryId: data.id,
@@ -12612,11 +12596,28 @@ function pushNotif(data) {
   toast(`${data.name} submitted a ${data.type === 'plan' ? 'Daily Plan' : 'Daily Report'} for ${fmtDate(data.date)}`, icon);
 }
 
+// Who should see a given notification, based on the CURRENT viewer's role —
+// this is where routing actually happens now (not at creation time).
+function notifVisibleToMe(n) {
+  if(n.notifType === 'feedback') {
+    // Approval/rejection feedback — only the original submitter (or TL/Admin) should see it
+    return currentRole === n.person || currentRole === 'tl' || currentRole === 'admin';
+  }
+  // New submission routing:
+  // Kingori (kings) / Rosemary (swat) submit → TL + Admin see it
+  // TL submits                                → Admin sees it
+  // Admin submits                              → TL sees it (kept symmetric)
+  if(currentRole === n.person) return true; // always see your own
+  if(currentRole === 'admin') return true;  // Admin sees absolutely everything
+  if(currentRole === 'tl' && n.person !== 'tl') return true; // TL sees kings/swat/admin
+  return false; // Kings/SWAT QAs only see their own — not each other's
+}
+
 function renderNotifs() {
   // Dashboard panel
   const el = document.getElementById('notif-panel');
   if(!el) return;
-  const notifs = getNotifs();
+  const notifs = getNotifs().filter(notifVisibleToMe);
   const unread = notifs.filter(n => !n.read).length;
   const badge  = document.getElementById('notif-unread-count');
   if(badge) { badge.style.display = unread > 0 ? 'inline' : 'none'; badge.textContent = unread > 9 ? '9+' : unread; }
@@ -12631,7 +12632,7 @@ function renderNotifs() {
 function renderNotifDropdown() {
   const el = document.getElementById('notif-dropdown-list');
   if(!el) return;
-  const notifs = getNotifs();
+  const notifs = getNotifs().filter(notifVisibleToMe);
   if(!notifs.length) { el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">No notifications yet</div>'; return; }
   el.innerHTML = notifs.slice(0, 20).map(n => buildNotifCard(n, true)).join('');
 }
@@ -12675,7 +12676,7 @@ function buildNotifCard(n, compact) {
 }
 
 function updateBellCount() {
-  const count = getNotifs().filter(n=>!n.read).length;
+  const count = getNotifs().filter(notifVisibleToMe).filter(n=>!n.read).length;
   const el    = document.getElementById('notif-bell-count');
   if(el) { el.style.display = count > 0 ? 'flex' : 'none'; el.textContent = count > 9 ? '9+' : count; }
 }
@@ -12770,7 +12771,7 @@ function clearAllNotifs() {
   renderNotifs(); renderNotifDropdown(); updateNavBadges(); updateBellCount();
 }
 function updateNavBadges() {
-  const notifs  = getNotifs();
+  const notifs  = getNotifs().filter(notifVisibleToMe);
   const plans   = notifs.filter(n=>n.type==='plan'   && !n.read).length;
   const reports = notifs.filter(n=>n.type==='report'  && !n.read).length;
   const pb = document.getElementById('badge-daily-plan');
