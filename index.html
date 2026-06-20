@@ -3323,8 +3323,8 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
       <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.18)">
         <div class="card-header">
           <div>
-            <div class="card-title">📸 Webcam Snapshot Monitor</div>
-            <div class="card-sub">Auto-captures every 5 min · Face-away triggers instant alert · Red border = operator away from camera</div>
+            <div class="card-title">📸 Presence Monitor</div>
+            <div class="card-sub">Checks if operator is at camera every 5 min · No images are saved, only presence/away status · Red border = operator away from camera</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <div id="cam-face-away-count" style="font-size:11px;font-weight:700;color:var(--red);display:none"></div>
@@ -3535,7 +3535,7 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
                 <div style="font-size:22px;font-weight:800;color:var(--red);font-family:'DM Mono',monospace" id="op-away-count">0</div>
               </div>
               <div style="font-size:10px;color:var(--text3);line-height:1.5;padding:8px;background:rgba(255,133,52,0.06);border:1px solid rgba(255,133,52,0.2);border-radius:7px">
-                ⚠️ Camera must stay ON your entire shift. Snapshots are taken every 5 minutes. If you leave the frame, your TL is notified instantly.
+                ⚠️ Camera must stay ON your entire shift. Your presence is checked every 5 minutes — no images are saved, only whether you're at the camera. If you leave the frame, your TL is notified instantly.
               </div>
             </div>
           </div>
@@ -8911,6 +8911,9 @@ let _opSnapCount      = 0;
 let _opAwayCount      = 0;
 
 // Supabase helpers for snapshots
+// NOTE: snapshot images are intentionally NOT saved — only presence/face-detection
+// metadata is stored. The b64 image argument is accepted (so call sites don't need
+// to change) but discarded before anything reaches the database.
 async function saveSnapshot(opId, snapB64, faceDetected, trigger='auto') {
   if(!_SUPA_URL_CAM) return;
   const date = today();
@@ -8923,7 +8926,7 @@ async function saveSnapshot(opId, snapB64, faceDetected, trigger='auto') {
         'Authorization':'Bearer '+_SUPA_KEY_CAM,
         'Prefer':'return=minimal'
       },
-      body: JSON.stringify({ op_id:opId, date, snapshot_b64:snapB64, face_detected:faceDetected, trigger })
+      body: JSON.stringify({ op_id:opId, date, snapshot_b64:null, face_detected:faceDetected, trigger })
     });
   } catch(e) { console.warn('Snapshot save failed:', e); }
 }
@@ -8940,7 +8943,7 @@ async function saveFaceEvent(opId, eventType, durationS=null, snapB64=null) {
         'Authorization':'Bearer '+_SUPA_KEY_CAM,
         'Prefer':'return=minimal'
       },
-      body: JSON.stringify({ op_id:opId, date, event_type:eventType, duration_s:durationS, snapshot_b64:snapB64 })
+      body: JSON.stringify({ op_id:opId, date, event_type:eventType, duration_s:durationS, snapshot_b64:null })
     });
   } catch(e) { console.warn('Face event save failed:', e); }
 }
@@ -9364,18 +9367,20 @@ async function tlViewOperatorCam(opId) {
     ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;max-height:340px;overflow-y:auto">
         ${snapshots.map(s=>{
           const t = new Date(s.captured_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-          const borderC = s.face_detected!==false ? 'rgba(0,212,160,0.4)' : 'rgba(255,94,110,0.6)';
-          return `<div style="position:relative;border-radius:8px;overflow:hidden;border:2px solid ${borderC}">
-            <img src="data:image/jpeg;base64,${s.snapshot_b64}" style="width:100%;display:block" loading="lazy"/>
-            <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.65);padding:3px 6px;font-size:9px;color:#fff;font-family:'DM Mono',monospace;display:flex;justify-content:space-between">
-              <span>${t}</span><span>${s.face_detected!==false?'✅':'⚠️'}</span>
+          const present = s.face_detected!==false;
+          const borderC = present ? 'rgba(0,212,160,0.4)' : 'rgba(255,94,110,0.6)';
+          return `<div style="position:relative;border-radius:8px;overflow:hidden;border:2px solid ${borderC};background:var(--surface2);min-height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px">
+            <div style="font-size:24px">${present?'✅':'⚠️'}</div>
+            <div style="font-size:10px;font-weight:700;color:${present?'var(--green)':'var(--red)'};margin-top:4px">${present?'Present':'Away'}</div>
+            <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.45);padding:3px 6px;font-size:9px;color:#fff;font-family:'DM Mono',monospace;text-align:center">
+              <span>${t}</span>
             </div>
           </div>`;
         }).join('')}
       </div>`
     : '<div style="color:var(--text3);font-size:12px;text-align:center;padding:24px">No snapshots today.</div>';
 
-  openModal(`📷 ${name} — Webcam History`, `
+  openModal(`📷 ${name} — Presence History`, `
     <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
       <div style="background:var(--surface2);border-radius:8px;padding:10px 16px;flex:1">
         <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Snapshots</div>
