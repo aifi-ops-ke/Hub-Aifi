@@ -1615,7 +1615,7 @@ function _dbRefreshPage(key) {
         <div class="card-header" style="margin-bottom:12px">
           <div>
             <div class="card-title">📊 Production — <span id="dash-prod-date-label">Yesterday</span></div>
-            <div class="card-sub">Live from Production Tracker · Previous working day</div>
+            <div class="card-sub" id="dash-prod-sub-label">Live from Production Tracker · Previous working day</div>
           </div>
           <a href="#" onclick="nav('production');return false;" style="font-size:11px;color:var(--accent);font-weight:700;text-decoration:none">View Full Log →</a>
         </div>
@@ -5412,119 +5412,32 @@ function renderDashPerfChart() {
 }
 
 function renderDashProdKPIs() {
+  const el = document.getElementById('dash-prod-kpis');
+  const lbl = document.getElementById('dash-prod-date-label');
+  const sub = document.getElementById('dash-prod-sub-label');
+  if(!el) return;
 
-  // Group prod data by date, last 14 days
-  const all = load('prod');
-  const byDate = {};
-  all.forEach(p => {
-    if(!byDate[p.date]) byDate[p.date] = [];
-    byDate[p.date].push(p);
-  });
-  const dates = Object.keys(byDate).sort().slice(-14);
-  if(!dates.length) {
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.font = '13px DM Sans, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('No production data yet', w/2, h/2);
+  const allProd = load('prod');
+  const allDates = [...new Set(allProd.map(p => p.date))].sort();
+  const latestDate = allDates[allDates.length - 1]; // most recent date that actually has data
+
+  if(!latestDate) {
+    if(lbl) lbl.textContent = '—';
+    el.innerHTML = `<div style="color:var(--text3);font-size:12px;grid-column:span 5;text-align:center;padding:20px">No production data fed yet.</div>`;
     return;
   }
 
-  const points = dates.map(d => {
-    const rows = byDate[d];
-    return {
-      date: d,
-      cases: rows.reduce((s,r) => s + (+r.cases||0), 0),
-      occ:   rows.reduce((s,r) => s + (+r.occ||0), 0) / rows.length
-    };
-  });
+  const prod = allProd.filter(p => p.date === latestDate);
 
-  const maxCases = Math.max(...points.map(p => p.cases));
-  const pad = { top:20, right:16, bottom:38, left:56 };
-  const cw = w - pad.left - pad.right;
-  const ch = h - pad.top - pad.bottom;
-  const barW = Math.max(8, cw / points.length * 0.55);
-  const gap  = cw / points.length;
-
-  // Background
-  ctx.clearRect(0,0,w,h);
-
-  // Grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.lineWidth = 1;
-  [0,25,50,75,100].forEach(pct => {
-    const y = pad.top + ch - (pct/100)*ch;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left+cw, y); ctx.stroke();
-  });
-
-  // Y axis labels (cases)
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.font = `10px DM Mono, monospace`;
-  ctx.textAlign = 'right';
-  [0,0.25,0.5,0.75,1].forEach(frac => {
-    const y = pad.top + ch - frac*ch;
-    const val = Math.round(maxCases * frac);
-    ctx.fillText(val >= 1000 ? (val/1000).toFixed(0)+'k' : val, pad.left - 6, y + 3);
-  });
-
-  // Bars
-  points.forEach((p, i) => {
-    const x = pad.left + i*gap + gap/2 - barW/2;
-    const barH = (p.cases / maxCases) * ch;
-    const y = pad.top + ch - barH;
-    const occ = p.occ;
-    const col = occ >= 80 ? 'rgba(0,212,160,0.75)' : occ >= 70 ? 'rgba(255,170,68,0.75)' : 'rgba(255,94,110,0.75)';
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.roundRect(x, y, barW, barH, 3);
-    ctx.fill();
-
-    // Case count on top of bar
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = '9px DM Mono, monospace';
-    ctx.textAlign = 'center';
-    const label = p.cases >= 1000 ? (p.cases/1000).toFixed(1)+'k' : p.cases;
-    ctx.fillText(label, x + barW/2, y - 4);
-
-    // X axis date label
-    ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.font = '9px DM Sans, sans-serif';
-    const d = new Date(p.date+'T00:00:00');
-    ctx.fillText(d.getDate()+' '+ d.toLocaleString('en',{month:'short'}), x + barW/2, h - 6);
-  });
-
-  // Occupancy line
-  ctx.strokeStyle = 'rgba(255,170,68,0.9)';
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  ctx.beginPath();
-  points.forEach((p, i) => {
-    const x = pad.left + i*gap + gap/2;
-    const y = pad.top + ch - (p.occ/100)*ch;
-    i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-  });
-  ctx.stroke();
-
-  // Dots on line
-  ctx.fillStyle = 'rgba(255,170,68,1)';
-  points.forEach((p, i) => {
-    const x = pad.left + i*gap + gap/2;
-    const y = pad.top + ch - (p.occ/100)*ch;
-    ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
-  });
-}
-
-function renderDashProdKPIs() {
-  const el = document.getElementById('dash-prod-kpis');
-  const lbl = document.getElementById('dash-prod-date-label');
-  if(!el) return;
-
-  const yday = yesterday();
-  const prod = load('prod').filter(p => p.date === yday);
-
-  if(lbl) lbl.textContent = fmtDate(yday);
+  if(lbl) lbl.textContent = fmtDate(latestDate);
+  if(sub) {
+    const isToday = latestDate === today();
+    const isYday  = latestDate === yesterday();
+    sub.textContent = 'Live from Production Tracker · ' + (isToday ? 'Today' : isYday ? 'Previous working day' : 'Most recently fed date');
+  }
 
   if(!prod.length) {
-    el.innerHTML = `<div style="color:var(--text3);font-size:12px;grid-column:span 5;text-align:center;padding:20px">No production data for ${fmtDate(yday)} yet.</div>`;
+    el.innerHTML = `<div style="color:var(--text3);font-size:12px;grid-column:span 5;text-align:center;padding:20px">No production data for ${fmtDate(latestDate)} yet.</div>`;
     return;
   }
 
