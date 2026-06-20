@@ -1420,50 +1420,6 @@ function _dbRefreshPage(key) {
           onchange="document.getElementById('op-login-pw').focus()"
           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
           <option value="">— Select your name —</option>
-          <optgroup label="Team Kings">
-            <option value="richard.otieno">Richard Otieno</option>
-            <option value="dennis.keter">Dennis Keter</option>
-            <option value="collins.marigu">Collins Marigu</option>
-            <option value="jenipher.otieno">Jennifer Otieno</option>
-            <option value="mark.obara">Mark Obara</option>
-            <option value="alfred.korir">Alfred Korir</option>
-            <option value="adhiambo.vivian">Adhiambo Vivian</option>
-            <option value="pauline.safari">Pauline Safari</option>
-            <option value="sila.juma">Sila Juma</option>
-            <option value="stacy.wanjiku">Stacy Wanjiku</option>
-            <option value="noah.njiri">Noah Njiri</option>
-            <option value="melody.mapenzi">Melody Mapenzi</option>
-            <option value="dennis.sangolo">Dennis Sangolo</option>
-            <option value="joy.mackenzie">Joy Mackenzie</option>
-            <option value="ivy.njerese">Ivy Njerese</option>
-            <option value="aisha.adhiambo">Aisha Adhiambo</option>
-            <option value="christopher.wanyama2">Christopher Wanyama</option>
-            <option value="gibson.majimbo">Gibson Majimbo</option>
-            <option value="synthiakane.otieno">Synthiakane Otieno</option>
-          </optgroup>
-          <optgroup label="Team SWAT">
-            <option value="christine.mwanza">Christine Mwanza</option>
-            <option value="emmily.vannesa">Emmily Vannesa</option>
-            <option value="ernest.maina">Ernest Maina</option>
-            <option value="faith.mutinda">Faith Mutinda</option>
-            <option value="fortune.masereto">Fortune Masereto</option>
-            <option value="francis.ndeta">Francis Ndeta</option>
-            <option value="benson.ngugi">Benson Ngugi</option>
-            <option value="kelvin.matekwa">Kelvin Matekwa</option>
-            <option value="kelvin.nderitu">Kelvin Nderitu</option>
-            <option value="martin.karanu">Martin Karanu</option>
-            <option value="maureen.kaara">Maureen Kaara</option>
-            <option value="rachael.gitau">Rachael Gitau</option>
-            <option value="rading.yvonne2">Rading Yvonne</option>
-            <option value="rickson.macharia">Rickson Macharia</option>
-            <option value="ruth.dube">Ruth Dube</option>
-            <option value="samuel.githae">Samuel Githae</option>
-            <option value="samuel.hinga">Samuel Hinga</option>
-            <option value="sheillah.aluoch">Sheillah Aluoch</option>
-            <option value="simon.lukoye">Simon Lukoye</option>
-            <option value="wario.sora">Wario Sora</option>
-            <option value="yassir.khalid">Yassir Khalid</option>
-          </optgroup>
         </select>
 
         <!-- Password -->
@@ -5004,7 +4960,17 @@ function openOpHubMenu(opId) {
 
 function closeOpHubMenu() {
   _opHubId = null;
-  nav('dashboard');
+  if(document.body.classList.contains('wfh-op-mode')) {
+    // Reached via the shared main login as an operator — full logout
+    document.body.classList.remove('wfh-op-mode');
+    if(_opCamActive && typeof opStopCam === 'function') opStopCam();
+    sessionStorage.removeItem('aifi_session');
+    document.getElementById('login-overlay').style.display = 'flex';
+    nav('dashboard');
+  } else {
+    // TL/Admin previewing the Operator Hub from their own sidebar — just go back
+    nav('dashboard');
+  }
 }
 
 function ophubGo(dest) {
@@ -7192,6 +7158,23 @@ function selectRole(role) {
   if(role === 'operator') {
     if(opPanel)  opPanel.style.display  = 'block';
     if(stdPanel) stdPanel.style.display = 'none';
+    // Populate from the live roster — never hand-typed, so new operators always show up
+    const sel = document.getElementById('op-login-name');
+    if(sel && sel.options.length <= 1) {
+      sel.innerHTML = '<option value="">— Select your name —</option>';
+      const kingsOpt = document.createElement('optgroup'); kingsOpt.label = 'Team Kings';
+      const swatOpt  = document.createElement('optgroup'); swatOpt.label  = 'Team SWAT';
+      OPERATOR_ROSTER
+        .sort((a,b) => operatorLabel(a.id).localeCompare(operatorLabel(b.id)))
+        .forEach(o => {
+          const opt = document.createElement('option');
+          opt.value = o.id;
+          opt.textContent = operatorLabel(o.id) + (o.type==='TR' ? ' [TR]' : '');
+          (o.team === 'kings' ? kingsOpt : swatOpt).appendChild(opt);
+        });
+      sel.appendChild(kingsOpt);
+      sel.appendChild(swatOpt);
+    }
     // Focus the name dropdown
     setTimeout(()=>{ document.getElementById('op-login-name')?.focus(); }, 50);
     return;
@@ -7243,17 +7226,20 @@ function doOperatorLogin() {
   if(wli && (selectedRole==='tl'||selectedRole==='admin')) wli.style.display='block';
   initWakeLockForRole(); // activate wake lock for TL/Admin only
 
-  // Pre-select operator in the WFH operator portal
-  const opSel = document.getElementById('wfh-op-self');
-  if(opSel) { opSel.value = opId; onWFHOperatorSelect(); }
+  // Remember identity for the WFH/Leave hand-off flows used by the tile menu
+  localStorage.setItem('wfh_op_id', opId);
+  localStorage.setItem('leave_op_id', opId);
+  localStorage.setItem('ophub_op_id', opId);
 
-  // Activate WFH-only mode (hides full hub chrome)
+  // Activate WFH-only mode (hides full hub chrome — this is the operator's entire view)
   document.body.classList.add('wfh-op-mode');
   const hdrName = document.getElementById('wfh-op-header-name');
   if(hdrName) hdrName.textContent = operatorLabel(opId);
 
-  nav('wfh-operator');
-  toast('Welcome, ' + operatorLabel(opId) + '! 👋', '🏠');
+  // Land on the Operator Hub tile menu — pick WFH, Leave, Production, Attendance, or Shift Plan from there
+  _opHubId = opId;
+  openOpHubMenu(opId);
+  toast('Welcome, ' + operatorLabel(opId) + '! 👋', '🧭');
 
   // Log last login to Supabase
   fetch(_SUPA_URL + '/rest/v1/wfh_operator_creds?op_id=eq.' + opId, {
