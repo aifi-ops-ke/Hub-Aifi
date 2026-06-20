@@ -1201,6 +1201,58 @@ function _dbRefreshPage(key) {
   </div>
 </div>
 
+<!-- ── LEAVE PORTAL LOGIN (standalone — no WFH check-in required) ── -->
+<div class="login-overlay" id="leave-login-overlay" style="display:none;z-index:10000">
+  <div class="login-bg"></div>
+  <div class="login-card" style="max-width:400px">
+    <div class="login-logo" style="margin-bottom:6px">
+      <div class="login-logo-icon" style="background:var(--grad-impact)">🏖️</div>
+      <div>
+        <div class="login-logo-text" style="font-size:18px">Leave Portal</div>
+        <div class="login-logo-sub">Impact Outsourcing Limited</div>
+      </div>
+    </div>
+    <div class="login-tagline" style="margin-bottom:20px">Select your name and enter your password to check your leave balance and apply</div>
+
+    <div id="leave-saved-name-display" style="display:none;padding:10px 14px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:8px;color:var(--green);font-weight:700;font-size:13px;margin-bottom:14px;text-align:center"></div>
+    <div id="leave-name-field-wrap">
+    <label class="login-field-label">Your Name</label>
+    <div style="margin-bottom:16px">
+      <select id="leave-login-name" style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:12px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none" onchange="document.getElementById('leave-login-pw').focus()">
+        <option value="">— Select your name —</option>
+      </select>
+    </div>
+    </div>
+
+    <label class="login-field-label">Your Password</label>
+    <div class="login-input-wrap">
+      <input type="password" id="leave-login-pw" class="login-input"
+        placeholder="Enter your password"
+        onkeydown="if(event.key==='Enter') doLeaveLogin()"
+        autocomplete="current-password"/>
+      <button class="login-eye" onclick="
+        const i=document.getElementById('leave-login-pw');
+        i.type=i.type==='password'?'text':'password';
+        this.textContent=i.type==='password'?'👁':'🙈'
+      ">👁</button>
+    </div>
+
+    <div class="login-error" id="leave-login-error" style="display:none;margin-bottom:12px">
+      ❌ Incorrect password or name not found. Check with your Team Lead.
+    </div>
+
+    <button class="login-btn" onclick="doLeaveLogin()" style="margin-bottom:14px">
+      🏖️ Access Leave Portal
+    </button>
+
+    <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">
+      This portal is for checking your <strong style="color:var(--accent)">leave balance</strong> and applying for leave.<br/>
+      You will only see your own leave information.<br/>
+      Team Leads use the main login screen.
+    </div>
+  </div>
+</div>
+
 <div class="login-overlay" id="login-overlay">
   <div class="login-bg"></div>
   <div class="login-card">
@@ -1432,6 +1484,9 @@ function _dbRefreshPage(key) {
     </div>
     <div class="nav-item" onclick="openWFHLogin()">
       <span class="nav-icon">💻</span><span>Operator Portal</span>
+    </div>
+    <div class="nav-item" onclick="openLeaveLogin()">
+      <span class="nav-icon">🏖️</span><span>Leave Portal</span>
     </div>
     <div class="nav-item" onclick="nav('meeting')">
       <span class="nav-icon">📹</span><span>Video Meeting</span>
@@ -3919,6 +3974,77 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
 
 </div>
     <!-- ═══════════════════════════════════════════════════════
+         PAGE: LEAVE PORTAL (standalone, no WFH login needed)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-leave-portal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div>
+          <h1 style="margin:0">🏖️ Leave Portal</h1>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Check your leave balance and apply for time off</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeLeavePortal()">← Exit</button>
+      </div>
+
+      <div id="leave-portal-greeting" style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px"></div>
+
+      <div class="card" style="max-width:720px">
+        <div class="card-title" style="margin-bottom:14px">📝 Apply for Leave</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="form-group" style="margin:0">
+            <label>Leave Type</label>
+            <select id="lp-leave-type" style="width:100%">
+              <option value="annual">Annual Leave</option>
+              <option value="sick">Sick Leave</option>
+              <option value="emergency">Emergency Leave</option>
+              <option value="unpaid">Unpaid Leave</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Number of Days</label>
+            <input type="number" id="lp-leave-days" min="1" max="30" placeholder="e.g. 2" style="width:100%"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Start Date</label>
+            <input type="date" id="lp-leave-start" style="width:100%"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>End Date</label>
+            <input type="date" id="lp-leave-end" style="width:100%"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <textarea id="lp-leave-reason" rows="2" placeholder="Brief reason for leave request..." style="width:100%"></textarea>
+        </div>
+        <button class="btn btn-green" style="width:100%;margin-bottom:8px" onclick="submitLeavePortalApplication()">📤 Submit Leave Application</button>
+        <div id="lp-leave-msg" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px"></div>
+      </div>
+
+      <div class="card" style="max-width:720px;margin-top:16px">
+        <div class="card-title" style="margin-bottom:14px">📊 Your Leave Balance</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:14px">
+            <div id="lp-bal-annual" style="font-size:24px;font-weight:900;color:var(--green)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">ANNUAL LEFT</div>
+          </div>
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:14px">
+            <div id="lp-bal-sick" style="font-size:24px;font-weight:900;color:var(--amber)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">SICK LEFT</div>
+          </div>
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:14px">
+            <div id="lp-bal-other" style="font-size:24px;font-weight:900;color:var(--violet)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">OTHER LEFT</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="max-width:720px;margin-top:16px">
+        <div class="card-title" style="margin-bottom:14px">📋 My Applications</div>
+        <div id="lp-my-leaves" style="font-size:13px;color:var(--text3)">Loading…</div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
          PAGE: VIDEO MEETING ROOM
     ════════════════════════════════════════════════════════ -->
     <div class="page" id="page-meeting">
@@ -4383,6 +4509,200 @@ function loadWFHLeaveBalance(opId) {
   }
 }
 
+// ── STANDALONE LEAVE PORTAL (no WFH check-in required) ──────────────
+let _leavePortalOpId = null;
+
+function openLeaveLogin() {
+  const sel = document.getElementById('leave-login-name');
+  if(sel) {
+    sel.innerHTML = '<option value="">— Select your name —</option>';
+    OPERATOR_ROSTER
+      .sort((a,b) => operatorLabel(a.id).localeCompare(operatorLabel(b.id)))
+      .forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.id;
+        opt.textContent = operatorLabel(o.id) + (o.type==='TR' ? ' [TR]' : '');
+        sel.appendChild(opt);
+      });
+  }
+  document.getElementById('leave-login-overlay').style.display = 'flex';
+  document.getElementById('leave-login-error').style.display = 'none';
+  document.getElementById('leave-login-pw').value = '';
+
+  // Remember the operator's name so returning users skip name selection
+  const savedOp = localStorage.getItem('leave_op_id');
+  const nameWrap = document.getElementById('leave-name-field-wrap');
+  const savedDisplay = document.getElementById('leave-saved-name-display');
+  if(savedOp && sel && sel.querySelector('option[value="'+savedOp+'"]')) {
+    sel.value = savedOp;
+    if(nameWrap) nameWrap.style.display = 'none';
+    if(savedDisplay) {
+      savedDisplay.style.display = 'block';
+      savedDisplay.innerHTML = 'Logging in as <b>' + operatorLabel(savedOp) + '</b> · <a href="#" onclick="leaveSwitchUser();return false;" style="color:var(--accent)">Not you?</a>';
+    }
+  } else {
+    if(nameWrap) nameWrap.style.display = 'block';
+    if(savedDisplay) savedDisplay.style.display = 'none';
+  }
+  setTimeout(() => document.getElementById('leave-login-pw')?.focus(), 150);
+}
+
+function leaveSwitchUser() {
+  localStorage.removeItem('leave_op_id');
+  const sel = document.getElementById('leave-login-name');
+  if(sel) sel.value = '';
+  const nameWrap = document.getElementById('leave-name-field-wrap');
+  const savedDisplay = document.getElementById('leave-saved-name-display');
+  if(nameWrap) nameWrap.style.display = 'block';
+  if(savedDisplay) savedDisplay.style.display = 'none';
+}
+
+function closeLeaveLogin() {
+  document.getElementById('leave-login-overlay').style.display = 'none';
+}
+
+function doLeaveLogin() {
+  const opId = document.getElementById('leave-login-name').value;
+  const pw   = document.getElementById('leave-login-pw').value.trim();
+  const errEl = document.getElementById('leave-login-error');
+
+  if(!opId) { errEl.textContent = '⚠️ Please select your name first.'; errEl.style.display='block'; return; }
+  if(!pw)   { errEl.textContent = '⚠️ Please enter your password.';    errEl.style.display='block'; return; }
+
+  const correctPw = WFH_OP_CREDS[opId];
+  if(!correctPw || pw !== correctPw) {
+    errEl.textContent = '❌ Incorrect password. Check with your Team Lead.';
+    errEl.style.display = 'block';
+    document.getElementById('leave-login-pw').value = '';
+    document.getElementById('leave-login-pw').focus();
+    return;
+  }
+
+  errEl.style.display = 'none';
+  localStorage.setItem('leave_op_id', opId);
+  closeLeaveLogin();
+  openLeavePortal(opId);
+}
+
+function openLeavePortal(opId) {
+  _leavePortalOpId = opId;
+  const greeting = document.getElementById('leave-portal-greeting');
+  if(greeting) greeting.textContent = '👋 Welcome, ' + operatorLabel(opId);
+  nav('leave-portal');
+  loadLeavePortalBalance(opId);
+}
+
+function closeLeavePortal() {
+  _leavePortalOpId = null;
+  nav('dashboard');
+}
+
+async function submitLeavePortalApplication() {
+  const opId = _leavePortalOpId;
+  if(!opId) { openLeaveLogin(); return; }
+
+  const type   = document.getElementById('lp-leave-type')?.value;
+  const days   = parseInt(document.getElementById('lp-leave-days')?.value);
+  const start  = document.getElementById('lp-leave-start')?.value;
+  const end    = document.getElementById('lp-leave-end')?.value;
+  const reason = document.getElementById('lp-leave-reason')?.value?.trim();
+  const msgEl  = document.getElementById('lp-leave-msg');
+
+  const show = (text, ok) => {
+    if(!msgEl) return;
+    msgEl.textContent = text;
+    msgEl.style.background = ok ? 'rgba(0,212,160,0.1)' : 'rgba(255,94,110,0.1)';
+    msgEl.style.border     = ok ? '1px solid rgba(0,212,160,0.3)' : '1px solid rgba(255,94,110,0.3)';
+    msgEl.style.color      = ok ? 'var(--green)' : 'var(--red)';
+    msgEl.style.display    = 'block';
+  };
+
+  if(!type)   return show('⚠️ Select leave type', false);
+  if(!days || days < 1) return show('⚠️ Enter number of days', false);
+  if(!start)  return show('⚠️ Select start date', false);
+  if(!end)    return show('⚠️ Select end date', false);
+  if(!reason) return show('⚠️ Enter a reason for leave', false);
+
+  const lkey = (typeof opToLeaveKey === 'function' ? opToLeaveKey(opId) : opId) || opId;
+
+  const entry = {
+    id:       Date.now(),
+    name:     operatorLabel(opId),
+    leaveKey: lkey,
+    type, start, end, days,
+    balanceAfter: 'Pending',
+    standin: '',
+    notes:   reason,
+    status:  'Pending',
+    submittedByOperator: true,
+  };
+
+  const leaves = load('leaves');
+  leaves.push(entry);
+  const ok = await saveAndVerify('leaves', leaves);
+  if(!ok) { show('⚠️ Save failed — check your connection and try again', false); return; }
+
+  // Notify TL and Admin directly (same pattern as WFH leave portal)
+  try {
+    const team = getOpTeam ? getOpTeam(opId) : '';
+    const notifs = getNotifs();
+    notifs.unshift({
+      id: Date.now() + Math.random(),
+      entryId: entry.id,
+      type: 'leave',
+      person: team === 'swat' ? 'swat' : 'kings',
+      name: entry.name,
+      date: start,
+      status: 'Pending',
+      msg: '🏖️ ' + entry.name + ' applied for ' + days + ' day(s) ' + type + ' leave (' + fmtDate(start) + ' → ' + fmtDate(end) + ')',
+      time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+      isoTime: new Date().toISOString(),
+      read: false,
+    });
+    saveNotifs(notifs.slice(0, 50));
+  } catch(e) { console.warn('Leave notif failed:', e.message); }
+
+  show('✅ Leave application submitted! Your Team Lead will review it.', true);
+  document.getElementById('lp-leave-days').value = '';
+  document.getElementById('lp-leave-reason').value = '';
+  document.getElementById('lp-leave-start').value = '';
+  document.getElementById('lp-leave-end').value = '';
+
+  loadLeavePortalBalance(opId);
+}
+
+function loadLeavePortalBalance(opId) {
+  const balEl = {
+    annual: document.getElementById('lp-bal-annual'),
+    sick:   document.getElementById('lp-bal-sick'),
+    other:  document.getElementById('lp-bal-other'),
+  };
+  const histEl = document.getElementById('lp-my-leaves');
+  if(!opId || !balEl.annual) return;
+
+  const lkey = (typeof opToLeaveKey === 'function' ? opToLeaveKey(opId) : opId) || opId;
+  const balances = getLeaveBalances();
+  const b = balances[lkey];
+
+  balEl.annual.textContent = b ? b.remaining + ' days' : '—';
+
+  const mine = load('leaves').filter(l => l.leaveKey === lkey);
+  const sickTaken  = mine.filter(l => l.type === 'sick'   && l.status === 'Approved').reduce((s,l)=>s+l.days,0);
+  const otherTaken = mine.filter(l => !['annual','sick'].includes(l.type) && l.status === 'Approved').reduce((s,l)=>s+l.days,0);
+  if(balEl.sick)  balEl.sick.textContent  = Math.max(0, 7 - sickTaken) + ' days';
+  if(balEl.other) balEl.other.textContent = Math.max(0, 5 - otherTaken) + ' days';
+
+  if(histEl) {
+    if(!mine.length) { histEl.textContent = 'No applications yet.'; return; }
+    histEl.innerHTML = mine.slice().reverse().map(l => {
+      const col = l.status === 'Approved' ? 'var(--green)' : l.status === 'Rejected' ? 'var(--red)' : 'var(--amber)';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)">' +
+        '<div><span style="font-weight:700">' + l.type + '</span> · ' + l.days + 'd · ' + fmtDate(l.start) + '</div>' +
+        '<span style="color:' + col + ';font-weight:700;font-size:11px">' + (l.status || 'Pending') + '</span></div>';
+    }).join('');
+  }
+}
+
 function closeWFHLogin() {
   document.getElementById('wfh-login-overlay').style.display = 'none';
 }
@@ -4546,49 +4866,50 @@ function visibleOps() {
 // ════════════════════════════════════════════════════════════════
 const LEAVE_SEED = {
   // ── Staff ─────────────────────────────────────────────────────
-  'john.paul.kimongo': { name:'John Paul Kimongo', role:'TL',  allocated:17, taken:6,  remaining:11, monthly:{Jan:6,Feb:0,Mar:0,Apr:0,May:0} },
-  'john.kingori':      { name:'John Kingori',      role:'QA',  allocated:22, taken:8,  remaining:14, monthly:{Jan:0,Feb:3,Mar:0,Apr:5,May:0} },
-  'rosemary.nyaleso':  { name:'Rosemary Nyaleso',  role:'QA',  allocated:23, taken:9,  remaining:14, monthly:{Jan:3,Feb:6,Mar:0,Apr:0,May:0} },
+  'john.paul.kimongo': { name:'John Paul Kimongo', role:'TL', allocated:17, taken:7, remaining:10, monthly:{Jan:6, Feb:0, Mar:0, Apr:0, May:1} },
+  'john.kingori': { name:'John Kingori', role:'QA', allocated:22, taken:8, remaining:14, monthly:{Jan:0, Feb:3, Mar:0, Apr:5, May:0} },
+  'rosemary.nyaleso': { name:'Rosemary Nyaleso', role:'QA', allocated:23, taken:14, remaining:9, monthly:{Jan:3, Feb:6, Mar:0, Apr:0, May:0, Jun:5} },
   // ── Operators ─────────────────────────────────────────────────
-  'richard.otieno':    { name:'Richard Otieno',    role:'DA',  allocated:22, taken:16, remaining:6,  monthly:{Jan:6,Feb:4,Mar:2,Apr:0,May:4} },
-  'christine.mwanza':  { name:'Christine Mwanza',  role:'DA',  allocated:21, taken:19, remaining:2,  monthly:{Jan:5,Feb:4,Mar:3,Apr:2,May:5} },
-  'dennis.keter': { name:'Dennis Keter', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'collins.marigu':    { name:'Collins Marigu',    role:'DA',  allocated:20, taken:14, remaining:6,  monthly:{Jan:6,Feb:4,Mar:1,Apr:1,May:2} },
-  'kelvin.nderitu':    { name:'Kelvin Nderitu',    role:'DA',  allocated:17, taken:9,  remaining:8,  monthly:{Jan:3,Feb:0,Mar:1,Apr:3,May:2} },
-  'jenipher.otieno':   { name:'Jennifer Otieno',   role:'DA',  allocated:20, taken:15, remaining:5,  monthly:{Jan:7,Feb:2,Mar:1,Apr:1,May:4} },
-  'mark.obara': { name:'Mark Obara', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'faith.mutinda':     { name:'Faith Mutinda',      role:'DA',  allocated:19, taken:10, remaining:9,  monthly:{Jan:4,Feb:2,Mar:2,Apr:0,May:2} },
-  'ernest.maina':      { name:'Ernest Maina',       role:'DA',  allocated:18, taken:14, remaining:4,  monthly:{Jan:7,Feb:4,Mar:1,Apr:0,May:2} },
-  'alfred.korir':      { name:'Alfred Korir',       role:'DA',  allocated:25, taken:15, remaining:10, monthly:{Jan:7,Feb:5,Mar:3,Apr:0,May:0} },
-  'adhiambo.vivian':   { name:'Adhiambo Vivian',    role:'DA',  allocated:21, taken:17, remaining:4,  monthly:{Jan:7,Feb:3,Mar:2,Apr:2,May:3} },
-  'pauline.safari':    { name:'Pauline Safari',     role:'DA',  allocated:21, taken:12, remaining:9,  monthly:{Jan:5,Feb:4,Mar:1,Apr:1,May:1} },
-  'sila.juma':         { name:'Sila Juma',          role:'DA',  allocated:17, taken:10, remaining:7,  monthly:{Jan:3,Feb:2,Mar:1,Apr:2,May:2} },
-  'francis.ndeta':     { name:'Francis Ndeta',      role:'DA',  allocated:19, taken:10, remaining:9,  monthly:{Jan:6,Feb:0,Mar:2,Apr:0,May:2} },
-  'yassir.khalid':     { name:'Yassir Khalid',      role:'DA',  allocated:13, taken:5,  remaining:8,  monthly:{Jan:2,Feb:0,Mar:1,Apr:0,May:2} },
-  'maureen.kaara':     { name:'Maureen Kaara',      role:'DA',  allocated:20, taken:8,  remaining:12, monthly:{Jan:3,Feb:4,Mar:1,Apr:0,May:0} },
-  'kelvin.matekwa':    { name:'Kelvin Matekwa',     role:'DA',  allocated:13, taken:6,  remaining:7,  monthly:{Jan:2,Feb:0,Mar:1,Apr:0,May:3} },
-  'stacy.wanjiku':     { name:'Stacy Wanjiku',      role:'DA',  allocated:17, taken:10, remaining:7,  monthly:{Jan:5,Feb:0,Mar:3,Apr:1,May:1} },
-  'noah.njiri':        { name:'Noah Njiri',         role:'DA',  allocated:14, taken:7,  remaining:7,  monthly:{Jan:3,Feb:1,Mar:1,Apr:2,May:0} },
-  'melody.mapenzi':    { name:'Melody Mapenzi',     role:'DA',  allocated:13, taken:5,  remaining:8,  monthly:{Jan:2,Feb:1,Mar:0,Apr:0,May:2} },
-  'martin.karanu':     { name:'Martin Karanu',      role:'DA',  allocated:14, taken:5,  remaining:9,  monthly:{Jan:1,Feb:2,Mar:0,Apr:0,May:2} },
-  'rachael.gitau':     { name:'Rachael Gitau',      role:'DA',  allocated:11, taken:7,  remaining:4,  monthly:{Jan:0,Feb:1,Mar:2,Apr:1,May:3} },
-  'samuel.hinga':      { name:'Samuel Hinga',       role:'DA',  allocated:13, taken:8,  remaining:5,  monthly:{Jan:2,Feb:2,Mar:1,Apr:0,May:3} },
-  'dennis.sangolo':    { name:'Dennis Sangolo',     role:'DA',  allocated:13, taken:11, remaining:2,  monthly:{Jan:2,Feb:0,Mar:3,Apr:5,May:1} },
-  'joy.mackenzie':     { name:'Joy Mackenzie',      role:'DA',  allocated:14, taken:5,  remaining:9,  monthly:{Jan:3,Feb:0,Mar:0,Apr:2,May:0} },
-  'emmily.vannesa':    { name:'Emily Vanessa',       role:'DA',  allocated:13, taken:5,  remaining:8,  monthly:{Jan:1,Feb:1,Mar:0,Apr:3,May:0} },
-  'simon.lukoye':      { name:'Simon Lukoye',       role:'DA',  allocated:14, taken:8,  remaining:6,  monthly:{Jan:2,Feb:0,Mar:1,Apr:3,May:2} },
-  'rickson.macharia':  { name:'Rickson Macharia',   role:'DA',  allocated:14, taken:14, remaining:0,  monthly:{Jan:2,Feb:1,Mar:1,Apr:10,May:0} },
-  'ivy.njerese': { name:'Ivy Njerese', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'sheillah.aluoch':   { name:'Sheillah Aluoch',    role:'DA',  allocated:6,  taken:2,  remaining:4,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:2} },
-  'aisha.adhiambo': { name:'Aisha Adhiambo', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'christopher.wanyama': { name:'Christopher Wanyama', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'gibson.majimbo':    { name:'Gibson Majimbo',     role:'DA',  allocated:13, taken:7,  remaining:6,  monthly:{Jan:0,Feb:2,Mar:1,Apr:2,May:2} },
-  'fortune.masereto': { name:'Fortune Masereto', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'samuel.githae': { name:'Samuel Githae', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'rading.yvonne': { name:'Yvonne Rading', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'wario.sora':        { name:'Wario Sora',         role:'DA',  allocated:6,  taken:3,  remaining:3,  monthly:{Jan:0,Feb:1,Mar:0,Apr:0,May:2} },
-  'ruth.dube': { name:'Ruth Dube', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'benson.ngugi': { name:'Benson Ngugi', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
+  'richard.otieno': { name:'Richard Otieno', role:'DA', allocated:22, taken:22, remaining:0, monthly:{Jan:6, Feb:4, Mar:2, Apr:0, May:6, Jun:4} },
+  'christine.mwanza': { name:'Christine Mwanza', role:'DA', allocated:21, taken:18, remaining:3, monthly:{Jan:5, Feb:2, Mar:2, Apr:2, May:5, Jun:2} },
+  'dennis.keter': { name:'Dennis Keter', role:'DA', allocated:23, taken:23, remaining:0, monthly:{Jan:7, Feb:5, Mar:3, Apr:5, May:0} },
+  'collins.marigu': { name:'Collins Marigu', role:'DA', allocated:20, taken:20, remaining:0, monthly:{Jan:6, Feb:4, Mar:1, Apr:1, May:2, Jun:6} },
+  'kelvin.nderitu': { name:'Kelvin Nderitu', role:'DA', allocated:17, taken:13, remaining:4, monthly:{Jan:3, Feb:0, Mar:1, Apr:3, May:2, Jun:4} },
+  'jenipher.otieno': { name:'Jenipher Otieno', role:'DA', allocated:20, taken:16, remaining:4, monthly:{Jan:7, Feb:1, Mar:1, Apr:1, May:4, Jun:2} },
+  'mark.obara': { name:'Mark Obara', role:'DA', allocated:11, taken:11, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0, May:0} },
+  'faith.mutinda': { name:'Faith Mutinda', role:'DA', allocated:19, taken:10, remaining:9, monthly:{Jan:4, Feb:2, Mar:2, Apr:0, May:2} },
+  'ernest.maina': { name:'Ernest Maina', role:'DA', allocated:18, taken:11, remaining:7, monthly:{Jan:7, Feb:1, Mar:1, Apr:0, May:2} },
+  'alfred.korir': { name:'Alfred Korir', role:'DA', allocated:25, taken:18, remaining:7, monthly:{Jan:7, Feb:5, Mar:3, Apr:0, May:0, Jun:3} },
+  'adhiambo.vivian': { name:'Adhiambo Vivian', role:'DA', allocated:21, taken:17, remaining:4, monthly:{Jan:7, Feb:2, Mar:2, Apr:2, May:3, Jun:1} },
+  'pauline.safari': { name:'Pauline Safari', role:'DA', allocated:21, taken:14, remaining:7, monthly:{Jan:5, Feb:4, Mar:1, Apr:1, May:1, Jun:2} },
+  'sila.juma': { name:'Sila Juma', role:'DA', allocated:17, taken:14, remaining:3, monthly:{Jan:3, Feb:2, Mar:1, Apr:2, May:2, Jun:4} },
+  'francis.ndeta': { name:'Francis Ndeta', role:'DA', allocated:19, taken:13, remaining:6, monthly:{Jan:6, Feb:0, Mar:2, Apr:0, May:3, Jun:2} },
+  'yassir.khalid': { name:'Yassir Khalid', role:'DA', allocated:13, taken:7, remaining:6, monthly:{Jan:2, Feb:0, Mar:1, Apr:0, May:2, Jun:2} },
+  'maureen.kaara': { name:'Maureen Kaara', role:'DA', allocated:20, taken:7, remaining:13, monthly:{Jan:3, Feb:2, Mar:1, Apr:0, May:1} },
+  'kelvin.matekwa': { name:'Kelvin Matekwa', role:'DA', allocated:13, taken:10, remaining:3, monthly:{Jan:2, Feb:0, Mar:1, Apr:0, May:4, Jun:3} },
+  'stacy.wanjiku': { name:'Stacy Wanjiku', role:'DA', allocated:17, taken:12, remaining:5, monthly:{Jan:5, Feb:0, Mar:3, Apr:1, May:2, Jun:1} },
+  'noah.njiri': { name:'Noah Njiri', role:'DA', allocated:14, taken:11, remaining:3, monthly:{Jan:3, Feb:1, Mar:1, Apr:2, May:3, Jun:1} },
+  'benson.ngugi': { name:'Benson Ngugi', role:'DA', allocated:11, taken:11, remaining:0, monthly:{Jan:3, Feb:0, Mar:0, Apr:8, May:0} },
+  'melody.mapenzi': { name:'Melody Mapenzi', role:'DA', allocated:13, taken:9, remaining:4, monthly:{Jan:2, Feb:1, Mar:0, Apr:0, May:3, Jun:3} },
+  'martin.karanu': { name:'Martin Karanu', role:'DA', allocated:14, taken:9, remaining:5, monthly:{Jan:1, Feb:2, Mar:0, Apr:0, May:4, Jun:2} },
+  'rachael.gitau': { name:'Rachael Gitau', role:'DA', allocated:11, taken:7, remaining:4, monthly:{Jan:0, Feb:0, Mar:2, Apr:1, May:3, Jun:1} },
+  'samuel.hinga': { name:'Samuel Hinga', role:'DA', allocated:13, taken:9, remaining:4, monthly:{Jan:1, Feb:1, Mar:1, Apr:0, May:3, Jun:3} },
+  'dennis.sangolo': { name:'Dennis Sangolo', role:'DA', allocated:13, taken:13, remaining:0, monthly:{Jan:2, Feb:0, Mar:3, Apr:5, May:1, Jun:2} },
+  'joy.mackenzie': { name:'Joy Mackenzie', role:'DA', allocated:14, taken:7, remaining:7, monthly:{Jan:3, Feb:0, Mar:0, Apr:2, May:0, Jun:2} },
+  'emmily.vannesa': { name:'Emily Vanessa', role:'DA', allocated:13, taken:6, remaining:7, monthly:{Jan:1, Feb:1, Mar:0, Apr:3, May:0, Jun:1} },
+  'simon.lukoye': { name:'Simon Lukoye', role:'DA', allocated:14, taken:10, remaining:4, monthly:{Jan:2, Feb:0, Mar:1, Apr:3, May:2, Jun:2} },
+  'rickson.macharia': { name:'Rickson Macharia', role:'DA', allocated:14, taken:14, remaining:0, monthly:{Jan:2, Feb:1, Mar:1, Apr:10, May:0} },
+  'ivy.njerese': { name:'Ivy Njerese', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  'sheillah.aluoch': { name:'Sheillah Aluoch', role:'DA', allocated:6, taken:4, remaining:2, monthly:{Jan:0, Feb:0, Mar:0, Apr:0, May:2, Jun:2} },
+  'aisha.adhiambo': { name:'Aisha Adhiambo', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  'christopher.wanyama': { name:'Christopher Wanyama', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  'gibson.majimbo': { name:'Gibson Majimbo', role:'DA', allocated:13, taken:9, remaining:4, monthly:{Jan:0, Feb:2, Mar:1, Apr:2, May:2, Jun:2} },
+  'fortune.masereto': { name:'Fortune Masereto', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  'samuel.githae': { name:'Samuel Githae', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:2, Mar:2, Apr:4} },
+  'rading.yvonne': { name:'Yvonne Rading', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  'wario.sora': { name:'Wario Sora', role:'DA', allocated:6, taken:6, remaining:0, monthly:{Jan:0, Feb:1, Mar:0, Apr:0, May:3, Jun:2} },
+  'ruth.dube': { name:'Ruth Dube', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  // ── Trainees (not in 2026 leave tracker yet) ──────────────────
   'synthiakane.otieno': { name:'Synthiakane Otieno', role:'TR',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
   'ken.okoth': { name:'Ken Okoth', role:'TR',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
 };
@@ -4719,6 +5040,7 @@ const PAGE_TITLES = {
   'call-reports':'Call Reports','team-dash':'Team Performance Dashboard',
   'payroll-full':'Full Payroll Data','pay-history':'📊 Pay History','attendance-full':'Attendance Register',
   'wfh':'WFH Monitor — Remote Oversight','wfh-operator':'WFH Operator Portal',
+  'leave-portal':'🏖️ Leave Portal',
   'team-perf-kings':'Team Kings — Performance Tracker',
   'team-perf-swat':'Team SWAT — Performance Tracker',
   'team-dash-kings':'🔵 Team Kings Dashboard',
