@@ -4042,18 +4042,47 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
          PAGE: LEAVE PORTAL (standalone, no WFH login needed)
     ════════════════════════════════════════════════════════ -->
     <div class="page" id="page-leave-portal">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <div>
           <h1 style="margin:0">🏖️ Leave Portal</h1>
-          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Check your leave balance and apply for time off</p>
+          <p id="leave-portal-greeting" style="margin:4px 0 0;color:var(--accent);font-size:13px;font-weight:700"></p>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="closeLeavePortal()">← Exit</button>
       </div>
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,var(--amber),#ff7c2a);border-radius:3px;margin:14px 0 26px"></div>
 
-      <div id="leave-portal-greeting" style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px"></div>
+      <!-- ── Leave balance, front and center ── -->
+      <div class="kpi-grid" style="margin-bottom:22px">
+        <div class="kpi-card amber">
+          <div class="kpi-label">🌴 Annual Leave Left</div>
+          <div class="kpi-value" id="lp-bal-annual">—</div>
+        </div>
+        <div class="kpi-card teal">
+          <div class="kpi-label">🤒 Sick Leave Left</div>
+          <div class="kpi-value" id="lp-bal-sick">—</div>
+        </div>
+        <div class="kpi-card purple">
+          <div class="kpi-label">📋 Other Leave Left</div>
+          <div class="kpi-value" id="lp-bal-other">—</div>
+        </div>
+      </div>
 
-      <div class="card" style="max-width:720px">
-        <div class="card-title" style="margin-bottom:14px">📝 Apply for Leave</div>
+      <!-- ── Application history, the thing they came to check ── -->
+      <div class="card" style="margin-bottom:22px">
+        <div class="card-header" style="margin-bottom:14px">
+          <div class="card-title">📋 My Leave Applications</div>
+        </div>
+        <div id="lp-my-leaves" style="font-size:13px;color:var(--text3)">Loading…</div>
+      </div>
+
+      <!-- ── Application form, last because checking balance/history comes first ── -->
+      <div class="card" style="border-color:rgba(255,170,68,0.18)">
+        <div class="card-header" style="margin-bottom:14px">
+          <div>
+            <div class="card-title">📝 Apply for Leave</div>
+            <div class="card-sub">Submit a new request — your Team Lead will review it</div>
+          </div>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
           <div class="form-group" style="margin:0">
             <label>Leave Type</label>
@@ -4084,39 +4113,16 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
         <button class="btn btn-green" style="width:100%;margin-bottom:8px" onclick="submitLeavePortalApplication()">📤 Submit Leave Application</button>
         <div id="lp-leave-msg" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px"></div>
       </div>
-
-      <div class="card" style="max-width:720px;margin-top:16px">
-        <div class="card-title" style="margin-bottom:14px">📊 Your Leave Balance</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:14px">
-            <div id="lp-bal-annual" style="font-size:24px;font-weight:900;color:var(--green)">—</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px">ANNUAL LEFT</div>
-          </div>
-          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:14px">
-            <div id="lp-bal-sick" style="font-size:24px;font-weight:900;color:var(--amber)">—</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px">SICK LEFT</div>
-          </div>
-          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:14px">
-            <div id="lp-bal-other" style="font-size:24px;font-weight:900;color:var(--violet)">—</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px">OTHER LEFT</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="max-width:720px;margin-top:16px">
-        <div class="card-title" style="margin-bottom:14px">📋 My Applications</div>
-        <div id="lp-my-leaves" style="font-size:13px;color:var(--text3)">Loading…</div>
-      </div>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════
          PAGE: OPERATOR HUB MENU (tile launcher)
     ════════════════════════════════════════════════════════ -->
     <div class="page" id="page-ophub-menu">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <div>
           <h1 style="margin:0">🧭 Operator Hub</h1>
-          <p id="ophub-greeting" style="margin:4px 0 0;color:var(--text3);font-size:13px"></p>
+          <p id="ophub-greeting" style="margin:4px 0 0;color:var(--accent);font-size:13px;font-weight:700"></p>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="closeOpHubMenu()">← Exit</button>
       </div>
@@ -4159,24 +4165,30 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
          PAGE: OPERATOR — MY PRODUCTION (read-only personal view)
     ════════════════════════════════════════════════════════ -->
     <div class="page" id="page-ophub-production">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <div>
           <h1 style="margin:0">📊 My Production</h1>
-          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your daily case counts, AHT, and occupancy — read only</p>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your daily case counts, AHT, and occupancy</p>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
       </div>
-      <div class="card" style="max-width:900px">
-        <div id="ophub-prod-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px"></div>
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,#00c8e0,#0077b6);border-radius:3px;margin:14px 0 24px"></div>
+
+      <div class="kpi-grid" id="ophub-prod-kpis" style="margin-bottom:22px"></div>
+
+      <div class="card">
+        <div class="card-header" style="margin-bottom:14px">
+          <div class="card-title">📅 Daily History</div>
+        </div>
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead><tr style="background:var(--surface2)">
-              <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase">Date</th>
-              <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Cases</th>
-              <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">AHT</th>
-              <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Occupancy</th>
-              <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Abandoned</th>
-              <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Reported</th>
+              <th style="padding:10px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;border-radius:8px 0 0 0">Date</th>
+              <th style="padding:10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Cases</th>
+              <th style="padding:10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">AHT</th>
+              <th style="padding:10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Occupancy</th>
+              <th style="padding:10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Abandoned</th>
+              <th style="padding:10px 12px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;border-radius:0 8px 0 0">Reported</th>
             </tr></thead>
             <tbody id="ophub-prod-tbody"></tbody>
           </table>
@@ -4188,15 +4200,21 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
          PAGE: OPERATOR — MY ATTENDANCE (read-only personal view)
     ════════════════════════════════════════════════════════ -->
     <div class="page" id="page-ophub-attendance">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <div>
           <h1 style="margin:0">✅ My Attendance</h1>
-          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your attendance record — read only</p>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your attendance record</p>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
       </div>
-      <div class="card" style="max-width:700px">
-        <div id="ophub-att-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px"></div>
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,#b48af7,#8a5cf6);border-radius:3px;margin:14px 0 24px"></div>
+
+      <div class="kpi-grid" id="ophub-att-kpis" style="margin-bottom:22px"></div>
+
+      <div class="card">
+        <div class="card-header" style="margin-bottom:14px">
+          <div class="card-title">📅 Recent Days</div>
+        </div>
         <div id="ophub-att-list" style="font-size:13px"></div>
       </div>
     </div>
@@ -4205,14 +4223,19 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
          PAGE: OPERATOR — MY SHIFTS (read-only personal view)
     ════════════════════════════════════════════════════════ -->
     <div class="page" id="page-ophub-shift">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <div>
           <h1 style="margin:0">📅 My Shift Plan</h1>
-          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your upcoming shifts — read only</p>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your upcoming shifts, next 14 days</p>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
       </div>
-      <div class="card" style="max-width:700px">
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,#ff5e6e,#e8475a);border-radius:3px;margin:14px 0 24px"></div>
+
+      <div class="card">
+        <div class="card-header" style="margin-bottom:14px">
+          <div class="card-title">🗓️ Upcoming Shifts</div>
+        </div>
         <div id="ophub-shift-list" style="font-size:13px"></div>
       </div>
     </div>
@@ -4867,12 +4890,19 @@ function loadLeavePortalBalance(opId) {
   if(balEl.other) balEl.other.textContent = Math.max(0, 5 - otherTaken) + ' days';
 
   if(histEl) {
-    if(!mine.length) { histEl.textContent = 'No applications yet.'; return; }
+    if(!mine.length) { histEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">📭 No applications yet — submit one using the form below.</div>'; return; }
+    const statusBg = {Approved:'rgba(0,212,160,0.1)', Rejected:'rgba(255,94,110,0.1)', Pending:'rgba(255,170,68,0.1)'};
+    const typeIcon = {annual:'🌴', sick:'🤒', emergency:'🚨', unpaid:'📋'};
     histEl.innerHTML = mine.slice().reverse().map(l => {
-      const col = l.status === 'Approved' ? 'var(--green)' : l.status === 'Rejected' ? 'var(--red)' : 'var(--amber)';
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)">' +
-        '<div><span style="font-weight:700">' + l.type + '</span> · ' + l.days + 'd · ' + fmtDate(l.start) + '</div>' +
-        '<span style="color:' + col + ';font-weight:700;font-size:11px">' + (l.status || 'Pending') + '</span></div>';
+      const status = l.status || 'Pending';
+      const col = status === 'Approved' ? 'var(--green)' : status === 'Rejected' ? 'var(--red)' : 'var(--amber)';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 4px;border-bottom:1px solid var(--border2)">
+        <div>
+          <span style="font-weight:700;color:var(--text2)">${typeIcon[l.type]||'📋'} ${l.type.charAt(0).toUpperCase()+l.type.slice(1)}</span>
+          <span style="color:var(--text3);font-size:12px"> · ${l.days}d · ${fmtDate(l.start)}</span>
+        </div>
+        <span style="color:${col};background:${statusBg[status]};font-weight:700;font-size:11px;padding:4px 10px;border-radius:6px">${status}</span>
+      </div>`;
     }).join('');
   }
 }
@@ -5001,7 +5031,7 @@ function renderOpHubProduction(opId) {
   const mine = load('prod').filter(p => p.operator === opId).sort((a,b)=>b.date.localeCompare(a.date));
 
   if(!mine.length) {
-    kpiEl.innerHTML = '';
+    kpiEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:30px;font-size:13px">📭 No production data recorded for you yet — it will appear here once your Team Lead feeds it in.</div>';
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">No production data recorded for you yet.</td></tr>';
     return;
   }
@@ -5009,33 +5039,33 @@ function renderOpHubProduction(opId) {
   const totalCases = mine.reduce((s,p)=>s+(+p.cases||0),0);
   const avgAht     = (mine.reduce((s,p)=>s+(+p.aht||0),0)/mine.length).toFixed(2);
   const avgOcc     = (mine.reduce((s,p)=>s+(+p.occ||0),0)/mine.length).toFixed(2);
-  const last        = mine[0];
+  const last       = mine[0];
 
   kpiEl.innerHTML = `
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:20px;font-weight:900;color:var(--green);font-family:'DM Mono',monospace">${totalCases.toLocaleString()}</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Total Cases (all time)</div>
+    <div class="kpi-card green">
+      <div class="kpi-label">📦 Total Cases (All Time)</div>
+      <div class="kpi-value">${totalCases.toLocaleString()}</div>
     </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:20px;font-weight:900;color:var(--violet);font-family:'DM Mono',monospace">${avgAht}s</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Avg AHT</div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">⏱️ Avg AHT</div>
+      <div class="kpi-value">${avgAht}s</div>
     </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:20px;font-weight:900;color:var(--amber);font-family:'DM Mono',monospace">${avgOcc}%</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Avg Occupancy</div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">📈 Avg Occupancy</div>
+      <div class="kpi-value">${avgOcc}%</div>
     </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:20px;font-weight:900;color:var(--teal);font-family:'DM Mono',monospace">${fmtDate(last.date)}</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Last Logged</div>
+    <div class="kpi-card teal">
+      <div class="kpi-label">🕐 Last Logged</div>
+      <div class="kpi-value" style="font-size:18px">${fmtDate(last.date)}</div>
     </div>`;
 
-  tbody.innerHTML = mine.slice(0, 30).map(p => `<tr style="border-bottom:1px solid var(--border2)">
-    <td style="padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px">${fmtDate(p.date)}</td>
-    <td style="padding:7px;text-align:right;color:var(--green);font-weight:700">${p.cases||'–'}</td>
-    <td style="padding:7px;text-align:right;font-family:'DM Mono',monospace">${p.aht?p.aht+'s':'–'}</td>
-    <td style="padding:7px;text-align:right;color:${(+p.occ||0)>=90?'var(--green)':(+p.occ||0)>=80?'var(--amber)':'var(--red)'}">${p.occ?p.occ+'%':'–'}</td>
-    <td style="padding:7px;text-align:right;font-size:11px">${p.abandoned?p.abandoned+'%':'–'}</td>
-    <td style="padding:7px;text-align:right;font-size:11px">${p.reported?p.reported+'%':'–'}</td>
+  tbody.innerHTML = mine.slice(0, 30).map((p,i) => `<tr style="border-bottom:1px solid var(--border2);background:${i%2===0?'transparent':'rgba(255,255,255,0.015)'};transition:background 0.15s" onmouseover="this.style.background='rgba(0,212,160,0.05)'" onmouseout="this.style.background='${i%2===0?'transparent':'rgba(255,255,255,0.015)'}'">
+    <td style="padding:9px 12px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${fmtDate(p.date)}</td>
+    <td style="padding:9px;text-align:right;color:var(--green);font-weight:700">${p.cases||'–'}</td>
+    <td style="padding:9px;text-align:right;font-family:'DM Mono',monospace">${p.aht?p.aht+'s':'–'}</td>
+    <td style="padding:9px;text-align:right;font-weight:700;color:${(+p.occ||0)>=90?'var(--green)':(+p.occ||0)>=80?'var(--amber)':'var(--red)'}">${p.occ?p.occ+'%':'–'}</td>
+    <td style="padding:9px;text-align:right;font-size:11px;color:var(--text3)">${p.abandoned?p.abandoned+'%':'–'}</td>
+    <td style="padding:9px 12px;text-align:right;font-size:11px;color:var(--text3)">${p.reported?p.reported+'%':'–'}</td>
   </tr>`).join('');
 }
 
@@ -5062,33 +5092,34 @@ function renderOpHubAttendance(opId) {
   });
 
   kpiEl.innerHTML = `
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:20px;font-weight:900;color:var(--green);font-family:'DM Mono',monospace">${present}</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Present</div>
+    <div class="kpi-card green">
+      <div class="kpi-label">✅ Present</div>
+      <div class="kpi-value">${present}</div>
     </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:20px;font-weight:900;color:var(--red);font-family:'DM Mono',monospace">${absent}</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Absent</div>
+    <div class="kpi-card red">
+      <div class="kpi-label">❌ Absent</div>
+      <div class="kpi-value">${absent}</div>
     </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:20px;font-weight:900;color:var(--amber);font-family:'DM Mono',monospace">${leave}</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">On Leave</div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">🌴 On Leave</div>
+      <div class="kpi-value">${leave}</div>
     </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:20px;font-weight:900;color:var(--text3);font-family:'DM Mono',monospace">${off}</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Off Day</div>
+    <div class="kpi-card">
+      <div class="kpi-label">— Off Day</div>
+      <div class="kpi-value">${off}</div>
     </div>`;
 
   if(!rows.length) {
-    listEl.innerHTML = '<div style="color:var(--text3);text-align:center;padding:20px">No attendance recorded for you yet.</div>';
+    listEl.innerHTML = '<div style="color:var(--text3);text-align:center;padding:30px;font-size:13px">📭 No attendance recorded for you yet.</div>';
     return;
   }
 
   const colors = {present:'var(--green)',absent:'var(--red)',leave:'var(--amber)',off:'var(--text3)'};
+  const bgs    = {present:'rgba(0,212,160,0.1)',absent:'rgba(255,94,110,0.1)',leave:'rgba(255,170,68,0.1)',off:'rgba(130,196,165,0.08)'};
   const labels = {present:'✅ Present',absent:'❌ Absent',leave:'🌴 Leave',off:'— Off Day'};
-  listEl.innerHTML = rows.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)">
-    <span style="font-family:'DM Mono',monospace;font-size:12px">${fmtDate(r.date)}</span>
-    <span style="color:${colors[r.status]};font-weight:700;font-size:12px">${labels[r.status]}</span>
+  listEl.innerHTML = rows.map((r,i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 4px;border-bottom:1px solid var(--border2);${i===0?'':''}">
+    <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${fmtDate(r.date)}</span>
+    <span style="color:${colors[r.status]};background:${bgs[r.status]};font-weight:700;font-size:11px;padding:4px 10px;border-radius:6px">${labels[r.status]}</span>
   </div>`).join('');
 }
 
@@ -5105,22 +5136,22 @@ function renderOpHubShift(opId) {
     d.setDate(d.getDate() + i);
     const ds = d.toISOString().split('T')[0];
     const shift = sched[ds]?.[opId];
-    if(shift) upcoming.push({date: ds, shift});
+    if(shift) upcoming.push({date: ds, shift, offset: i});
   }
 
   if(!upcoming.length) {
-    listEl.innerHTML = '<div style="color:var(--text3);text-align:center;padding:20px">No upcoming shifts scheduled for you yet.</div>';
+    listEl.innerHTML = '<div style="color:var(--text3);text-align:center;padding:30px;font-size:13px">📭 No upcoming shifts scheduled for you yet.</div>';
     return;
   }
 
   listEl.innerHTML = upcoming.map(u => {
-    const isOff = u.shift === 'OFF' || u.shift === 'Leave';
     const col = u.shift === 'OFF' ? 'var(--text3)' : u.shift === 'Leave' ? 'var(--amber)' : 'var(--accent)';
     const dt = new Date(u.date+'T00:00:00');
-    const dayLabel = dt.toLocaleDateString('en-GB', {weekday:'short', day:'2-digit', month:'short'});
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border2)">
-      <span style="font-size:12px;font-weight:600">${dayLabel}</span>
-      <span style="color:${col};font-weight:800;font-size:12px;background:${col}18;padding:2px 10px;border-radius:6px">${u.shift}</span>
+    const dayLabel = u.offset === 0 ? 'Today' : u.offset === 1 ? 'Tomorrow' : dt.toLocaleDateString('en-GB', {weekday:'short', day:'2-digit', month:'short'});
+    const isNext = u.offset === 0;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 12px;margin-bottom:4px;border-radius:8px;background:${isNext?'rgba(255,94,110,0.06)':'transparent'};border:1px solid ${isNext?'rgba(255,94,110,0.2)':'transparent'};border-bottom:1px solid ${isNext?'rgba(255,94,110,0.2)':'var(--border2)'}">
+      <span style="font-size:12px;font-weight:${isNext?800:600};color:${isNext?'var(--text)':'var(--text2)'}">${dayLabel}${isNext?' 📍':''}</span>
+      <span style="color:${col};font-weight:800;font-size:12px;background:${col}18;padding:3px 12px;border-radius:6px">${u.shift}</span>
     </div>`;
   }).join('');
 }
