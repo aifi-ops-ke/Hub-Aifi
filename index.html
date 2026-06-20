@@ -282,6 +282,67 @@
     box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,212,160,0.07);
     transform: translateY(-1px);
   }
+
+  /* ── Operator Hub tile menu ── */
+  .ophub-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+    max-width: 1100px;
+  }
+  .ophub-tile {
+    position: relative;
+    background: linear-gradient(150deg, var(--surface) 0%, rgba(3,11,8,0.98) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 26px 22px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .ophub-tile::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--tile-accent);
+    opacity: 0.85;
+  }
+  .ophub-tile::after {
+    content: '';
+    position: absolute; top: -40px; right: -40px; width: 120px; height: 120px;
+    background: var(--tile-accent);
+    opacity: 0.07; border-radius: 50%;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .ophub-tile:hover {
+    transform: translateY(-4px);
+    border-color: var(--tile-accent);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.45), 0 0 0 1px color-mix(in srgb, var(--tile-accent) 35%, transparent);
+  }
+  .ophub-tile:hover::after {
+    opacity: 0.14;
+    transform: scale(1.15);
+  }
+  .ophub-tile-icon {
+    font-size: 32px;
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--tile-accent) 14%, transparent);
+    border-radius: 14px;
+    margin-bottom: 16px;
+  }
+  .ophub-tile-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .ophub-tile-sub {
+    font-size: 12px;
+    color: var(--text3);
+    line-height: 1.5;
+  }
+
   .card-header {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 16px;
@@ -1254,6 +1315,57 @@ function _dbRefreshPage(key) {
   </div>
 </div>
 
+<!-- ── OPERATOR HUB LOGIN (single login → tile menu) ── -->
+<div class="login-overlay" id="ophub-login-overlay" style="display:none;z-index:10000">
+  <div class="login-bg"></div>
+  <div class="login-card" style="max-width:400px">
+    <div class="login-logo" style="margin-bottom:6px">
+      <div class="login-logo-icon" style="background:var(--grad-impact)">🧭</div>
+      <div>
+        <div class="login-logo-text" style="font-size:18px">Operator Hub</div>
+        <div class="login-logo-sub">Impact Outsourcing Limited</div>
+      </div>
+    </div>
+    <div class="login-tagline" style="margin-bottom:20px">Select your name and enter your password to access your tools</div>
+
+    <div id="ophub-saved-name-display" style="display:none;padding:10px 14px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:8px;color:var(--green);font-weight:700;font-size:13px;margin-bottom:14px;text-align:center"></div>
+    <div id="ophub-name-field-wrap">
+    <label class="login-field-label">Your Name</label>
+    <div style="margin-bottom:16px">
+      <select id="ophub-login-name" style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:12px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none" onchange="document.getElementById('ophub-login-pw').focus()">
+        <option value="">— Select your name —</option>
+      </select>
+    </div>
+    </div>
+
+    <label class="login-field-label">Your Password</label>
+    <div class="login-input-wrap">
+      <input type="password" id="ophub-login-pw" class="login-input"
+        placeholder="Enter your password"
+        onkeydown="if(event.key==='Enter') doOpHubLogin()"
+        autocomplete="current-password"/>
+      <button class="login-eye" onclick="
+        const i=document.getElementById('ophub-login-pw');
+        i.type=i.type==='password'?'text':'password';
+        this.textContent=i.type==='password'?'👁':'🙈'
+      ">👁</button>
+    </div>
+
+    <div class="login-error" id="ophub-login-error" style="display:none;margin-bottom:12px">
+      ❌ Incorrect password or name not found. Check with your Team Lead.
+    </div>
+
+    <button class="login-btn" onclick="doOpHubLogin()" style="margin-bottom:14px">
+      🧭 Open Operator Hub
+    </button>
+
+    <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">
+      One login for <strong style="color:var(--accent)">everything you need</strong>: WFH, Leave, Production, Attendance, Shifts.<br/>
+      Team Leads use the main login screen.
+    </div>
+  </div>
+</div>
+
 <div class="login-overlay" id="login-overlay">
   <div class="login-bg"></div>
   <div class="login-card">
@@ -1481,6 +1593,9 @@ function _dbRefreshPage(key) {
     <div class="nav-label">Remote Work</div>
     <div class="nav-item" onclick="nav('wfh')">
       <span class="nav-icon">🏠</span><span>WFH Monitor</span>
+    </div>
+    <div class="nav-item" onclick="openOpHubLogin()" style="background:rgba(0,212,160,0.08);border:1px solid rgba(0,212,160,0.25)">
+      <span class="nav-icon">🧭</span><span style="font-weight:800">Operator Hub</span>
     </div>
     <div class="nav-item" onclick="openWFHLogin()">
       <span class="nav-icon">💻</span><span>Operator Portal</span>
@@ -4039,6 +4154,114 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
     </div>
 
     <!-- ═══════════════════════════════════════════════════════
+         PAGE: OPERATOR HUB MENU (tile launcher)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-ophub-menu">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <h1 style="margin:0">🧭 Operator Hub</h1>
+          <p id="ophub-greeting" style="margin:4px 0 0;color:var(--text3);font-size:13px"></p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeOpHubMenu()">← Exit</button>
+      </div>
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;margin:14px 0 28px"></div>
+
+      <div class="ophub-tile-grid">
+        <div class="ophub-tile" style="--tile-accent: var(--accent)" onclick="ophubGo('wfh')">
+          <div class="ophub-tile-icon">🏠</div>
+          <div class="ophub-tile-title">Work From Home</div>
+          <div class="ophub-tile-sub">Check in, log activity, submit your EOD report</div>
+        </div>
+
+        <div class="ophub-tile" style="--tile-accent: #ffaa44" onclick="ophubGo('leave')">
+          <div class="ophub-tile-icon">🏖️</div>
+          <div class="ophub-tile-title">Leave Portal</div>
+          <div class="ophub-tile-sub">Check your balance and apply for time off</div>
+        </div>
+
+        <div class="ophub-tile" style="--tile-accent: #00c8e0" onclick="ophubGo('production')">
+          <div class="ophub-tile-icon">📊</div>
+          <div class="ophub-tile-title">Production Tracker</div>
+          <div class="ophub-tile-sub">See your daily cases, AHT, and occupancy</div>
+        </div>
+
+        <div class="ophub-tile" style="--tile-accent: #b48af7" onclick="ophubGo('attendance')">
+          <div class="ophub-tile-icon">✅</div>
+          <div class="ophub-tile-title">Attendance</div>
+          <div class="ophub-tile-sub">View your attendance record this month</div>
+        </div>
+
+        <div class="ophub-tile" style="--tile-accent: #ff5e6e" onclick="ophubGo('shift')">
+          <div class="ophub-tile-icon">📅</div>
+          <div class="ophub-tile-title">Shift Plan</div>
+          <div class="ophub-tile-sub">See your upcoming shifts and schedule</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: OPERATOR — MY PRODUCTION (read-only personal view)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-ophub-production">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div>
+          <h1 style="margin:0">📊 My Production</h1>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your daily case counts, AHT, and occupancy — read only</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
+      </div>
+      <div class="card" style="max-width:900px">
+        <div id="ophub-prod-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px"></div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:var(--surface2)">
+              <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase">Date</th>
+              <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Cases</th>
+              <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">AHT</th>
+              <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Occupancy</th>
+              <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Abandoned</th>
+              <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Reported</th>
+            </tr></thead>
+            <tbody id="ophub-prod-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: OPERATOR — MY ATTENDANCE (read-only personal view)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-ophub-attendance">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div>
+          <h1 style="margin:0">✅ My Attendance</h1>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your attendance record — read only</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
+      </div>
+      <div class="card" style="max-width:700px">
+        <div id="ophub-att-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px"></div>
+        <div id="ophub-att-list" style="font-size:13px"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: OPERATOR — MY SHIFTS (read-only personal view)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-ophub-shift">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div>
+          <h1 style="margin:0">📅 My Shift Plan</h1>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your upcoming shifts — read only</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
+      </div>
+      <div class="card" style="max-width:700px">
+        <div id="ophub-shift-list" style="font-size:13px"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
          PAGE: VIDEO MEETING ROOM
     ════════════════════════════════════════════════════════ -->
     <div class="page" id="page-meeting">
@@ -4696,6 +4919,244 @@ function loadLeavePortalBalance(opId) {
   }
 }
 
+// ── UNIFIED OPERATOR HUB (single login → tile menu) ──────────────────
+let _opHubId = null;
+
+function openOpHubLogin() {
+  const sel = document.getElementById('ophub-login-name');
+  if(sel) {
+    sel.innerHTML = '<option value="">— Select your name —</option>';
+    OPERATOR_ROSTER
+      .sort((a,b) => operatorLabel(a.id).localeCompare(operatorLabel(b.id)))
+      .forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.id;
+        opt.textContent = operatorLabel(o.id) + (o.type==='TR' ? ' [TR]' : '');
+        sel.appendChild(opt);
+      });
+  }
+  document.getElementById('ophub-login-overlay').style.display = 'flex';
+  document.getElementById('ophub-login-error').style.display = 'none';
+  document.getElementById('ophub-login-pw').value = '';
+
+  const savedOp = localStorage.getItem('ophub_op_id');
+  const nameWrap = document.getElementById('ophub-name-field-wrap');
+  const savedDisplay = document.getElementById('ophub-saved-name-display');
+  if(savedOp && sel && sel.querySelector('option[value="'+savedOp+'"]')) {
+    sel.value = savedOp;
+    if(nameWrap) nameWrap.style.display = 'none';
+    if(savedDisplay) {
+      savedDisplay.style.display = 'block';
+      savedDisplay.innerHTML = 'Logging in as <b>' + operatorLabel(savedOp) + '</b> · <a href="#" onclick="ophubSwitchUser();return false;" style="color:var(--accent)">Not you?</a>';
+    }
+  } else {
+    if(nameWrap) nameWrap.style.display = 'block';
+    if(savedDisplay) savedDisplay.style.display = 'none';
+  }
+  setTimeout(() => document.getElementById('ophub-login-pw')?.focus(), 150);
+}
+
+function ophubSwitchUser() {
+  localStorage.removeItem('ophub_op_id');
+  const sel = document.getElementById('ophub-login-name');
+  if(sel) sel.value = '';
+  const nameWrap = document.getElementById('ophub-name-field-wrap');
+  const savedDisplay = document.getElementById('ophub-saved-name-display');
+  if(nameWrap) nameWrap.style.display = 'block';
+  if(savedDisplay) savedDisplay.style.display = 'none';
+}
+
+function closeOpHubLogin() {
+  document.getElementById('ophub-login-overlay').style.display = 'none';
+}
+
+function doOpHubLogin() {
+  const opId = document.getElementById('ophub-login-name').value;
+  const pw   = document.getElementById('ophub-login-pw').value.trim();
+  const errEl = document.getElementById('ophub-login-error');
+
+  if(!opId) { errEl.textContent = '⚠️ Please select your name first.'; errEl.style.display='block'; return; }
+  if(!pw)   { errEl.textContent = '⚠️ Please enter your password.';    errEl.style.display='block'; return; }
+
+  const correctPw = WFH_OP_CREDS[opId];
+  if(!correctPw || pw !== correctPw) {
+    errEl.textContent = '❌ Incorrect password. Check with your Team Lead.';
+    errEl.style.display = 'block';
+    document.getElementById('ophub-login-pw').value = '';
+    document.getElementById('ophub-login-pw').focus();
+    return;
+  }
+
+  errEl.style.display = 'none';
+  localStorage.setItem('ophub_op_id', opId);
+  closeOpHubLogin();
+  openOpHubMenu(opId);
+}
+
+function openOpHubMenu(opId) {
+  _opHubId = opId;
+  const greet = document.getElementById('ophub-greeting');
+  if(greet) greet.textContent = '👋 Welcome, ' + operatorLabel(opId) + ' — pick what you want to work on';
+  nav('ophub-menu');
+}
+
+function closeOpHubMenu() {
+  _opHubId = null;
+  nav('dashboard');
+}
+
+function ophubGo(dest) {
+  if(!_opHubId) { openOpHubLogin(); return; }
+  if(dest === 'wfh') {
+    // Hand off to the existing, fully-functional WFH operator flow
+    localStorage.setItem('wfh_op_id', _opHubId);
+    nav('wfh-operator');
+    if(typeof initWFHOperator === 'function') initWFHOperator();
+    return;
+  }
+  if(dest === 'leave') {
+    localStorage.setItem('leave_op_id', _opHubId);
+    openLeavePortal(_opHubId);
+    return;
+  }
+  if(dest === 'production') { nav('ophub-production'); renderOpHubProduction(_opHubId); return; }
+  if(dest === 'attendance') { nav('ophub-attendance'); renderOpHubAttendance(_opHubId); return; }
+  if(dest === 'shift')      { nav('ophub-shift');      renderOpHubShift(_opHubId);      return; }
+}
+
+// ── My Production (read-only) ──────────────────────────────────────
+function renderOpHubProduction(opId) {
+  const kpiEl = document.getElementById('ophub-prod-kpis');
+  const tbody = document.getElementById('ophub-prod-tbody');
+  if(!kpiEl || !tbody) return;
+
+  const mine = load('prod').filter(p => p.operator === opId).sort((a,b)=>b.date.localeCompare(a.date));
+
+  if(!mine.length) {
+    kpiEl.innerHTML = '';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">No production data recorded for you yet.</td></tr>';
+    return;
+  }
+
+  const totalCases = mine.reduce((s,p)=>s+(+p.cases||0),0);
+  const avgAht     = (mine.reduce((s,p)=>s+(+p.aht||0),0)/mine.length).toFixed(2);
+  const avgOcc     = (mine.reduce((s,p)=>s+(+p.occ||0),0)/mine.length).toFixed(2);
+  const last        = mine[0];
+
+  kpiEl.innerHTML = `
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:20px;font-weight:900;color:var(--green);font-family:'DM Mono',monospace">${totalCases.toLocaleString()}</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Total Cases (all time)</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:20px;font-weight:900;color:var(--violet);font-family:'DM Mono',monospace">${avgAht}s</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Avg AHT</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:20px;font-weight:900;color:var(--amber);font-family:'DM Mono',monospace">${avgOcc}%</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Avg Occupancy</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:20px;font-weight:900;color:var(--teal);font-family:'DM Mono',monospace">${fmtDate(last.date)}</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Last Logged</div>
+    </div>`;
+
+  tbody.innerHTML = mine.slice(0, 30).map(p => `<tr style="border-bottom:1px solid var(--border2)">
+    <td style="padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px">${fmtDate(p.date)}</td>
+    <td style="padding:7px;text-align:right;color:var(--green);font-weight:700">${p.cases||'–'}</td>
+    <td style="padding:7px;text-align:right;font-family:'DM Mono',monospace">${p.aht?p.aht+'s':'–'}</td>
+    <td style="padding:7px;text-align:right;color:${(+p.occ||0)>=90?'var(--green)':(+p.occ||0)>=80?'var(--amber)':'var(--red)'}">${p.occ?p.occ+'%':'–'}</td>
+    <td style="padding:7px;text-align:right;font-size:11px">${p.abandoned?p.abandoned+'%':'–'}</td>
+    <td style="padding:7px;text-align:right;font-size:11px">${p.reported?p.reported+'%':'–'}</td>
+  </tr>`).join('');
+}
+
+// ── My Attendance (read-only) ──────────────────────────────────────
+function renderOpHubAttendance(opId) {
+  const kpiEl = document.getElementById('ophub-att-kpis');
+  const listEl = document.getElementById('ophub-att-list');
+  if(!kpiEl || !listEl) return;
+
+  const att = loadObj('att');
+  const allDates = Object.keys(att).sort().reverse().slice(0, 31); // last ~month
+  let present=0, absent=0, leave=0, off=0;
+  const rows = [];
+
+  allDates.forEach(date => {
+    const rec = att[date]?.[opId];
+    if(!rec) return;
+    const status = rec.status || 'present';
+    if(status==='present') present++;
+    else if(status==='absent') absent++;
+    else if(status==='leave') leave++;
+    else off++;
+    rows.push({date, status});
+  });
+
+  kpiEl.innerHTML = `
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:20px;font-weight:900;color:var(--green);font-family:'DM Mono',monospace">${present}</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Present</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:20px;font-weight:900;color:var(--red);font-family:'DM Mono',monospace">${absent}</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Absent</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:20px;font-weight:900;color:var(--amber);font-family:'DM Mono',monospace">${leave}</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">On Leave</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:20px;font-weight:900;color:var(--text3);font-family:'DM Mono',monospace">${off}</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-top:3px">Off Day</div>
+    </div>`;
+
+  if(!rows.length) {
+    listEl.innerHTML = '<div style="color:var(--text3);text-align:center;padding:20px">No attendance recorded for you yet.</div>';
+    return;
+  }
+
+  const colors = {present:'var(--green)',absent:'var(--red)',leave:'var(--amber)',off:'var(--text3)'};
+  const labels = {present:'✅ Present',absent:'❌ Absent',leave:'🌴 Leave',off:'— Off Day'};
+  listEl.innerHTML = rows.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)">
+    <span style="font-family:'DM Mono',monospace;font-size:12px">${fmtDate(r.date)}</span>
+    <span style="color:${colors[r.status]};font-weight:700;font-size:12px">${labels[r.status]}</span>
+  </div>`).join('');
+}
+
+// ── My Shift Plan (read-only) ──────────────────────────────────────
+function renderOpHubShift(opId) {
+  const listEl = document.getElementById('ophub-shift-list');
+  if(!listEl) return;
+
+  const sched = loadObj('schedule');
+  const todayStr = today();
+  const upcoming = [];
+  for(let i = 0; i < 14; i++) {
+    const d = new Date(todayStr+'T00:00:00');
+    d.setDate(d.getDate() + i);
+    const ds = d.toISOString().split('T')[0];
+    const shift = sched[ds]?.[opId];
+    if(shift) upcoming.push({date: ds, shift});
+  }
+
+  if(!upcoming.length) {
+    listEl.innerHTML = '<div style="color:var(--text3);text-align:center;padding:20px">No upcoming shifts scheduled for you yet.</div>';
+    return;
+  }
+
+  listEl.innerHTML = upcoming.map(u => {
+    const isOff = u.shift === 'OFF' || u.shift === 'Leave';
+    const col = u.shift === 'OFF' ? 'var(--text3)' : u.shift === 'Leave' ? 'var(--amber)' : 'var(--accent)';
+    const dt = new Date(u.date+'T00:00:00');
+    const dayLabel = dt.toLocaleDateString('en-GB', {weekday:'short', day:'2-digit', month:'short'});
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border2)">
+      <span style="font-size:12px;font-weight:600">${dayLabel}</span>
+      <span style="color:${col};font-weight:800;font-size:12px;background:${col}18;padding:2px 10px;border-radius:6px">${u.shift}</span>
+    </div>`;
+  }).join('');
+}
+
 function closeWFHLogin() {
   document.getElementById('wfh-login-overlay').style.display = 'none';
 }
@@ -5031,6 +5492,10 @@ const PAGE_TITLES = {
   'payroll-full':'Full Payroll Data','pay-history':'📊 Pay History','attendance-full':'Attendance Register',
   'wfh':'WFH Monitor — Remote Oversight','wfh-operator':'WFH Operator Portal',
   'leave-portal':'🏖️ Leave Portal',
+  'ophub-menu':'🧭 Operator Hub',
+  'ophub-production':'📊 My Production',
+  'ophub-attendance':'✅ My Attendance',
+  'ophub-shift':'📅 My Shift Plan',
   'team-perf-kings':'Team Kings — Performance Tracker',
   'team-perf-swat':'Team SWAT — Performance Tracker',
   'team-dash-kings':'🔵 Team Kings Dashboard',
@@ -8730,6 +9195,13 @@ async function initWFHOperator() {
   opEl.innerHTML = '<option value="">-- Select your name --</option>' +
     OPERATOR_ROSTER.map(o=>`<option value="${o.id}">${operatorLabel(o.id)} [${o.type}]</option>`).join('');
   document.getElementById('wfh-op-date').value = today();
+
+  // If we already know who this is (e.g. handed off from the Operator Hub
+  // tile menu), pre-select them instead of asking again.
+  const knownOpId = localStorage.getItem('wfh_op_id');
+  if(knownOpId && opEl.querySelector('option[value="'+knownOpId+'"]')) {
+    opEl.value = knownOpId;
+  }
   onWFHOperatorSelect();
 }
 
