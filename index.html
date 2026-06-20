@@ -1136,6 +1136,7 @@ function _dbRefreshPage(key) {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <body>
 
 <!-- ══════════════════════════════════════════════════════════
@@ -1624,7 +1625,7 @@ function _dbRefreshPage(key) {
       </div>
 
       <!-- ── DAILY PERFORMANCE CHART ──────────────────────────── -->
-      <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.2)">
+      <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.2);background:linear-gradient(160deg, rgba(0,212,160,0.04), rgba(180,138,247,0.03))">
         <div class="card-header" style="margin-bottom:16px">
           <div>
             <div class="card-title">📈 Daily Performance</div>
@@ -1632,14 +1633,8 @@ function _dbRefreshPage(key) {
           </div>
           <a href="#" onclick="nav('production');return false;" style="font-size:11px;color:var(--accent);font-weight:700;text-decoration:none">View Full Log →</a>
         </div>
-        <canvas id="dash-perf-chart" height="240" style="width:100%;display:block"></canvas>
-        <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:10px;font-size:10px;color:var(--text3)">
-          <span style="color:var(--green)">&#9608; Cases (bars)</span>
-          <span style="color:rgba(180,138,247,0.9)">&#9135;&#9135; AHT A.A</span>
-          <span style="color:rgba(0,200,180,0.9)">- - Normal AHT</span>
-          <span style="color:var(--amber)">&#9135;&#9135; Occupancy %</span>
-          <span style="color:var(--red)">- - Abandoned %</span>
-          <span style="color:rgba(0,180,216,0.9)">- - Reported %</span>
+        <div style="position:relative;height:300px">
+          <canvas id="dash-perf-chart"></canvas>
         </div>
       </div>
 
@@ -5172,127 +5167,248 @@ function yesterday() {
   return d.toISOString().split('T')[0];
 }
 
+let _dashPerfChartInstance = null;
+
 function renderDashPerfChart() {
   const canvas = document.getElementById('dash-perf-chart');
-  if(!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.offsetWidth || 900;
-  const H = 240;
-  canvas.width  = W * window.devicePixelRatio;
-  canvas.height = H * window.devicePixelRatio;
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  if(!canvas || typeof Chart === 'undefined') return;
 
-  // Group data by date
   const all = load('prod');
   const byDate = {};
   all.forEach(p => { if(!byDate[p.date]) byDate[p.date] = []; byDate[p.date].push(p); });
   const dates = Object.keys(byDate).sort().slice(-14);
+
+  if(_dashPerfChartInstance) { _dashPerfChartInstance.destroy(); _dashPerfChartInstance = null; }
+
   if(!dates.length) {
-    ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.font='13px sans-serif'; ctx.textAlign='center';
-    ctx.fillText('No production data yet', W/2, H/2); return;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No production data yet', canvas.offsetWidth/2, 140);
+    return;
   }
 
   const pts = dates.map(d => {
     const rows = byDate[d], n = rows.length;
     return {
-      date:      d,
-      cases:     rows.reduce((s,r)=>s+(+r.cases||0),0),
-      aht:       +(rows.reduce((s,r)=>s+(+r.aht||0),0)/n).toFixed(2),
+      date: d,
+      cases: rows.reduce((s,r)=>s+(+r.cases||0),0),
+      aht: +(rows.reduce((s,r)=>s+(+r.aht||0),0)/n).toFixed(2),
       normalAht: +(rows.reduce((s,r)=>s+(+r.normalAht||0),0)/n).toFixed(2),
-      occ:       +(rows.reduce((s,r)=>s+(+r.occ||0),0)/n).toFixed(2),
+      occ: +(rows.reduce((s,r)=>s+(+r.occ||0),0)/n).toFixed(2),
       abandoned: +(rows.reduce((s,r)=>s+(+r.abandoned||0),0)/n).toFixed(2),
-      reported:  +(rows.reduce((s,r)=>s+(+r.reported||0),0)/n).toFixed(2),
+      reported: +(rows.reduce((s,r)=>s+(+r.reported||0),0)/n).toFixed(2),
     };
   });
 
-  const maxCases  = Math.max(...pts.map(p=>p.cases));
-  const maxAHT    = Math.max(Math.max(...pts.map(p=>p.aht)), Math.max(...pts.map(p=>p.normalAht)));
-  const maxPct    = Math.max(100, Math.max(...pts.map(p=>p.occ)));
-  const pad = {top:24, right:60, bottom:42, left:58};
-  const cw = W - pad.left - pad.right;
-  const ch = H - pad.top  - pad.bottom;
-  const n  = pts.length;
-  const barW = Math.max(6, cw/n * 0.5);
-  const gap  = cw/n;
-
-  ctx.clearRect(0,0,W,H);
-
-  // Grid
-  ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1;
-  [0,.25,.5,.75,1].forEach(f=>{
-    const y=pad.top+ch*(1-f);
-    ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+cw,y); ctx.stroke();
+  const labels = pts.map(p => {
+    const dt = new Date(p.date+'T00:00:00');
+    return dt.getDate()+' '+dt.toLocaleString('en',{month:'short'});
   });
 
-  // Left Y axis — Cases
-  ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.font='10px DM Mono,monospace'; ctx.textAlign='right';
-  [0,.25,.5,.75,1].forEach(f=>{
-    const y=pad.top+ch*(1-f); const v=Math.round(maxCases*f);
-    ctx.fillText(v>=1000?(v/1000).toFixed(0)+'k':v, pad.left-6, y+3);
-  });
+  const ctx = canvas.getContext('2d');
 
-  // Right Y axis — AHT (seconds)
-  ctx.fillStyle='rgba(180,138,247,0.6)'; ctx.textAlign='left';
-  [0,.25,.5,.75,1].forEach(f=>{
-    const y=pad.top+ch*(1-f);
-    ctx.fillText((maxAHT*f).toFixed(0)+'s', pad.left+cw+6, y+3);
-  });
+  // Vivid gradient fill for the Cases area — this is the visual anchor of the chart
+  const casesGradient = ctx.createLinearGradient(0, 0, 0, 300);
+  casesGradient.addColorStop(0, 'rgba(0,212,160,0.55)');
+  casesGradient.addColorStop(0.6, 'rgba(0,212,160,0.12)');
+  casesGradient.addColorStop(1, 'rgba(0,212,160,0.0)');
 
-  // Right Y axis label — %
-  ctx.fillStyle='rgba(255,170,68,0.6)'; ctx.font='9px sans-serif'; ctx.textAlign='right';
-  ctx.fillText('100%', W-2, pad.top+3);
-  ctx.fillText('0%',   W-2, pad.top+ch+3);
+  const hasReported = pts.some(p => p.reported > 0);
 
-  // BARS — Cases
-  pts.forEach((p,i)=>{
-    const x   = pad.left + i*gap + gap/2 - barW/2;
-    const bH  = (p.cases/maxCases)*ch;
-    const y   = pad.top+ch-bH;
-    const col = p.occ>=80?'rgba(0,212,160,0.65)':p.occ>=70?'rgba(255,170,68,0.65)':'rgba(255,94,110,0.65)';
-    ctx.fillStyle=col;
-    ctx.beginPath(); ctx.roundRect(x,y,barW,bH,3); ctx.fill();
-    // cases label
-    ctx.fillStyle='rgba(255,255,255,0.65)'; ctx.font='8px DM Mono,monospace'; ctx.textAlign='center';
-    ctx.fillText(p.cases>=1000?(p.cases/1000).toFixed(1)+'k':p.cases, x+barW/2, y-3);
-    // date label
-    ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.font='9px sans-serif';
-    const dt=new Date(p.date+'T00:00:00');
-    ctx.fillText(dt.getDate()+' '+dt.toLocaleString('en',{month:'short'}), pad.left+i*gap+gap/2, H-6);
-  });
+  const datasets = [
+    {
+      type: 'bar',
+      label: 'Cases',
+      data: pts.map(p => p.cases),
+      backgroundColor: (c) => {
+        const v = c.parsed?.y ?? 0;
+        const maxC = Math.max(...pts.map(p=>p.cases)) || 1;
+        const ratio = v / maxC;
+        // gradient bars: brighter teal-to-violet for higher volumes — eye-catching, not flat
+        const g = c.chart.ctx.createLinearGradient(0, c.chart.chartArea?.top || 0, 0, c.chart.chartArea?.bottom || 300);
+        g.addColorStop(0, ratio > 0.7 ? '#00f0c0' : '#00d4a0');
+        g.addColorStop(1, 'rgba(0,212,160,0.35)');
+        return g;
+      },
+      borderRadius: 8,
+      borderSkipped: false,
+      yAxisID: 'yCases',
+      order: 5,
+      maxBarThickness: 38,
+    },
+    {
+      type: 'line',
+      label: 'AHT (Action)',
+      data: pts.map(p => p.aht),
+      borderColor: '#b48af7',
+      backgroundColor: '#b48af7',
+      pointBackgroundColor: '#b48af7',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2.5,
+      tension: 0.4,
+      yAxisID: 'yAht',
+      order: 1,
+    },
+    {
+      type: 'line',
+      label: 'Normal AHT',
+      data: pts.map(p => p.normalAht),
+      borderColor: '#00c8e0',
+      backgroundColor: '#00c8e0',
+      pointBackgroundColor: '#00c8e0',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2.5,
+      borderDash: [6,4],
+      tension: 0.4,
+      yAxisID: 'yAht',
+      order: 2,
+    },
+    {
+      type: 'line',
+      label: 'Occupancy %',
+      data: pts.map(p => p.occ),
+      borderColor: '#ffaa44',
+      backgroundColor: '#ffaa44',
+      pointBackgroundColor: '#ffaa44',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2.5,
+      tension: 0.4,
+      yAxisID: 'yPct',
+      order: 3,
+    },
+    {
+      type: 'line',
+      label: 'Abandoned %',
+      data: pts.map(p => p.abandoned),
+      borderColor: '#ff5e6e',
+      backgroundColor: '#ff5e6e',
+      pointBackgroundColor: '#ff5e6e',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2.5,
+      borderDash: [4,3],
+      tension: 0.4,
+      yAxisID: 'yPct',
+      order: 4,
+    },
+  ];
 
-  // Helper: draw a line metric
-  const drawLine = (getValue, maxVal, color, dash=[], dotR=3) => {
-    ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.lineJoin='round';
-    ctx.setLineDash(dash);
-    ctx.beginPath();
-    pts.forEach((p,i)=>{
-      const x=pad.left+i*gap+gap/2;
-      const y=pad.top+ch*(1-(getValue(p)/maxVal));
-      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  if(hasReported) {
+    datasets.push({
+      type: 'line',
+      label: 'Reported %',
+      data: pts.map(p => p.reported),
+      borderColor: '#5ec8ff',
+      backgroundColor: '#5ec8ff',
+      pointBackgroundColor: '#5ec8ff',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2.5,
+      borderDash: [2,3],
+      tension: 0.4,
+      yAxisID: 'yPct',
+      order: 4.5,
     });
-    ctx.stroke(); ctx.setLineDash([]);
-    // dots + value labels
-    ctx.fillStyle=color;
-    pts.forEach((p,i)=>{
-      const x=pad.left+i*gap+gap/2;
-      const y=pad.top+ch*(1-(getValue(p)/maxVal));
-      ctx.beginPath(); ctx.arc(x,y,dotR,0,Math.PI*2); ctx.fill();
-      ctx.font='8px DM Mono,monospace'; ctx.textAlign='center';
-      ctx.fillText(getValue(p), x, y-5);
-    });
-  };
+  }
 
-  // AHT A.A — purple
-  drawLine(p=>p.aht,      maxAHT, 'rgba(180,138,247,0.9)', []);
-  // Normal AHT — teal
-  drawLine(p=>p.normalAht,maxAHT, 'rgba(0,200,180,0.9)',   [4,3]);
-  // Occupancy — amber
-  drawLine(p=>p.occ,      maxPct, 'rgba(255,170,68,0.9)',  []);
-  // Abandoned — red
-  drawLine(p=>p.abandoned,maxPct, 'rgba(255,94,110,0.9)',  [3,3]);
-  // Reported (if has data)
-  if(pts.some(p=>p.reported>0))
-    drawLine(p=>p.reported,maxPct,'rgba(0,180,216,0.9)',   [4,3]);
+  // Apply gradient fill specifically to the Cases dataset
+  datasets[0].fill = true;
+  datasets[0].backgroundColor = casesGradient;
+
+  _dashPerfChartInstance = new Chart(ctx, {
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      animation: { duration: 700, easing: 'easeOutQuart' },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: 'rgba(255,255,255,0.75)',
+            font: { size: 11, weight: '600', family: "'DM Sans', sans-serif" },
+            usePointStyle: true,
+            pointStyle: 'circle',
+            padding: 16,
+            boxWidth: 8,
+            boxHeight: 8,
+          },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(8,20,16,0.95)',
+          titleColor: '#00d4a0',
+          bodyColor: '#e8f5f0',
+          borderColor: 'rgba(0,212,160,0.35)',
+          borderWidth: 1,
+          padding: 12,
+          titleFont: { size: 12, weight: '700' },
+          bodyFont: { size: 11 },
+          boxPadding: 4,
+          usePointStyle: true,
+          callbacks: {
+            label: (c) => {
+              const lbl = c.dataset.label;
+              const v = c.parsed.y;
+              if(lbl === 'Cases') return `  ${lbl}: ${v.toLocaleString()}`;
+              if(lbl.includes('%')) return `  ${lbl}: ${v}%`;
+              return `  ${lbl}: ${v}s`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false },
+          ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 10, family: "'DM Mono', monospace" } },
+          border: { display: false },
+        },
+        yCases: {
+          position: 'left',
+          grid: { color: 'rgba(255,255,255,0.06)', drawTicks: false },
+          ticks: {
+            color: 'rgba(0,212,160,0.7)',
+            font: { size: 10, family: "'DM Mono', monospace" },
+            callback: (v) => v >= 1000 ? (v/1000).toFixed(0)+'k' : v,
+          },
+          border: { display: false },
+          beginAtZero: true,
+        },
+        yAht: {
+          position: 'right',
+          grid: { display: false },
+          ticks: {
+            color: 'rgba(180,138,247,0.7)',
+            font: { size: 10, family: "'DM Mono', monospace" },
+            callback: (v) => v+'s',
+          },
+          border: { display: false },
+          beginAtZero: true,
+        },
+        yPct: {
+          position: 'right',
+          display: false,
+          min: 0,
+          max: 100,
+        },
+      },
+    },
+  });
 }
 
 function renderDashProdKPIs() {
