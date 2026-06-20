@@ -1327,7 +1327,6 @@ function _dbRefreshPage(key) {
             <option value="christopher.wanyama2">Christopher Wanyama</option>
             <option value="gibson.majimbo">Gibson Majimbo</option>
             <option value="synthiakane.otieno">Synthiakane Otieno</option>
-            <option value="ken.okoth">Ken Okoth</option>
           </optgroup>
           <optgroup label="Team SWAT">
             <option value="christine.mwanza">Christine Mwanza</option>
@@ -4319,7 +4318,6 @@ const WFH_OP_CREDS = {
   'christopher.wanyama2': 'Christopher8720',
   'gibson.majimbo': 'Gibson3229',
   'synthiakane.otieno': 'Synthiakane8363',
-  'ken.okoth': 'Ken9422',
   'christine.mwanza': 'Christine5258',
   'emmily.vannesa': 'Emmily3295',
   'ernest.maina': 'Ernest0016',
@@ -4817,7 +4815,6 @@ const OPERATOR_ROSTER = [
   { id:'christopher.wanyama2', type:'PT', team:'kings' },
   { id:'gibson.majimbo', type:'FT', team:'kings' },
   { id:'synthiakane.otieno', type:'TR', team:'kings' },
-  { id:'ken.okoth', type:'TR', team:'kings' },
 
   // ── Team SWAT (QA: Rosemary Nyaleso) ──────────────────────────────
   { id:'christine.mwanza', type:'FT', team:'swat' },
@@ -4911,7 +4908,6 @@ const LEAVE_SEED = {
   'ruth.dube': { name:'Ruth Dube', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
   // ── Trainees (not in 2026 leave tracker yet) ──────────────────
   'synthiakane.otieno': { name:'Synthiakane Otieno', role:'TR',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'ken.okoth': { name:'Ken Okoth', role:'TR',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
 };
 
 // Merge seeded data with any live changes from Supabase
@@ -4973,7 +4969,6 @@ function operatorLabel(op, showType=false) {
     'christopher.wanyama2':'Christopher Wanyama',
     'sila.juma':'Sila Juma',
     'synthiakane.otieno':'Synthiakane Otieno',
-    'ken.okoth':'Ken Okoth',
   };
   const name = MGMT[op] || op.split('.').map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
   if(!showType) return name;
@@ -7109,7 +7104,6 @@ const NAME_TO_ID = {
   'Ernest Maina':'ernest.maina',
   'Faith Mutinda':'faith.mutinda',
   'Synthiakane Otieno':'synthiakane.otieno',
-  'Ken Okoth':'ken.okoth',
 };
 
 const MONTHS_2026 = [
@@ -13313,7 +13307,6 @@ function matchOperator(name) {
     'vivian.adhiambo':   'adhiambo.vivian',
     'adhiambo.vivian':   'adhiambo.vivian',
     'synthiakane.otieno':'synthiakane.otieno',
-    'ken.okoth':         'ken.okoth',
   };
   if(ALIAS[clean]) return ALIAS[clean];
   // Direct match
