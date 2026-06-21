@@ -282,6 +282,67 @@
     box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,212,160,0.07);
     transform: translateY(-1px);
   }
+
+  /* ── Operator Hub tile menu ── */
+  .ophub-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+    max-width: 1100px;
+  }
+  .ophub-tile {
+    position: relative;
+    background: linear-gradient(150deg, var(--surface) 0%, rgba(3,11,8,0.98) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 26px 22px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .ophub-tile::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--tile-accent);
+    opacity: 0.85;
+  }
+  .ophub-tile::after {
+    content: '';
+    position: absolute; top: -40px; right: -40px; width: 120px; height: 120px;
+    background: var(--tile-accent);
+    opacity: 0.07; border-radius: 50%;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .ophub-tile:hover {
+    transform: translateY(-4px);
+    border-color: var(--tile-accent);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.45), 0 0 0 1px color-mix(in srgb, var(--tile-accent) 35%, transparent);
+  }
+  .ophub-tile:hover::after {
+    opacity: 0.14;
+    transform: scale(1.15);
+  }
+  .ophub-tile-icon {
+    font-size: 32px;
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--tile-accent) 14%, transparent);
+    border-radius: 14px;
+    margin-bottom: 16px;
+  }
+  .ophub-tile-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .ophub-tile-sub {
+    font-size: 12px;
+    color: var(--text3);
+    line-height: 1.5;
+  }
+
   .card-header {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 16px;
@@ -355,6 +416,9 @@
   .btn-primary { background: var(--accent); color: white; }
   .btn-primary:hover { opacity: 0.88; }
   .btn-secondary { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); }
+  .tab-btn { background: var(--surface2); color: var(--text3); border: 1px solid var(--border2); padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .tab-btn:hover { color: var(--text2); }
+  .tab-btn.active { background: rgba(0,212,160,0.12); color: var(--accent); border-color: rgba(0,212,160,0.4); }
   .btn-secondary:hover { border-color: var(--border); color: var(--text); }
   .btn-danger { background: rgba(240,92,92,0.12); color: var(--red); border: 1px solid rgba(240,92,92,0.25); }
   .btn-green { background: rgba(52,201,122,0.12); color: var(--green); border: 1px solid rgba(52,201,122,0.25); }
@@ -1001,8 +1065,8 @@
 //  SUPABASE DATA LAYER — AIFI Hub
 //  REST API only — no CDN modules, works in every browser
 // ════════════════════════════════════════════════════════════════
-const _SUPA_URL = 'https://xebxlildzzxheqpcuwtg.supabase.co';
-const _SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlYnhsaWxkenp4aGVxcGN1d3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTAxMTYsImV4cCI6MjA5NTUyNjExNn0.N8aM5K83QiOB0yH26k4Wm5sAVeZMPPs7CxRmAB7oUJg';
+const _SUPA_URL = 'https://hdhyhkbcnesjqydrdedl.supabase.co';
+const _SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkaHloa2JjbmVzanF5ZHJkZWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2ODk0OTAsImV4cCI6MjA5NzI2NTQ5MH0.Xf_JkASMgeQ-cw6lt3xiZRX4AQ2w3OozgfDeVWOgHDA';
 const _SUPA_HDR = {
   'apikey':        _SUPA_KEY,
   'Authorization': 'Bearer ' + _SUPA_KEY,
@@ -1021,11 +1085,20 @@ window._dbSet = async function(key, val) {
     ...(_SUPA_HDR),
     'Prefer': 'resolution=merge-duplicates,return=minimal'
   };
-  const r = await fetch(_SUPA_URL+'/rest/v1/aifi_store',
+  const r = await fetch(_SUPA_URL+'/rest/v1/aifi_store?on_conflict=key',
     {method:'POST', headers:upsertHdr, body});
   if(!r.ok) {
     const e = await r.text();
     console.warn('DB write failed ['+key+']:', r.status, e);
+    // Fallback: if upsert still fails (e.g. older PostgREST), try a direct PATCH instead
+    try {
+      const patchR = await fetch(_SUPA_URL+'/rest/v1/aifi_store?key=eq.'+encodeURIComponent(key), {
+        method: 'PATCH',
+        headers: {..._SUPA_HDR, 'Content-Type':'application/json', 'Prefer':'return=minimal'},
+        body: JSON.stringify({val, updated_at: new Date().toISOString()})
+      });
+      if(!patchR.ok) console.warn('DB PATCH fallback also failed ['+key+']:', patchR.status, await patchR.text());
+    } catch(e2) { console.warn('DB PATCH fallback error ['+key+']:', e2.message); }
   }
 };
 
@@ -1124,6 +1197,7 @@ function _dbRefreshPage(key) {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <body>
 
 <!-- ══════════════════════════════════════════════════════════
@@ -1147,11 +1221,14 @@ function _dbRefreshPage(key) {
     <div class="login-tagline" style="margin-bottom:20px">Select your name and enter your personal password to access the WFH station</div>
 
     <!-- Name selector -->
+    <div id="wfh-saved-name-display" style="display:none;padding:10px 14px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:8px;color:var(--green);font-weight:700;font-size:13px;margin-bottom:14px;text-align:center"></div>
+    <div id="wfh-name-field-wrap">
     <label class="login-field-label">Your Name</label>
     <div style="margin-bottom:16px">
       <select id="wfh-login-name" style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:12px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none" onchange="document.getElementById('wfh-login-pw').focus()">
         <option value="">— Select your name —</option>
       </select>
+    </div>
     </div>
 
     <!-- Password -->
@@ -1181,6 +1258,109 @@ function _dbRefreshPage(key) {
     <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">
       This portal is for <strong style="color:var(--accent)">WFH operators only</strong>.<br/>
       You will only see the WFH Operator Station — not the full hub.<br/>
+      Team Leads use the main login screen.
+    </div>
+  </div>
+</div>
+
+<!-- ── LEAVE PORTAL LOGIN (standalone — no WFH check-in required) ── -->
+<div class="login-overlay" id="leave-login-overlay" style="display:none;z-index:10000">
+  <div class="login-bg"></div>
+  <div class="login-card" style="max-width:400px">
+    <div class="login-logo" style="margin-bottom:6px">
+      <div class="login-logo-icon" style="background:var(--grad-impact)">🏖️</div>
+      <div>
+        <div class="login-logo-text" style="font-size:18px">Leave Portal</div>
+        <div class="login-logo-sub">Impact Outsourcing Limited</div>
+      </div>
+    </div>
+    <div class="login-tagline" style="margin-bottom:20px">Select your name and enter your password to check your leave balance and apply</div>
+
+    <div id="leave-saved-name-display" style="display:none;padding:10px 14px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:8px;color:var(--green);font-weight:700;font-size:13px;margin-bottom:14px;text-align:center"></div>
+    <div id="leave-name-field-wrap">
+    <label class="login-field-label">Your Name</label>
+    <div style="margin-bottom:16px">
+      <select id="leave-login-name" style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:12px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none" onchange="document.getElementById('leave-login-pw').focus()">
+        <option value="">— Select your name —</option>
+      </select>
+    </div>
+    </div>
+
+    <label class="login-field-label">Your Password</label>
+    <div class="login-input-wrap">
+      <input type="password" id="leave-login-pw" class="login-input"
+        placeholder="Enter your password"
+        onkeydown="if(event.key==='Enter') doLeaveLogin()"
+        autocomplete="current-password"/>
+      <button class="login-eye" onclick="
+        const i=document.getElementById('leave-login-pw');
+        i.type=i.type==='password'?'text':'password';
+        this.textContent=i.type==='password'?'👁':'🙈'
+      ">👁</button>
+    </div>
+
+    <div class="login-error" id="leave-login-error" style="display:none;margin-bottom:12px">
+      ❌ Incorrect password or name not found. Check with your Team Lead.
+    </div>
+
+    <button class="login-btn" onclick="doLeaveLogin()" style="margin-bottom:14px">
+      🏖️ Access Leave Portal
+    </button>
+
+    <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">
+      This portal is for checking your <strong style="color:var(--accent)">leave balance</strong> and applying for leave.<br/>
+      You will only see your own leave information.<br/>
+      Team Leads use the main login screen.
+    </div>
+  </div>
+</div>
+
+<!-- ── OPERATOR HUB LOGIN (single login → tile menu) ── -->
+<div class="login-overlay" id="ophub-login-overlay" style="display:none;z-index:10000">
+  <div class="login-bg"></div>
+  <div class="login-card" style="max-width:400px">
+    <div class="login-logo" style="margin-bottom:6px">
+      <div class="login-logo-icon" style="background:var(--grad-impact)">🧭</div>
+      <div>
+        <div class="login-logo-text" style="font-size:18px">Operator Hub</div>
+        <div class="login-logo-sub">Impact Outsourcing Limited</div>
+      </div>
+    </div>
+    <div class="login-tagline" style="margin-bottom:20px">Select your name and enter your password to access your tools</div>
+
+    <div id="ophub-saved-name-display" style="display:none;padding:10px 14px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:8px;color:var(--green);font-weight:700;font-size:13px;margin-bottom:14px;text-align:center"></div>
+    <div id="ophub-name-field-wrap">
+    <label class="login-field-label">Your Name</label>
+    <div style="margin-bottom:16px">
+      <select id="ophub-login-name" style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:12px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:14px;outline:none" onchange="document.getElementById('ophub-login-pw').focus()">
+        <option value="">— Select your name —</option>
+      </select>
+    </div>
+    </div>
+
+    <label class="login-field-label">Your Password</label>
+    <div class="login-input-wrap">
+      <input type="password" id="ophub-login-pw" class="login-input"
+        placeholder="Enter your password"
+        onkeydown="if(event.key==='Enter') doOpHubLogin()"
+        autocomplete="current-password"/>
+      <button class="login-eye" onclick="
+        const i=document.getElementById('ophub-login-pw');
+        i.type=i.type==='password'?'text':'password';
+        this.textContent=i.type==='password'?'👁':'🙈'
+      ">👁</button>
+    </div>
+
+    <div class="login-error" id="ophub-login-error" style="display:none;margin-bottom:12px">
+      ❌ Incorrect password or name not found. Check with your Team Lead.
+    </div>
+
+    <button class="login-btn" onclick="doOpHubLogin()" style="margin-bottom:14px">
+      🧭 Open Operator Hub
+    </button>
+
+    <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">
+      One login for <strong style="color:var(--accent)">everything you need</strong>: WFH, Leave, Production, Attendance, Shifts.<br/>
       Team Leads use the main login screen.
     </div>
   </div>
@@ -1240,51 +1420,6 @@ function _dbRefreshPage(key) {
           onchange="document.getElementById('op-login-pw').focus()"
           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
           <option value="">— Select your name —</option>
-          <optgroup label="Team Kings">
-            <option value="richard.otieno">Richard Otieno</option>
-            <option value="dennis.keter">Dennis Keter</option>
-            <option value="collins.marigu">Collins Marigu</option>
-            <option value="jenipher.otieno">Jennifer Otieno</option>
-            <option value="mark.obara">Mark Obara</option>
-            <option value="alfred.korir">Alfred Korir</option>
-            <option value="adhiambo.vivian">Adhiambo Vivian</option>
-            <option value="pauline.safari">Pauline Safari</option>
-            <option value="sila.juma">Sila Juma</option>
-            <option value="stacy.wanjiku">Stacy Wanjiku</option>
-            <option value="noah.njiri">Noah Njiri</option>
-            <option value="melody.mapenzi">Melody Mapenzi</option>
-            <option value="dennis.sangolo">Dennis Sangolo</option>
-            <option value="joy.mackenzie">Joy Mackenzie</option>
-            <option value="ivy.njerese">Ivy Njerese</option>
-            <option value="aisha.adhiambo">Aisha Adhiambo</option>
-            <option value="christopher.wanyama2">Christopher Wanyama</option>
-            <option value="gibson.majimbo">Gibson Majimbo</option>
-            <option value="synthiakane.otieno">Synthiakane Otieno</option>
-            <option value="ken.okoth">Ken Okoth</option>
-          </optgroup>
-          <optgroup label="Team SWAT">
-            <option value="christine.mwanza">Christine Mwanza</option>
-            <option value="emmily.vannesa">Emmily Vannesa</option>
-            <option value="ernest.maina">Ernest Maina</option>
-            <option value="faith.mutinda">Faith Mutinda</option>
-            <option value="fortune.masereto">Fortune Masereto</option>
-            <option value="francis.ndeta">Francis Ndeta</option>
-            <option value="benson.ngugi">Benson Ngugi</option>
-            <option value="kelvin.matekwa">Kelvin Matekwa</option>
-            <option value="kelvin.nderitu">Kelvin Nderitu</option>
-            <option value="martin.karanu">Martin Karanu</option>
-            <option value="maureen.kaara">Maureen Kaara</option>
-            <option value="rachael.gitau">Rachael Gitau</option>
-            <option value="rading.yvonne2">Rading Yvonne</option>
-            <option value="rickson.macharia">Rickson Macharia</option>
-            <option value="ruth.dube">Ruth Dube</option>
-            <option value="samuel.githae">Samuel Githae</option>
-            <option value="samuel.hinga">Samuel Hinga</option>
-            <option value="sheillah.aluoch">Sheillah Aluoch</option>
-            <option value="simon.lukoye">Simon Lukoye</option>
-            <option value="wario.sora">Wario Sora</option>
-            <option value="yassir.khalid">Yassir Khalid</option>
-          </optgroup>
         </select>
 
         <!-- Password -->
@@ -1415,8 +1550,14 @@ function _dbRefreshPage(key) {
     <div class="nav-item" onclick="nav('wfh')">
       <span class="nav-icon">🏠</span><span>WFH Monitor</span>
     </div>
+    <div class="nav-item" onclick="openOpHubLogin()" style="background:rgba(0,212,160,0.08);border:1px solid rgba(0,212,160,0.25)">
+      <span class="nav-icon">🧭</span><span style="font-weight:800">Operator Hub</span>
+    </div>
     <div class="nav-item" onclick="openWFHLogin()">
       <span class="nav-icon">💻</span><span>Operator Portal</span>
+    </div>
+    <div class="nav-item" onclick="openLeaveLogin()">
+      <span class="nav-icon">🏖️</span><span>Leave Portal</span>
     </div>
     <div class="nav-item" onclick="nav('meeting')">
       <span class="nav-icon">📹</span><span>Video Meeting</span>
@@ -1429,9 +1570,6 @@ function _dbRefreshPage(key) {
     <div class="nav-label">Reports & Data</div>
     <div class="nav-item" onclick="nav('call-reports')">
       <span class="nav-icon">📞</span><span>Call Reports</span>
-    </div>
-    <div class="nav-item" onclick="nav('team-dash')">
-      <span class="nav-icon">🏆</span><span>Team Dashboard</span>
     </div>
     <div class="nav-item" onclick="nav('team-perf-kings')">
       <span class="nav-icon">🔵</span><span>Kings Performance</span>
@@ -1548,7 +1686,7 @@ function _dbRefreshPage(key) {
         <div class="card-header" style="margin-bottom:12px">
           <div>
             <div class="card-title">📊 Production — <span id="dash-prod-date-label">Yesterday</span></div>
-            <div class="card-sub">Live from Production Tracker · Previous working day</div>
+            <div class="card-sub" id="dash-prod-sub-label">Live from Production Tracker · Previous working day</div>
           </div>
           <a href="#" onclick="nav('production');return false;" style="font-size:11px;color:var(--accent);font-weight:700;text-decoration:none">View Full Log →</a>
         </div>
@@ -1558,7 +1696,7 @@ function _dbRefreshPage(key) {
       </div>
 
       <!-- ── DAILY PERFORMANCE CHART ──────────────────────────── -->
-      <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.2)">
+      <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.2);background:linear-gradient(160deg, rgba(0,212,160,0.04), rgba(180,138,247,0.03))">
         <div class="card-header" style="margin-bottom:16px">
           <div>
             <div class="card-title">📈 Daily Performance</div>
@@ -1566,14 +1704,8 @@ function _dbRefreshPage(key) {
           </div>
           <a href="#" onclick="nav('production');return false;" style="font-size:11px;color:var(--accent);font-weight:700;text-decoration:none">View Full Log →</a>
         </div>
-        <canvas id="dash-perf-chart" height="240" style="width:100%;display:block"></canvas>
-        <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:10px;font-size:10px;color:var(--text3)">
-          <span style="color:var(--green)">&#9608; Cases (bars)</span>
-          <span style="color:rgba(180,138,247,0.9)">&#9135;&#9135; AHT A.A</span>
-          <span style="color:rgba(0,200,180,0.9)">- - Normal AHT</span>
-          <span style="color:var(--amber)">&#9135;&#9135; Occupancy %</span>
-          <span style="color:var(--red)">- - Abandoned %</span>
-          <span style="color:rgba(0,180,216,0.9)">- - Reported %</span>
+        <div style="position:relative;height:300px">
+          <canvas id="dash-perf-chart"></canvas>
         </div>
       </div>
 
@@ -2776,8 +2908,13 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
         <h1>🔵 Team Kings — Performance Tracker</h1>
         <p>Individual operator metrics. Feed daily data to track AHT, quality, abandoned %, refreshed % and reported %. Red = needs coaching.</p>
       </div>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button class="tab-btn active" id="kperf-tab-daily"   onclick="setPerfView('kings','daily')">📅 Daily</button>
+        <button class="tab-btn"        id="kperf-tab-weekly"  onclick="setPerfView('kings','weekly')">📈 Weekly</button>
+        <button class="tab-btn"        id="kperf-tab-monthly" onclick="setPerfView('kings','monthly')">📆 Monthly</button>
+      </div>
       <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
-        <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="kperf-date" onchange="renderTeamPerf('kings')" style="width:150px"/></div>
+        <div class="form-group" style="margin:0" id="kperf-date-wrap"><label>Date</label><input type="date" id="kperf-date" onchange="renderTeamPerf('kings')" style="width:150px"/></div>
         <button class="btn btn-primary" onclick="openFeedModal('kings')">+ Feed Data</button>
         <button class="btn btn-secondary" onclick="renderTeamPerf('kings')">↺ Refresh</button>
       </div>
@@ -2792,13 +2929,19 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
         <h1>🟣 Team SWAT — Performance Tracker</h1>
         <p>Individual operator metrics. Feed daily data to track AHT, quality, abandoned %, refreshed % and reported %. Red = needs coaching.</p>
       </div>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button class="tab-btn active" id="sperf-tab-daily"   onclick="setPerfView('swat','daily')">📅 Daily</button>
+        <button class="tab-btn"        id="sperf-tab-weekly"  onclick="setPerfView('swat','weekly')">📈 Weekly</button>
+        <button class="tab-btn"        id="sperf-tab-monthly" onclick="setPerfView('swat','monthly')">📆 Monthly</button>
+      </div>
       <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
-        <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="sperf-date" onchange="renderTeamPerf('swat')" style="width:150px"/></div>
+        <div class="form-group" style="margin:0" id="sperf-date-wrap"><label>Date</label><input type="date" id="sperf-date" onchange="renderTeamPerf('swat')" style="width:150px"/></div>
         <button class="btn btn-primary" onclick="openFeedModal('swat')">+ Feed Data</button>
         <button class="btn btn-secondary" onclick="renderTeamPerf('swat')">↺ Refresh</button>
       </div>
       <div id="team-perf-swat-grid"></div>
     </div>
+
 
     <!-- ══════════════════════════════════════════════════════════
          PAGE: TEAM KINGS DASHBOARD
@@ -3216,6 +3359,19 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
         </div>
       </div>
 
+      <!-- ── LIVE SHIFT ACTIVITY ─────────────────────────────────── -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📋 Live Shift Activity</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">One row per working operator · session count since shift start · click a row for full timeline</div>
+          </div>
+        </div>
+        <div id="shift-activity-table" style="margin-top:10px">
+          <div style="color:var(--text3);font-size:12px;font-style:italic">Loading…</div>
+        </div>
+      </div>
+
 
       <!-- ── SUBMIT TRACKER ───────────────────────────────────── -->
       <div class="card" style="margin-bottom:20px;border-color:rgba(255,133,52,0.18)">
@@ -3287,8 +3443,8 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
       <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.18)">
         <div class="card-header">
           <div>
-            <div class="card-title">📸 Webcam Snapshot Monitor</div>
-            <div class="card-sub">Auto-captures every 5 min · Face-away triggers instant alert · Red border = operator away from camera</div>
+            <div class="card-title">📸 Presence Monitor</div>
+            <div class="card-sub">Checks if operator is at camera every 5 min · No images are saved, only presence/away status · Red border = operator away from camera</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <div id="cam-face-away-count" style="font-size:11px;font-weight:700;color:var(--red);display:none"></div>
@@ -3499,7 +3655,7 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
                 <div style="font-size:22px;font-weight:800;color:var(--red);font-family:'DM Mono',monospace" id="op-away-count">0</div>
               </div>
               <div style="font-size:10px;color:var(--text3);line-height:1.5;padding:8px;background:rgba(255,133,52,0.06);border:1px solid rgba(255,133,52,0.2);border-radius:7px">
-                ⚠️ Camera must stay ON your entire shift. Snapshots are taken every 5 minutes. If you leave the frame, your TL is notified instantly.
+                ⚠️ Camera must stay ON your entire shift. Your presence is checked every 5 minutes — no images are saved, only whether you're at the camera. If you leave the frame, your TL is notified instantly.
               </div>
             </div>
           </div>
@@ -3831,7 +3987,259 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
     <div style="font-size:12px;color:var(--text3)" id="wfh-op-header-name"></div>
     <button onclick="exitWFHMode()" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">← Exit</button>
   </div>
+
+      <!-- ── Apply for Leave ─────────────────────────────────── -->
+      <div class="card" style="margin-top:20px;max-width:720px;margin-left:auto;margin-right:auto">
+        <div class="card-title" style="margin-bottom:14px">🏖️ Apply for Leave</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="form-group" style="margin:0">
+            <label>Leave Type</label>
+            <select id="wfh-leave-type" style="width:100%">
+              <option value="annual">Annual Leave</option>
+              <option value="sick">Sick Leave</option>
+              <option value="emergency">Emergency Leave</option>
+              <option value="unpaid">Unpaid Leave</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Number of Days</label>
+            <input type="number" id="wfh-leave-days" min="1" max="30" placeholder="e.g. 2" style="width:100%"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Start Date</label>
+            <input type="date" id="wfh-leave-start" style="width:100%"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>End Date</label>
+            <input type="date" id="wfh-leave-end" style="width:100%"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <textarea id="wfh-leave-reason" rows="2" placeholder="Brief reason for leave request..." style="width:100%"></textarea>
+        </div>
+        <button class="btn btn-green" style="width:100%;margin-bottom:8px" onclick="submitWFHLeave()">📤 Submit Leave Application</button>
+        <div id="wfh-leave-msg" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px"></div>
+        <div style="margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
+            <div id="wfh-bal-annual" style="font-size:20px;font-weight:900;color:var(--green)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">ANNUAL LEFT</div>
+          </div>
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
+            <div id="wfh-bal-sick" style="font-size:20px;font-weight:900;color:var(--amber)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">SICK LEFT</div>
+          </div>
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
+            <div id="wfh-bal-other" style="font-size:20px;font-weight:900;color:var(--violet)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">OTHER LEFT</div>
+          </div>
+        </div>
+        <div id="wfh-my-leaves" style="margin-top:12px;font-size:12px;color:var(--text3)"></div>
+      </div>
+
 </div>
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: LEAVE PORTAL (standalone, no WFH login needed)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-leave-portal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <h1 style="margin:0">🏖️ Leave Portal</h1>
+          <p id="leave-portal-greeting" style="margin:4px 0 0;color:var(--accent);font-size:13px;font-weight:700"></p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeLeavePortal()">← Exit</button>
+      </div>
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,var(--amber),#ff7c2a);border-radius:3px;margin:14px 0 26px"></div>
+
+      <!-- ── Leave balance, front and center ── -->
+      <div class="kpi-grid" style="margin-bottom:22px">
+        <div class="kpi-card amber">
+          <div class="kpi-label">🌴 Annual Leave Left</div>
+          <div class="kpi-value" id="lp-bal-annual">—</div>
+        </div>
+        <div class="kpi-card teal">
+          <div class="kpi-label">🤒 Sick Leave Left</div>
+          <div class="kpi-value" id="lp-bal-sick">—</div>
+        </div>
+        <div class="kpi-card purple">
+          <div class="kpi-label">📋 Other Leave Left</div>
+          <div class="kpi-value" id="lp-bal-other">—</div>
+        </div>
+      </div>
+
+      <!-- ── Application history, the thing they came to check ── -->
+      <div class="card" style="margin-bottom:22px">
+        <div class="card-header" style="margin-bottom:14px">
+          <div class="card-title">📋 My Leave Applications</div>
+        </div>
+        <div id="lp-my-leaves" style="font-size:13px;color:var(--text3)">Loading…</div>
+      </div>
+
+      <!-- ── Application form, last because checking balance/history comes first ── -->
+      <div class="card" style="border-color:rgba(255,170,68,0.18)">
+        <div class="card-header" style="margin-bottom:14px">
+          <div>
+            <div class="card-title">📝 Apply for Leave</div>
+            <div class="card-sub">Submit a new request — your Team Lead will review it</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="form-group" style="margin:0">
+            <label>Leave Type</label>
+            <select id="lp-leave-type" style="width:100%">
+              <option value="annual">Annual Leave</option>
+              <option value="sick">Sick Leave</option>
+              <option value="emergency">Emergency Leave</option>
+              <option value="unpaid">Unpaid Leave</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Number of Days</label>
+            <input type="number" id="lp-leave-days" min="1" max="30" placeholder="e.g. 2" style="width:100%"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Start Date</label>
+            <input type="date" id="lp-leave-start" style="width:100%"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>End Date</label>
+            <input type="date" id="lp-leave-end" style="width:100%"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <textarea id="lp-leave-reason" rows="2" placeholder="Brief reason for leave request..." style="width:100%"></textarea>
+        </div>
+        <button class="btn btn-green" style="width:100%;margin-bottom:8px" onclick="submitLeavePortalApplication()">📤 Submit Leave Application</button>
+        <div id="lp-leave-msg" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: OPERATOR HUB MENU (tile launcher)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-ophub-menu">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <h1 style="margin:0">🧭 Operator Hub</h1>
+          <p id="ophub-greeting" style="margin:4px 0 0;color:var(--accent);font-size:13px;font-weight:700"></p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeOpHubMenu()">← Exit</button>
+      </div>
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;margin:14px 0 28px"></div>
+
+      <div class="ophub-tile-grid">
+        <div class="ophub-tile" style="--tile-accent: var(--accent)" onclick="ophubGo('wfh')">
+          <div class="ophub-tile-icon">🏠</div>
+          <div class="ophub-tile-title">Work From Home</div>
+          <div class="ophub-tile-sub">Check in, log activity, submit your EOD report</div>
+        </div>
+
+        <div class="ophub-tile" style="--tile-accent: #ffaa44" onclick="ophubGo('leave')">
+          <div class="ophub-tile-icon">🏖️</div>
+          <div class="ophub-tile-title">Leave Portal</div>
+          <div class="ophub-tile-sub">Check your balance and apply for time off</div>
+        </div>
+
+        <div class="ophub-tile" style="--tile-accent: #00c8e0" onclick="ophubGo('production')">
+          <div class="ophub-tile-icon">📊</div>
+          <div class="ophub-tile-title">Production Tracker</div>
+          <div class="ophub-tile-sub">See your daily cases, AHT, and occupancy</div>
+        </div>
+
+        <div class="ophub-tile" style="--tile-accent: #b48af7" onclick="ophubGo('attendance')">
+          <div class="ophub-tile-icon">✅</div>
+          <div class="ophub-tile-title">Attendance</div>
+          <div class="ophub-tile-sub">View your attendance record this month</div>
+        </div>
+
+        <div class="ophub-tile" style="--tile-accent: #ff5e6e" onclick="ophubGo('shift')">
+          <div class="ophub-tile-icon">📅</div>
+          <div class="ophub-tile-title">Shift Plan</div>
+          <div class="ophub-tile-sub">See your upcoming shifts and schedule</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: OPERATOR — MY PRODUCTION (read-only personal view)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-ophub-production">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <h1 style="margin:0">📊 My Production</h1>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your daily case counts, AHT, and occupancy</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
+      </div>
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,#00c8e0,#0077b6);border-radius:3px;margin:14px 0 24px"></div>
+
+      <div class="kpi-grid" id="ophub-prod-kpis" style="margin-bottom:22px"></div>
+
+      <div class="card">
+        <div class="card-header" style="margin-bottom:14px">
+          <div class="card-title">📅 Daily History</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:var(--surface2)">
+              <th style="padding:10px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;border-radius:8px 0 0 0">Date</th>
+              <th style="padding:10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Cases</th>
+              <th style="padding:10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">AHT</th>
+              <th style="padding:10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Occupancy</th>
+              <th style="padding:10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Abandoned</th>
+              <th style="padding:10px 12px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;border-radius:0 8px 0 0">Reported</th>
+            </tr></thead>
+            <tbody id="ophub-prod-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: OPERATOR — MY ATTENDANCE (read-only personal view)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-ophub-attendance">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <h1 style="margin:0">✅ My Attendance</h1>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your attendance record</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
+      </div>
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,#b48af7,#8a5cf6);border-radius:3px;margin:14px 0 24px"></div>
+
+      <div class="kpi-grid" id="ophub-att-kpis" style="margin-bottom:22px"></div>
+
+      <div class="card">
+        <div class="card-header" style="margin-bottom:14px">
+          <div class="card-title">📅 Recent Days</div>
+        </div>
+        <div id="ophub-att-list" style="font-size:13px"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: OPERATOR — MY SHIFTS (read-only personal view)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-ophub-shift">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <h1 style="margin:0">📅 My Shift Plan</h1>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your upcoming shifts, next 14 days</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
+      </div>
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,#ff5e6e,#e8475a);border-radius:3px;margin:14px 0 24px"></div>
+
+      <div class="card">
+        <div class="card-header" style="margin-bottom:14px">
+          <div class="card-title">🗓️ Upcoming Shifts</div>
+        </div>
+        <div id="ophub-shift-list" style="font-size:13px"></div>
+      </div>
+    </div>
+
     <!-- ═══════════════════════════════════════════════════════
          PAGE: VIDEO MEETING ROOM
     ════════════════════════════════════════════════════════ -->
@@ -4107,7 +4515,6 @@ const WFH_OP_CREDS = {
   'christopher.wanyama2': 'Christopher8720',
   'gibson.majimbo': 'Gibson3229',
   'synthiakane.otieno': 'Synthiakane8363',
-  'ken.okoth': 'Ken9422',
   'christine.mwanza': 'Christine5258',
   'emmily.vannesa': 'Emmily3295',
   'ernest.maina': 'Ernest0016',
@@ -4128,6 +4535,8 @@ const WFH_OP_CREDS = {
   'sheillah.aluoch': 'Sheillah2396',
   'simon.lukoye': 'Simon4512',
   'wario.sora': 'Wario3522',
+  'rachael.hamada': 'Hamada4471',
+  'ignatious.kahindi': 'Ignatious6029',
   'yassir.khalid': 'Yassir0629',
 };
 
@@ -4158,13 +4567,600 @@ function openWFHLogin() {
   document.getElementById('wfh-login-overlay').style.display = 'flex';
   document.getElementById('wfh-login-error').style.display = 'none';
   document.getElementById('wfh-login-pw').value = '';
+
+  // Remember the operator's name so returning users skip name selection
+  const savedOp = localStorage.getItem('wfh_op_id');
+  const nameWrap = document.getElementById('wfh-name-field-wrap');
+  const savedDisplay = document.getElementById('wfh-saved-name-display');
+  if(savedOp && sel && sel.querySelector('option[value="'+savedOp+'"]')) {
+    sel.value = savedOp;
+    if(nameWrap) nameWrap.style.display = 'none';
+    if(savedDisplay) {
+      savedDisplay.style.display = 'block';
+      savedDisplay.innerHTML = 'Logging in as <b>' + operatorLabel(savedOp) + '</b> · <a href="#" onclick="wfhSwitchUser();return false;" style="color:var(--accent)">Not you?</a>';
+    }
+  } else {
+    if(nameWrap) nameWrap.style.display = 'block';
+    if(savedDisplay) savedDisplay.style.display = 'none';
+  }
+  setTimeout(() => document.getElementById('wfh-login-pw')?.focus(), 150);
+}
+
+function wfhSwitchUser() {
+  localStorage.removeItem('wfh_op_id');
+  const sel = document.getElementById('wfh-login-name');
+  if(sel) sel.value = '';
+  const nameWrap = document.getElementById('wfh-name-field-wrap');
+  const savedDisplay = document.getElementById('wfh-saved-name-display');
+  if(nameWrap) nameWrap.style.display = 'block';
+  if(savedDisplay) savedDisplay.style.display = 'none';
+}
+
+// ── WFH Operator Self-Service Leave ───────────────────────────────
+async function submitWFHLeave() {
+  const opId   = document.getElementById('wfh-op-self')?.value || localStorage.getItem('wfh_op_id');
+  const type   = document.getElementById('wfh-leave-type')?.value;
+  const days   = parseInt(document.getElementById('wfh-leave-days')?.value);
+  const start  = document.getElementById('wfh-leave-start')?.value;
+  const end    = document.getElementById('wfh-leave-end')?.value;
+  const reason = document.getElementById('wfh-leave-reason')?.value?.trim();
+  const msgEl  = document.getElementById('wfh-leave-msg');
+
+  const show = (text, ok) => {
+    if(!msgEl) return;
+    msgEl.textContent = text;
+    msgEl.style.background = ok ? 'rgba(0,212,160,0.1)' : 'rgba(255,94,110,0.1)';
+    msgEl.style.border     = ok ? '1px solid rgba(0,212,160,0.3)' : '1px solid rgba(255,94,110,0.3)';
+    msgEl.style.color      = ok ? 'var(--green)' : 'var(--red)';
+    msgEl.style.display    = 'block';
+  };
+
+  if(!opId)   return show('⚠️ We could not identify you — please log in again', false);
+  if(!type)   return show('⚠️ Select leave type', false);
+  if(!days || days < 1) return show('⚠️ Enter number of days', false);
+  if(!start)  return show('⚠️ Select start date', false);
+  if(!end)    return show('⚠️ Select end date', false);
+  if(!reason) return show('⚠️ Enter a reason for leave', false);
+
+  const lkey = (typeof opToLeaveKey === 'function' ? opToLeaveKey(opId) : opId) || opId;
+
+  const entry = {
+    id:       Date.now(),
+    name:     operatorLabel(opId),
+    leaveKey: lkey,
+    type, start, end, days,
+    balanceAfter: 'Pending',
+    standin: '',
+    notes:   reason,
+    status:  'Pending',     // requires TL/Admin approval — same store + flow as TL-side leave
+    submittedByOperator: true,
+  };
+
+  // Write into the SAME 'leaves' store the TL dashboard reads from
+  const leaves = load('leaves');
+  leaves.push(entry);
+  save('leaves', leaves);
+
+  // Notify TL, Admin and the relevant QA directly (bypasses role-gated pushNotif)
+  try {
+    const team = getOpTeam ? getOpTeam(opId) : '';
+    const notifs = getNotifs();
+    notifs.unshift({
+      id: Date.now() + Math.random(),
+      entryId: entry.id,
+      type: 'leave',
+      person: team === 'swat' ? 'swat' : 'kings',
+      name: entry.name,
+      date: start,
+      status: 'Pending',
+      msg: '🏖️ ' + entry.name + ' applied for ' + days + ' day(s) ' + type + ' leave (' + fmtDate(start) + ' → ' + fmtDate(end) + ')',
+      time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+      isoTime: new Date().toISOString(),
+      read: false,
+    });
+    saveNotifs(notifs.slice(0, 50));
+  } catch(e) { console.warn('Leave notif failed:', e.message); }
+
+  show('✅ Leave application submitted! Your Team Lead will review it.', true);
+  document.getElementById('wfh-leave-days').value = '';
+  document.getElementById('wfh-leave-reason').value = '';
+  document.getElementById('wfh-leave-start').value = '';
+  document.getElementById('wfh-leave-end').value = '';
+
+  loadWFHLeaveBalance(opId);
+}
+
+function loadWFHLeaveBalance(opId) {
+  const balEl  = {
+    annual: document.getElementById('wfh-bal-annual'),
+    sick:   document.getElementById('wfh-bal-sick'),
+    other:  document.getElementById('wfh-bal-other'),
+  };
+  const histEl = document.getElementById('wfh-my-leaves');
+  if(!opId || !balEl.annual) return;
+
+  const lkey = (typeof opToLeaveKey === 'function' ? opToLeaveKey(opId) : opId) || opId;
+  const balances = getLeaveBalances();
+  const b = balances[lkey];
+
+  if(b) {
+    balEl.annual.textContent = b.remaining + ' days';
+  } else {
+    balEl.annual.textContent = '—';
+  }
+  // Sick/other leave isn't balance-tracked in LEAVE_SEED — show count taken this year instead
+  const mine = load('leaves').filter(l => l.leaveKey === lkey);
+  const sickTaken  = mine.filter(l => l.type === 'sick'   && l.status === 'Approved').reduce((s,l)=>s+l.days,0);
+  const otherTaken = mine.filter(l => !['annual','sick'].includes(l.type) && l.status === 'Approved').reduce((s,l)=>s+l.days,0);
+  if(balEl.sick)  balEl.sick.textContent  = Math.max(0, 7 - sickTaken) + ' days';
+  if(balEl.other) balEl.other.textContent = Math.max(0, 5 - otherTaken) + ' days';
+
+  if(histEl) {
+    if(!mine.length) { histEl.textContent = 'No applications yet.'; return; }
+    histEl.innerHTML = mine.slice(-5).reverse().map(l => {
+      const col = l.status === 'Approved' ? 'var(--green)' : l.status === 'Rejected' ? 'var(--red)' : 'var(--amber)';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)">' +
+        '<div><span style="font-weight:700">' + l.type + '</span> · ' + l.days + 'd · ' + fmtDate(l.start) + '</div>' +
+        '<span style="color:' + col + ';font-weight:700;font-size:11px">' + (l.status || 'Pending') + '</span></div>';
+    }).join('');
+  }
+}
+
+// ── STANDALONE LEAVE PORTAL (no WFH check-in required) ──────────────
+let _leavePortalOpId = null;
+
+function openLeaveLogin() {
+  const sel = document.getElementById('leave-login-name');
+  if(sel) {
+    sel.innerHTML = '<option value="">— Select your name —</option>';
+    OPERATOR_ROSTER
+      .sort((a,b) => operatorLabel(a.id).localeCompare(operatorLabel(b.id)))
+      .forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.id;
+        opt.textContent = operatorLabel(o.id) + (o.type==='TR' ? ' [TR]' : '');
+        sel.appendChild(opt);
+      });
+  }
+  document.getElementById('leave-login-overlay').style.display = 'flex';
+  document.getElementById('leave-login-error').style.display = 'none';
+  document.getElementById('leave-login-pw').value = '';
+
+  // Remember the operator's name so returning users skip name selection
+  const savedOp = localStorage.getItem('leave_op_id');
+  const nameWrap = document.getElementById('leave-name-field-wrap');
+  const savedDisplay = document.getElementById('leave-saved-name-display');
+  if(savedOp && sel && sel.querySelector('option[value="'+savedOp+'"]')) {
+    sel.value = savedOp;
+    if(nameWrap) nameWrap.style.display = 'none';
+    if(savedDisplay) {
+      savedDisplay.style.display = 'block';
+      savedDisplay.innerHTML = 'Logging in as <b>' + operatorLabel(savedOp) + '</b> · <a href="#" onclick="leaveSwitchUser();return false;" style="color:var(--accent)">Not you?</a>';
+    }
+  } else {
+    if(nameWrap) nameWrap.style.display = 'block';
+    if(savedDisplay) savedDisplay.style.display = 'none';
+  }
+  setTimeout(() => document.getElementById('leave-login-pw')?.focus(), 150);
+}
+
+function leaveSwitchUser() {
+  localStorage.removeItem('leave_op_id');
+  const sel = document.getElementById('leave-login-name');
+  if(sel) sel.value = '';
+  const nameWrap = document.getElementById('leave-name-field-wrap');
+  const savedDisplay = document.getElementById('leave-saved-name-display');
+  if(nameWrap) nameWrap.style.display = 'block';
+  if(savedDisplay) savedDisplay.style.display = 'none';
+}
+
+function closeLeaveLogin() {
+  document.getElementById('leave-login-overlay').style.display = 'none';
+}
+
+function doLeaveLogin() {
+  const opId = document.getElementById('leave-login-name').value;
+  const pw   = document.getElementById('leave-login-pw').value.trim();
+  const errEl = document.getElementById('leave-login-error');
+
+  if(!opId) { errEl.textContent = '⚠️ Please select your name first.'; errEl.style.display='block'; return; }
+  if(!pw)   { errEl.textContent = '⚠️ Please enter your password.';    errEl.style.display='block'; return; }
+
+  const correctPw = WFH_OP_CREDS[opId];
+  if(!correctPw || pw !== correctPw) {
+    errEl.textContent = '❌ Incorrect password. Check with your Team Lead.';
+    errEl.style.display = 'block';
+    document.getElementById('leave-login-pw').value = '';
+    document.getElementById('leave-login-pw').focus();
+    return;
+  }
+
+  errEl.style.display = 'none';
+  localStorage.setItem('leave_op_id', opId);
+  closeLeaveLogin();
+  openLeavePortal(opId);
+}
+
+function openLeavePortal(opId) {
+  _leavePortalOpId = opId;
+  const greeting = document.getElementById('leave-portal-greeting');
+  if(greeting) greeting.textContent = '👋 Welcome, ' + operatorLabel(opId);
+  nav('leave-portal');
+  loadLeavePortalBalance(opId);
+}
+
+function closeLeavePortal() {
+  _leavePortalOpId = null;
+  nav('dashboard');
+}
+
+async function submitLeavePortalApplication() {
+  const opId = _leavePortalOpId;
+  if(!opId) { openLeaveLogin(); return; }
+
+  const type   = document.getElementById('lp-leave-type')?.value;
+  const days   = parseInt(document.getElementById('lp-leave-days')?.value);
+  const start  = document.getElementById('lp-leave-start')?.value;
+  const end    = document.getElementById('lp-leave-end')?.value;
+  const reason = document.getElementById('lp-leave-reason')?.value?.trim();
+  const msgEl  = document.getElementById('lp-leave-msg');
+
+  const show = (text, ok) => {
+    if(!msgEl) return;
+    msgEl.textContent = text;
+    msgEl.style.background = ok ? 'rgba(0,212,160,0.1)' : 'rgba(255,94,110,0.1)';
+    msgEl.style.border     = ok ? '1px solid rgba(0,212,160,0.3)' : '1px solid rgba(255,94,110,0.3)';
+    msgEl.style.color      = ok ? 'var(--green)' : 'var(--red)';
+    msgEl.style.display    = 'block';
+  };
+
+  if(!type)   return show('⚠️ Select leave type', false);
+  if(!days || days < 1) return show('⚠️ Enter number of days', false);
+  if(!start)  return show('⚠️ Select start date', false);
+  if(!end)    return show('⚠️ Select end date', false);
+  if(!reason) return show('⚠️ Enter a reason for leave', false);
+
+  const lkey = (typeof opToLeaveKey === 'function' ? opToLeaveKey(opId) : opId) || opId;
+
+  const entry = {
+    id:       Date.now(),
+    name:     operatorLabel(opId),
+    leaveKey: lkey,
+    type, start, end, days,
+    balanceAfter: 'Pending',
+    standin: '',
+    notes:   reason,
+    status:  'Pending',
+    submittedByOperator: true,
+  };
+
+  const leaves = load('leaves');
+  leaves.push(entry);
+  const ok = await saveAndVerify('leaves', leaves);
+  if(!ok) { show('⚠️ Save failed — check your connection and try again', false); return; }
+
+  // Notify TL and Admin directly (same pattern as WFH leave portal)
+  try {
+    const team = getOpTeam ? getOpTeam(opId) : '';
+    const notifs = getNotifs();
+    notifs.unshift({
+      id: Date.now() + Math.random(),
+      entryId: entry.id,
+      type: 'leave',
+      person: team === 'swat' ? 'swat' : 'kings',
+      name: entry.name,
+      date: start,
+      status: 'Pending',
+      msg: '🏖️ ' + entry.name + ' applied for ' + days + ' day(s) ' + type + ' leave (' + fmtDate(start) + ' → ' + fmtDate(end) + ')',
+      time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+      isoTime: new Date().toISOString(),
+      read: false,
+    });
+    saveNotifs(notifs.slice(0, 50));
+  } catch(e) { console.warn('Leave notif failed:', e.message); }
+
+  show('✅ Leave application submitted! Your Team Lead will review it.', true);
+  document.getElementById('lp-leave-days').value = '';
+  document.getElementById('lp-leave-reason').value = '';
+  document.getElementById('lp-leave-start').value = '';
+  document.getElementById('lp-leave-end').value = '';
+
+  loadLeavePortalBalance(opId);
+}
+
+function loadLeavePortalBalance(opId) {
+  const balEl = {
+    annual: document.getElementById('lp-bal-annual'),
+    sick:   document.getElementById('lp-bal-sick'),
+    other:  document.getElementById('lp-bal-other'),
+  };
+  const histEl = document.getElementById('lp-my-leaves');
+  if(!opId || !balEl.annual) return;
+
+  const lkey = (typeof opToLeaveKey === 'function' ? opToLeaveKey(opId) : opId) || opId;
+  const balances = getLeaveBalances();
+  const b = balances[lkey];
+
+  balEl.annual.textContent = b ? b.remaining + ' days' : '—';
+
+  const mine = load('leaves').filter(l => l.leaveKey === lkey);
+  const sickTaken  = mine.filter(l => l.type === 'sick'   && l.status === 'Approved').reduce((s,l)=>s+l.days,0);
+  const otherTaken = mine.filter(l => !['annual','sick'].includes(l.type) && l.status === 'Approved').reduce((s,l)=>s+l.days,0);
+  if(balEl.sick)  balEl.sick.textContent  = Math.max(0, 7 - sickTaken) + ' days';
+  if(balEl.other) balEl.other.textContent = Math.max(0, 5 - otherTaken) + ' days';
+
+  if(histEl) {
+    if(!mine.length) { histEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">📭 No applications yet — submit one using the form below.</div>'; return; }
+    const statusBg = {Approved:'rgba(0,212,160,0.1)', Rejected:'rgba(255,94,110,0.1)', Pending:'rgba(255,170,68,0.1)'};
+    const typeIcon = {annual:'🌴', sick:'🤒', emergency:'🚨', unpaid:'📋'};
+    histEl.innerHTML = mine.slice().reverse().map(l => {
+      const status = l.status || 'Pending';
+      const col = status === 'Approved' ? 'var(--green)' : status === 'Rejected' ? 'var(--red)' : 'var(--amber)';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 4px;border-bottom:1px solid var(--border2)">
+        <div>
+          <span style="font-weight:700;color:var(--text2)">${typeIcon[l.type]||'📋'} ${l.type.charAt(0).toUpperCase()+l.type.slice(1)}</span>
+          <span style="color:var(--text3);font-size:12px"> · ${l.days}d · ${fmtDate(l.start)}</span>
+        </div>
+        <span style="color:${col};background:${statusBg[status]};font-weight:700;font-size:11px;padding:4px 10px;border-radius:6px">${status}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ── UNIFIED OPERATOR HUB (single login → tile menu) ──────────────────
+let _opHubId = null;
+
+function openOpHubLogin() {
+  const sel = document.getElementById('ophub-login-name');
+  if(sel) {
+    sel.innerHTML = '<option value="">— Select your name —</option>';
+    OPERATOR_ROSTER
+      .sort((a,b) => operatorLabel(a.id).localeCompare(operatorLabel(b.id)))
+      .forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.id;
+        opt.textContent = operatorLabel(o.id) + (o.type==='TR' ? ' [TR]' : '');
+        sel.appendChild(opt);
+      });
+  }
+  document.getElementById('ophub-login-overlay').style.display = 'flex';
+  document.getElementById('ophub-login-error').style.display = 'none';
+  document.getElementById('ophub-login-pw').value = '';
+
+  const savedOp = localStorage.getItem('ophub_op_id');
+  const nameWrap = document.getElementById('ophub-name-field-wrap');
+  const savedDisplay = document.getElementById('ophub-saved-name-display');
+  if(savedOp && sel && sel.querySelector('option[value="'+savedOp+'"]')) {
+    sel.value = savedOp;
+    if(nameWrap) nameWrap.style.display = 'none';
+    if(savedDisplay) {
+      savedDisplay.style.display = 'block';
+      savedDisplay.innerHTML = 'Logging in as <b>' + operatorLabel(savedOp) + '</b> · <a href="#" onclick="ophubSwitchUser();return false;" style="color:var(--accent)">Not you?</a>';
+    }
+  } else {
+    if(nameWrap) nameWrap.style.display = 'block';
+    if(savedDisplay) savedDisplay.style.display = 'none';
+  }
+  setTimeout(() => document.getElementById('ophub-login-pw')?.focus(), 150);
+}
+
+function ophubSwitchUser() {
+  localStorage.removeItem('ophub_op_id');
+  const sel = document.getElementById('ophub-login-name');
+  if(sel) sel.value = '';
+  const nameWrap = document.getElementById('ophub-name-field-wrap');
+  const savedDisplay = document.getElementById('ophub-saved-name-display');
+  if(nameWrap) nameWrap.style.display = 'block';
+  if(savedDisplay) savedDisplay.style.display = 'none';
+}
+
+function closeOpHubLogin() {
+  document.getElementById('ophub-login-overlay').style.display = 'none';
+}
+
+function doOpHubLogin() {
+  const opId = document.getElementById('ophub-login-name').value;
+  const pw   = document.getElementById('ophub-login-pw').value.trim();
+  const errEl = document.getElementById('ophub-login-error');
+
+  if(!opId) { errEl.textContent = '⚠️ Please select your name first.'; errEl.style.display='block'; return; }
+  if(!pw)   { errEl.textContent = '⚠️ Please enter your password.';    errEl.style.display='block'; return; }
+
+  const correctPw = WFH_OP_CREDS[opId];
+  if(!correctPw || pw !== correctPw) {
+    errEl.textContent = '❌ Incorrect password. Check with your Team Lead.';
+    errEl.style.display = 'block';
+    document.getElementById('ophub-login-pw').value = '';
+    document.getElementById('ophub-login-pw').focus();
+    return;
+  }
+
+  errEl.style.display = 'none';
+  localStorage.setItem('ophub_op_id', opId);
+  closeOpHubLogin();
+  openOpHubMenu(opId);
+}
+
+function openOpHubMenu(opId) {
+  _opHubId = opId;
+  const greet = document.getElementById('ophub-greeting');
+  if(greet) greet.textContent = '👋 Welcome, ' + operatorLabel(opId) + ' — pick what you want to work on';
+  nav('ophub-menu');
+}
+
+function closeOpHubMenu() {
+  _opHubId = null;
+  if(document.body.classList.contains('wfh-op-mode')) {
+    // Reached via the shared main login as an operator — full logout
+    document.body.classList.remove('wfh-op-mode');
+    if(_opCamActive && typeof opStopCam === 'function') opStopCam();
+    sessionStorage.removeItem('aifi_session');
+    document.getElementById('login-overlay').style.display = 'flex';
+    nav('dashboard');
+  } else {
+    // TL/Admin previewing the Operator Hub from their own sidebar — just go back
+    nav('dashboard');
+  }
+}
+
+function ophubGo(dest) {
+  if(!_opHubId) { openOpHubLogin(); return; }
+  if(dest === 'wfh') {
+    // Hand off to the existing, fully-functional WFH operator flow
+    localStorage.setItem('wfh_op_id', _opHubId);
+    nav('wfh-operator');
+    if(typeof initWFHOperator === 'function') initWFHOperator();
+    return;
+  }
+  if(dest === 'leave') {
+    localStorage.setItem('leave_op_id', _opHubId);
+    openLeavePortal(_opHubId);
+    return;
+  }
+  if(dest === 'production') { nav('ophub-production'); renderOpHubProduction(_opHubId); return; }
+  if(dest === 'attendance') { nav('ophub-attendance'); renderOpHubAttendance(_opHubId); return; }
+  if(dest === 'shift')      { nav('ophub-shift');      renderOpHubShift(_opHubId);      return; }
+}
+
+// ── My Production (read-only) ──────────────────────────────────────
+function renderOpHubProduction(opId) {
+  const kpiEl = document.getElementById('ophub-prod-kpis');
+  const tbody = document.getElementById('ophub-prod-tbody');
+  if(!kpiEl || !tbody) return;
+
+  const mine = load('prod').filter(p => p.operator === opId).sort((a,b)=>b.date.localeCompare(a.date));
+
+  if(!mine.length) {
+    kpiEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:30px;font-size:13px">📭 No production data recorded for you yet — it will appear here once your Team Lead feeds it in.</div>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">No production data recorded for you yet.</td></tr>';
+    return;
+  }
+
+  const totalCases = mine.reduce((s,p)=>s+(+p.cases||0),0);
+  const avgAht     = (mine.reduce((s,p)=>s+(+p.aht||0),0)/mine.length).toFixed(2);
+  const avgOcc     = (mine.reduce((s,p)=>s+(+p.occ||0),0)/mine.length).toFixed(2);
+  const last       = mine[0];
+
+  kpiEl.innerHTML = `
+    <div class="kpi-card green">
+      <div class="kpi-label">📦 Total Cases (All Time)</div>
+      <div class="kpi-value">${totalCases.toLocaleString()}</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">⏱️ Avg AHT</div>
+      <div class="kpi-value">${avgAht}s</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">📈 Avg Occupancy</div>
+      <div class="kpi-value">${avgOcc}%</div>
+    </div>
+    <div class="kpi-card teal">
+      <div class="kpi-label">🕐 Last Logged</div>
+      <div class="kpi-value" style="font-size:18px">${fmtDate(last.date)}</div>
+    </div>`;
+
+  tbody.innerHTML = mine.slice(0, 30).map((p,i) => `<tr style="border-bottom:1px solid var(--border2);background:${i%2===0?'transparent':'rgba(255,255,255,0.015)'};transition:background 0.15s" onmouseover="this.style.background='rgba(0,212,160,0.05)'" onmouseout="this.style.background='${i%2===0?'transparent':'rgba(255,255,255,0.015)'}'">
+    <td style="padding:9px 12px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${fmtDate(p.date)}</td>
+    <td style="padding:9px;text-align:right;color:var(--green);font-weight:700">${p.cases||'–'}</td>
+    <td style="padding:9px;text-align:right;font-family:'DM Mono',monospace">${p.aht?p.aht+'s':'–'}</td>
+    <td style="padding:9px;text-align:right;font-weight:700;color:${(+p.occ||0)>=90?'var(--green)':(+p.occ||0)>=80?'var(--amber)':'var(--red)'}">${p.occ?p.occ+'%':'–'}</td>
+    <td style="padding:9px;text-align:right;font-size:11px;color:var(--text3)">${p.abandoned?p.abandoned+'%':'–'}</td>
+    <td style="padding:9px 12px;text-align:right;font-size:11px;color:var(--text3)">${p.reported?p.reported+'%':'–'}</td>
+  </tr>`).join('');
+}
+
+// ── My Attendance (read-only) ──────────────────────────────────────
+function renderOpHubAttendance(opId) {
+  const kpiEl = document.getElementById('ophub-att-kpis');
+  const listEl = document.getElementById('ophub-att-list');
+  if(!kpiEl || !listEl) return;
+
+  const att = loadObj('att');
+  const allDates = Object.keys(att).sort().reverse().slice(0, 31); // last ~month
+  let present=0, absent=0, leave=0, off=0;
+  const rows = [];
+
+  allDates.forEach(date => {
+    const rec = att[date]?.[opId];
+    if(!rec) return;
+    const status = rec.status || 'present';
+    if(status==='present') present++;
+    else if(status==='absent') absent++;
+    else if(status==='leave') leave++;
+    else off++;
+    rows.push({date, status});
+  });
+
+  kpiEl.innerHTML = `
+    <div class="kpi-card green">
+      <div class="kpi-label">✅ Present</div>
+      <div class="kpi-value">${present}</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">❌ Absent</div>
+      <div class="kpi-value">${absent}</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">🌴 On Leave</div>
+      <div class="kpi-value">${leave}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">— Off Day</div>
+      <div class="kpi-value">${off}</div>
+    </div>`;
+
+  if(!rows.length) {
+    listEl.innerHTML = '<div style="color:var(--text3);text-align:center;padding:30px;font-size:13px">📭 No attendance recorded for you yet.</div>';
+    return;
+  }
+
+  const colors = {present:'var(--green)',absent:'var(--red)',leave:'var(--amber)',off:'var(--text3)'};
+  const bgs    = {present:'rgba(0,212,160,0.1)',absent:'rgba(255,94,110,0.1)',leave:'rgba(255,170,68,0.1)',off:'rgba(130,196,165,0.08)'};
+  const labels = {present:'✅ Present',absent:'❌ Absent',leave:'🌴 Leave',off:'— Off Day'};
+  listEl.innerHTML = rows.map((r,i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 4px;border-bottom:1px solid var(--border2);${i===0?'':''}">
+    <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${fmtDate(r.date)}</span>
+    <span style="color:${colors[r.status]};background:${bgs[r.status]};font-weight:700;font-size:11px;padding:4px 10px;border-radius:6px">${labels[r.status]}</span>
+  </div>`).join('');
+}
+
+// ── My Shift Plan (read-only) ──────────────────────────────────────
+function renderOpHubShift(opId) {
+  const listEl = document.getElementById('ophub-shift-list');
+  if(!listEl) return;
+
+  const sched = loadObj('schedule');
+  const todayStr = today();
+  const upcoming = [];
+  for(let i = 0; i < 14; i++) {
+    const d = new Date(todayStr+'T00:00:00');
+    d.setDate(d.getDate() + i);
+    const ds = d.toISOString().split('T')[0];
+    const shift = sched[ds]?.[opId];
+    if(shift) upcoming.push({date: ds, shift, offset: i});
+  }
+
+  if(!upcoming.length) {
+    listEl.innerHTML = '<div style="color:var(--text3);text-align:center;padding:30px;font-size:13px">📭 No upcoming shifts scheduled for you yet.</div>';
+    return;
+  }
+
+  listEl.innerHTML = upcoming.map(u => {
+    const col = u.shift === 'OFF' ? 'var(--text3)' : u.shift === 'Leave' ? 'var(--amber)' : 'var(--accent)';
+    const dt = new Date(u.date+'T00:00:00');
+    const dayLabel = u.offset === 0 ? 'Today' : u.offset === 1 ? 'Tomorrow' : dt.toLocaleDateString('en-GB', {weekday:'short', day:'2-digit', month:'short'});
+    const isNext = u.offset === 0;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 12px;margin-bottom:4px;border-radius:8px;background:${isNext?'rgba(255,94,110,0.06)':'transparent'};border:1px solid ${isNext?'rgba(255,94,110,0.2)':'transparent'};border-bottom:1px solid ${isNext?'rgba(255,94,110,0.2)':'var(--border2)'}">
+      <span style="font-size:12px;font-weight:${isNext?800:600};color:${isNext?'var(--text)':'var(--text2)'}">${dayLabel}${isNext?' 📍':''}</span>
+      <span style="color:${col};font-weight:800;font-size:12px;background:${col}18;padding:3px 12px;border-radius:6px">${u.shift}</span>
+    </div>`;
+  }).join('');
 }
 
 function closeWFHLogin() {
   document.getElementById('wfh-login-overlay').style.display = 'none';
 }
 
-function doWFHLogin() {
+async function doWFHLogin() {
   const opId = document.getElementById('wfh-login-name').value;
   const pw   = document.getElementById('wfh-login-pw').value.trim();
   const errEl= document.getElementById('wfh-login-error');
@@ -4181,9 +5177,47 @@ function doWFHLogin() {
     return;
   }
 
-  // ✅ Auth passed — go to WFH operator station
+  // ✅ Password correct — now check approval from Supabase (live, not cache)
+  errEl.textContent = '⏳ Checking approval...';
+  errEl.style.display = 'block';
+  const today_str = new Date().toISOString().split('T')[0];
+  try {
+    const ar = await fetch(
+      _SUPA_URL+'/rest/v1/wfh_approved?date=eq.'+today_str+'&op_id=eq.'+encodeURIComponent(opId)+'&select=op_id',
+      {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}}
+    );
+    const rows = ar.ok ? await ar.json() : [];
+    if(!rows.length) {
+      errEl.textContent = '🔒 You are not approved for WFH today. Wait for your Team Lead to approve you.';
+      errEl.style.color = '#ff5e6e';
+      errEl.style.fontWeight = '700';
+      document.getElementById('wfh-login-pw').value = '';
+      return;
+    }
+    // Check if already checked out today
+    const sr = await fetch(
+      _SUPA_URL+'/rest/v1/wfh_sessions?date=eq.'+today_str+'&op_id=eq.'+encodeURIComponent(opId)+'&select=check_out',
+      {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}}
+    );
+    const sessions = sr.ok ? await sr.json() : [];
+    if(sessions.length && sessions[0].check_out) {
+      errEl.textContent = '🔒 You already checked out today. Ask your Team Lead for re-approval.';
+      errEl.style.color = '#ff5e6e';
+      errEl.style.fontWeight = '700';
+      document.getElementById('wfh-login-pw').value = '';
+      return;
+    }
+  } catch(e) {
+    errEl.textContent = '❌ Cannot verify approval — check your connection.';
+    return;
+  }
+
+  // ✅ Approved and not checked out — allow login
   errEl.style.display = 'none';
   closeWFHLogin();
+
+  // Remember this operator for next login (skip name selection)
+  localStorage.setItem('wfh_op_id', opId);
 
   // Pre-select operator name in the WFH operator portal
   const opSel = document.getElementById('wfh-op-self');
@@ -4236,7 +5270,6 @@ const OPERATOR_ROSTER = [
   { id:'christopher.wanyama2', type:'PT', team:'kings' },
   { id:'gibson.majimbo', type:'FT', team:'kings' },
   { id:'synthiakane.otieno', type:'TR', team:'kings' },
-  { id:'ken.okoth', type:'TR', team:'kings' },
 
   // ── Team SWAT (QA: Rosemary Nyaleso) ──────────────────────────────
   { id:'christine.mwanza', type:'FT', team:'swat' },
@@ -4254,12 +5287,14 @@ const OPERATOR_ROSTER = [
   { id:'rading.yvonne2', type:'PT', team:'swat' },
   { id:'rickson.macharia', type:'FT', team:'swat' },
   { id:'ruth.dube', type:'PT', team:'swat' },
+  { id:'rachael.hamada', type:'PT', team:'swat' },
   { id:'samuel.githae', type:'PT', team:'swat' },
   { id:'samuel.hinga', type:'FT', team:'swat' },
   { id:'sheillah.aluoch', type:'FT', team:'swat' },
   { id:'simon.lukoye', type:'FT', team:'swat' },
   { id:'wario.sora', type:'FT', team:'swat' },
   { id:'yassir.khalid', type:'FT', team:'swat' },
+  { id:'ignatious.kahindi', type:'PT', team:'swat' },
   // ── Management ─────────────────────────────────────────────────────
   { id:'john.paul.kimongo',   type:'TL', team:'mgmt' },
   { id:'john.kingori',         type:'QA', team:'mgmt' },
@@ -4267,8 +5302,6 @@ const OPERATOR_ROSTER = [
 ];
 // Flat array of IDs for backwards-compatible lookups
 const OPERATORS = OPERATOR_ROSTER.map(o => o.id);
-function getOpType(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{type:'FT'}).type; }
-function getOpTeam(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{team:''}).team; }
 
 // ── Normalize operator IDs coming from different sources (hub vs Chrome
 // extension) so they always resolve to the same canonical roster ID.
@@ -4279,18 +5312,17 @@ function getOpTeam(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{team:''}).
 function normalizeOpId(rawId) {
   if(!rawId) return rawId;
   let id = String(rawId).trim().toLowerCase();
-  // Strip common email/domain-style suffixes the extension may attach
   id = id.replace(/\.impact\.nbo$/, '')
          .replace(/\.impactoutsourcing\.com$/, '')
-         .replace(/@.*$/, ''); // strip anything after an @ entirely, just in case
-  // Known legacy/alias IDs (kept in sync with opToLeaveKey's alias table)
+         .replace(/@.*$/, '');
   if(id === 'rading.yvonne') return 'rading.yvonne2';
   if(id === 'christopher.wanyama') return 'christopher.wanyama2';
   if(id === 'synthia.kaneotieno') return 'synthiakane.otieno';
-  // If the normalized id matches a known roster id, use it; otherwise
-  // return the cleaned-up id as-is (better than the raw, suffixed version)
-  return OPERATORS.includes(id) ? id : id;
+  return id;
 }
+
+function getOpType(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{type:'FT'}).type; }
+function getOpTeam(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{team:''}).team; }
 const KINGS_OPS = OPERATOR_ROSTER.filter(o=>o.team==='kings').map(o=>o.id);
 const SWAT_OPS  = OPERATOR_ROSTER.filter(o=>o.team==='swat').map(o=>o.id);
 function visibleOps() {
@@ -4307,51 +5339,51 @@ function visibleOps() {
 // ════════════════════════════════════════════════════════════════
 const LEAVE_SEED = {
   // ── Staff ─────────────────────────────────────────────────────
-  'john.paul.kimongo': { name:'John Paul Kimongo', role:'TL',  allocated:17, taken:6,  remaining:11, monthly:{Jan:6,Feb:0,Mar:0,Apr:0,May:0} },
-  'john.kingori':      { name:'John Kingori',      role:'QA',  allocated:22, taken:8,  remaining:14, monthly:{Jan:0,Feb:3,Mar:0,Apr:5,May:0} },
-  'rosemary.nyaleso':  { name:'Rosemary Nyaleso',  role:'QA',  allocated:23, taken:9,  remaining:14, monthly:{Jan:3,Feb:6,Mar:0,Apr:0,May:0} },
+  'john.paul.kimongo': { name:'John Paul Kimongo', role:'TL', allocated:17, taken:7, remaining:10, monthly:{Jan:6, Feb:0, Mar:0, Apr:0, May:1} },
+  'john.kingori': { name:'John Kingori', role:'QA', allocated:22, taken:8, remaining:14, monthly:{Jan:0, Feb:3, Mar:0, Apr:5, May:0} },
+  'rosemary.nyaleso': { name:'Rosemary Nyaleso', role:'QA', allocated:23, taken:14, remaining:9, monthly:{Jan:3, Feb:6, Mar:0, Apr:0, May:0, Jun:5} },
   // ── Operators ─────────────────────────────────────────────────
-  'richard.otieno':    { name:'Richard Otieno',    role:'DA',  allocated:22, taken:16, remaining:6,  monthly:{Jan:6,Feb:4,Mar:2,Apr:0,May:4} },
-  'christine.mwanza':  { name:'Christine Mwanza',  role:'DA',  allocated:21, taken:19, remaining:2,  monthly:{Jan:5,Feb:4,Mar:3,Apr:2,May:5} },
-  'dennis.keter': { name:'Dennis Keter', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'collins.marigu':    { name:'Collins Marigu',    role:'DA',  allocated:20, taken:14, remaining:6,  monthly:{Jan:6,Feb:4,Mar:1,Apr:1,May:2} },
-  'kelvin.nderitu':    { name:'Kelvin Nderitu',    role:'DA',  allocated:17, taken:9,  remaining:8,  monthly:{Jan:3,Feb:0,Mar:1,Apr:3,May:2} },
-  'jenipher.otieno':   { name:'Jennifer Otieno',   role:'DA',  allocated:20, taken:15, remaining:5,  monthly:{Jan:7,Feb:2,Mar:1,Apr:1,May:4} },
-  'mark.obara': { name:'Mark Obara', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'faith.mutinda':     { name:'Faith Mutinda',      role:'DA',  allocated:19, taken:10, remaining:9,  monthly:{Jan:4,Feb:2,Mar:2,Apr:0,May:2} },
-  'ernest.maina':      { name:'Ernest Maina',       role:'DA',  allocated:18, taken:14, remaining:4,  monthly:{Jan:7,Feb:4,Mar:1,Apr:0,May:2} },
-  'alfred.korir':      { name:'Alfred Korir',       role:'DA',  allocated:25, taken:15, remaining:10, monthly:{Jan:7,Feb:5,Mar:3,Apr:0,May:0} },
-  'adhiambo.vivian':   { name:'Adhiambo Vivian',    role:'DA',  allocated:21, taken:17, remaining:4,  monthly:{Jan:7,Feb:3,Mar:2,Apr:2,May:3} },
-  'pauline.safari':    { name:'Pauline Safari',     role:'DA',  allocated:21, taken:12, remaining:9,  monthly:{Jan:5,Feb:4,Mar:1,Apr:1,May:1} },
-  'sila.juma':         { name:'Sila Juma',          role:'DA',  allocated:17, taken:10, remaining:7,  monthly:{Jan:3,Feb:2,Mar:1,Apr:2,May:2} },
-  'francis.ndeta':     { name:'Francis Ndeta',      role:'DA',  allocated:19, taken:10, remaining:9,  monthly:{Jan:6,Feb:0,Mar:2,Apr:0,May:2} },
-  'yassir.khalid':     { name:'Yassir Khalid',      role:'DA',  allocated:13, taken:5,  remaining:8,  monthly:{Jan:2,Feb:0,Mar:1,Apr:0,May:2} },
-  'maureen.kaara':     { name:'Maureen Kaara',      role:'DA',  allocated:20, taken:8,  remaining:12, monthly:{Jan:3,Feb:4,Mar:1,Apr:0,May:0} },
-  'kelvin.matekwa':    { name:'Kelvin Matekwa',     role:'DA',  allocated:13, taken:6,  remaining:7,  monthly:{Jan:2,Feb:0,Mar:1,Apr:0,May:3} },
-  'stacy.wanjiku':     { name:'Stacy Wanjiku',      role:'DA',  allocated:17, taken:10, remaining:7,  monthly:{Jan:5,Feb:0,Mar:3,Apr:1,May:1} },
-  'noah.njiri':        { name:'Noah Njiri',         role:'DA',  allocated:14, taken:7,  remaining:7,  monthly:{Jan:3,Feb:1,Mar:1,Apr:2,May:0} },
-  'melody.mapenzi':    { name:'Melody Mapenzi',     role:'DA',  allocated:13, taken:5,  remaining:8,  monthly:{Jan:2,Feb:1,Mar:0,Apr:0,May:2} },
-  'martin.karanu':     { name:'Martin Karanu',      role:'DA',  allocated:14, taken:5,  remaining:9,  monthly:{Jan:1,Feb:2,Mar:0,Apr:0,May:2} },
-  'rachael.gitau':     { name:'Rachael Gitau',      role:'DA',  allocated:11, taken:7,  remaining:4,  monthly:{Jan:0,Feb:1,Mar:2,Apr:1,May:3} },
-  'samuel.hinga':      { name:'Samuel Hinga',       role:'DA',  allocated:13, taken:8,  remaining:5,  monthly:{Jan:2,Feb:2,Mar:1,Apr:0,May:3} },
-  'dennis.sangolo':    { name:'Dennis Sangolo',     role:'DA',  allocated:13, taken:11, remaining:2,  monthly:{Jan:2,Feb:0,Mar:3,Apr:5,May:1} },
-  'joy.mackenzie':     { name:'Joy Mackenzie',      role:'DA',  allocated:14, taken:5,  remaining:9,  monthly:{Jan:3,Feb:0,Mar:0,Apr:2,May:0} },
-  'emmily.vannesa':    { name:'Emily Vanessa',       role:'DA',  allocated:13, taken:5,  remaining:8,  monthly:{Jan:1,Feb:1,Mar:0,Apr:3,May:0} },
-  'simon.lukoye':      { name:'Simon Lukoye',       role:'DA',  allocated:14, taken:8,  remaining:6,  monthly:{Jan:2,Feb:0,Mar:1,Apr:3,May:2} },
-  'rickson.macharia':  { name:'Rickson Macharia',   role:'DA',  allocated:14, taken:14, remaining:0,  monthly:{Jan:2,Feb:1,Mar:1,Apr:10,May:0} },
-  'ivy.njerese': { name:'Ivy Njerese', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'sheillah.aluoch':   { name:'Sheillah Aluoch',    role:'DA',  allocated:6,  taken:2,  remaining:4,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:2} },
-  'aisha.adhiambo': { name:'Aisha Adhiambo', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'christopher.wanyama': { name:'Christopher Wanyama', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'gibson.majimbo':    { name:'Gibson Majimbo',     role:'DA',  allocated:13, taken:7,  remaining:6,  monthly:{Jan:0,Feb:2,Mar:1,Apr:2,May:2} },
-  'fortune.masereto': { name:'Fortune Masereto', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'samuel.githae': { name:'Samuel Githae', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'rading.yvonne': { name:'Yvonne Rading', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'wario.sora':        { name:'Wario Sora',         role:'DA',  allocated:6,  taken:3,  remaining:3,  monthly:{Jan:0,Feb:1,Mar:0,Apr:0,May:2} },
-  'ruth.dube': { name:'Ruth Dube', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'benson.ngugi': { name:'Benson Ngugi', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
+  'richard.otieno': { name:'Richard Otieno', role:'DA', allocated:22, taken:22, remaining:0, monthly:{Jan:6, Feb:4, Mar:2, Apr:0, May:6, Jun:4} },
+  'christine.mwanza': { name:'Christine Mwanza', role:'DA', allocated:21, taken:18, remaining:3, monthly:{Jan:5, Feb:2, Mar:2, Apr:2, May:5, Jun:2} },
+  'dennis.keter': { name:'Dennis Keter', role:'DA', allocated:23, taken:23, remaining:0, monthly:{Jan:7, Feb:5, Mar:3, Apr:5, May:0} },
+  'collins.marigu': { name:'Collins Marigu', role:'DA', allocated:20, taken:20, remaining:0, monthly:{Jan:6, Feb:4, Mar:1, Apr:1, May:2, Jun:6} },
+  'kelvin.nderitu': { name:'Kelvin Nderitu', role:'DA', allocated:17, taken:13, remaining:4, monthly:{Jan:3, Feb:0, Mar:1, Apr:3, May:2, Jun:4} },
+  'jenipher.otieno': { name:'Jenipher Otieno', role:'DA', allocated:20, taken:16, remaining:4, monthly:{Jan:7, Feb:1, Mar:1, Apr:1, May:4, Jun:2} },
+  'mark.obara': { name:'Mark Obara', role:'DA', allocated:11, taken:11, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0, May:0} },
+  'faith.mutinda': { name:'Faith Mutinda', role:'DA', allocated:19, taken:10, remaining:9, monthly:{Jan:4, Feb:2, Mar:2, Apr:0, May:2} },
+  'ernest.maina': { name:'Ernest Maina', role:'DA', allocated:18, taken:11, remaining:7, monthly:{Jan:7, Feb:1, Mar:1, Apr:0, May:2} },
+  'alfred.korir': { name:'Alfred Korir', role:'DA', allocated:25, taken:18, remaining:7, monthly:{Jan:7, Feb:5, Mar:3, Apr:0, May:0, Jun:3} },
+  'adhiambo.vivian': { name:'Adhiambo Vivian', role:'DA', allocated:21, taken:17, remaining:4, monthly:{Jan:7, Feb:2, Mar:2, Apr:2, May:3, Jun:1} },
+  'pauline.safari': { name:'Pauline Safari', role:'DA', allocated:21, taken:14, remaining:7, monthly:{Jan:5, Feb:4, Mar:1, Apr:1, May:1, Jun:2} },
+  'sila.juma': { name:'Sila Juma', role:'DA', allocated:17, taken:14, remaining:3, monthly:{Jan:3, Feb:2, Mar:1, Apr:2, May:2, Jun:4} },
+  'francis.ndeta': { name:'Francis Ndeta', role:'DA', allocated:19, taken:13, remaining:6, monthly:{Jan:6, Feb:0, Mar:2, Apr:0, May:3, Jun:2} },
+  'yassir.khalid': { name:'Yassir Khalid', role:'DA', allocated:13, taken:7, remaining:6, monthly:{Jan:2, Feb:0, Mar:1, Apr:0, May:2, Jun:2} },
+  'maureen.kaara': { name:'Maureen Kaara', role:'DA', allocated:20, taken:7, remaining:13, monthly:{Jan:3, Feb:2, Mar:1, Apr:0, May:1} },
+  'kelvin.matekwa': { name:'Kelvin Matekwa', role:'DA', allocated:13, taken:10, remaining:3, monthly:{Jan:2, Feb:0, Mar:1, Apr:0, May:4, Jun:3} },
+  'stacy.wanjiku': { name:'Stacy Wanjiku', role:'DA', allocated:17, taken:12, remaining:5, monthly:{Jan:5, Feb:0, Mar:3, Apr:1, May:2, Jun:1} },
+  'noah.njiri': { name:'Noah Njiri', role:'DA', allocated:14, taken:11, remaining:3, monthly:{Jan:3, Feb:1, Mar:1, Apr:2, May:3, Jun:1} },
+  'benson.ngugi': { name:'Benson Ngugi', role:'DA', allocated:11, taken:11, remaining:0, monthly:{Jan:3, Feb:0, Mar:0, Apr:8, May:0} },
+  'melody.mapenzi': { name:'Melody Mapenzi', role:'DA', allocated:13, taken:9, remaining:4, monthly:{Jan:2, Feb:1, Mar:0, Apr:0, May:3, Jun:3} },
+  'martin.karanu': { name:'Martin Karanu', role:'DA', allocated:14, taken:9, remaining:5, monthly:{Jan:1, Feb:2, Mar:0, Apr:0, May:4, Jun:2} },
+  'rachael.gitau': { name:'Rachael Gitau', role:'DA', allocated:11, taken:7, remaining:4, monthly:{Jan:0, Feb:0, Mar:2, Apr:1, May:3, Jun:1} },
+  'samuel.hinga': { name:'Samuel Hinga', role:'DA', allocated:13, taken:9, remaining:4, monthly:{Jan:1, Feb:1, Mar:1, Apr:0, May:3, Jun:3} },
+  'dennis.sangolo': { name:'Dennis Sangolo', role:'DA', allocated:13, taken:13, remaining:0, monthly:{Jan:2, Feb:0, Mar:3, Apr:5, May:1, Jun:2} },
+  'joy.mackenzie': { name:'Joy Mackenzie', role:'DA', allocated:14, taken:7, remaining:7, monthly:{Jan:3, Feb:0, Mar:0, Apr:2, May:0, Jun:2} },
+  'emmily.vannesa': { name:'Emily Vanessa', role:'DA', allocated:13, taken:6, remaining:7, monthly:{Jan:1, Feb:1, Mar:0, Apr:3, May:0, Jun:1} },
+  'simon.lukoye': { name:'Simon Lukoye', role:'DA', allocated:14, taken:10, remaining:4, monthly:{Jan:2, Feb:0, Mar:1, Apr:3, May:2, Jun:2} },
+  'rickson.macharia': { name:'Rickson Macharia', role:'DA', allocated:14, taken:14, remaining:0, monthly:{Jan:2, Feb:1, Mar:1, Apr:10, May:0} },
+  'ivy.njerese': { name:'Ivy Njerese', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  'sheillah.aluoch': { name:'Sheillah Aluoch', role:'DA', allocated:6, taken:4, remaining:2, monthly:{Jan:0, Feb:0, Mar:0, Apr:0, May:2, Jun:2} },
+  'aisha.adhiambo': { name:'Aisha Adhiambo', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  'christopher.wanyama': { name:'Christopher Wanyama', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  'gibson.majimbo': { name:'Gibson Majimbo', role:'DA', allocated:13, taken:9, remaining:4, monthly:{Jan:0, Feb:2, Mar:1, Apr:2, May:2, Jun:2} },
+  'fortune.masereto': { name:'Fortune Masereto', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  'samuel.githae': { name:'Samuel Githae', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:2, Mar:2, Apr:4} },
+  'rading.yvonne': { name:'Yvonne Rading', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  'wario.sora': { name:'Wario Sora', role:'DA', allocated:6, taken:6, remaining:0, monthly:{Jan:0, Feb:1, Mar:0, Apr:0, May:3, Jun:2} },
+  'ruth.dube': { name:'Ruth Dube', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
+  // ── Trainees (not in 2026 leave tracker yet) ──────────────────
   'synthiakane.otieno': { name:'Synthiakane Otieno', role:'TR',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
-  'ken.okoth': { name:'Ken Okoth', role:'TR',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
 };
 
 // Merge seeded data with any live changes from Supabase
@@ -4409,10 +5441,10 @@ function operatorLabel(op, showType=false) {
     'john.kingori':'John Kingori',
     'adhiambo.vivian':'Vivian Adhiambo',
     'rading.yvonne2':'Rading Yvonne',
+    'rading.yvonne':'Rading Yvonne',
     'christopher.wanyama2':'Christopher Wanyama',
     'sila.juma':'Sila Juma',
     'synthiakane.otieno':'Synthiakane Otieno',
-    'ken.okoth':'Ken Okoth',
   };
   const name = MGMT[op] || op.split('.').map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
   if(!showType) return name;
@@ -4448,6 +5480,25 @@ function save(key, val) {
   if(window._dbSet) window._dbSet(key, val).catch(e => console.warn('DB ['+key+']:', e.message));
 }
 
+// Like save(), but actually waits for the write and confirms it landed —
+// used for Daily Report / Daily Plan / Call Reports so a failure is never silent.
+async function saveAndVerify(key, val) {
+  if(window._dbCache) window._dbCache[key] = val;
+  if(!window._dbSet) return false;
+  try {
+    await window._dbSet(key, val);
+    // Double-check directly against Supabase that it actually landed
+    const r = await fetch(_SUPA_URL+'/rest/v1/aifi_store?select=val&key=eq.'+key, {headers:_SUPA_HDR});
+    if(!r.ok) return false;
+    const rows = await r.json();
+    const landed = rows.length && Array.isArray(rows[0].val) && rows[0].val.length === val.length;
+    return !!landed;
+  } catch(e) {
+    console.warn('saveAndVerify failed ['+key+']:', e.message);
+    return false;
+  }
+}
+
 // ════════════════════════════════════════════════════════════════
 //  NAVIGATION
 // ════════════════════════════════════════════════════════════════
@@ -4460,6 +5511,11 @@ const PAGE_TITLES = {
   'call-reports':'Call Reports','team-dash':'Team Performance Dashboard',
   'payroll-full':'Full Payroll Data','pay-history':'📊 Pay History','attendance-full':'Attendance Register',
   'wfh':'WFH Monitor — Remote Oversight','wfh-operator':'WFH Operator Portal',
+  'leave-portal':'🏖️ Leave Portal',
+  'ophub-menu':'🧭 Operator Hub',
+  'ophub-production':'📊 My Production',
+  'ophub-attendance':'✅ My Attendance',
+  'ophub-shift':'📅 My Shift Plan',
   'team-perf-kings':'Team Kings — Performance Tracker',
   'team-perf-swat':'Team SWAT — Performance Tracker',
   'team-dash-kings':'🔵 Team Kings Dashboard',
@@ -4597,243 +5653,277 @@ function yesterday() {
   return d.toISOString().split('T')[0];
 }
 
+let _dashPerfChartInstance = null;
+
 function renderDashPerfChart() {
   const canvas = document.getElementById('dash-perf-chart');
-  if(!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.offsetWidth || 900;
-  const H = 240;
-  canvas.width  = W * window.devicePixelRatio;
-  canvas.height = H * window.devicePixelRatio;
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  if(!canvas || typeof Chart === 'undefined') return;
 
-  // Group data by date
   const all = load('prod');
   const byDate = {};
   all.forEach(p => { if(!byDate[p.date]) byDate[p.date] = []; byDate[p.date].push(p); });
   const dates = Object.keys(byDate).sort().slice(-14);
+
+  if(_dashPerfChartInstance) { _dashPerfChartInstance.destroy(); _dashPerfChartInstance = null; }
+
   if(!dates.length) {
-    ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.font='13px sans-serif'; ctx.textAlign='center';
-    ctx.fillText('No production data yet', W/2, H/2); return;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No production data yet', canvas.offsetWidth/2, 140);
+    return;
   }
 
   const pts = dates.map(d => {
     const rows = byDate[d], n = rows.length;
     return {
-      date:      d,
-      cases:     rows.reduce((s,r)=>s+(+r.cases||0),0),
-      aht:       +(rows.reduce((s,r)=>s+(+r.aht||0),0)/n).toFixed(2),
+      date: d,
+      cases: rows.reduce((s,r)=>s+(+r.cases||0),0),
+      aht: +(rows.reduce((s,r)=>s+(+r.aht||0),0)/n).toFixed(2),
       normalAht: +(rows.reduce((s,r)=>s+(+r.normalAht||0),0)/n).toFixed(2),
-      occ:       +(rows.reduce((s,r)=>s+(+r.occ||0),0)/n).toFixed(2),
+      occ: +(rows.reduce((s,r)=>s+(+r.occ||0),0)/n).toFixed(2),
       abandoned: +(rows.reduce((s,r)=>s+(+r.abandoned||0),0)/n).toFixed(2),
-      reported:  +(rows.reduce((s,r)=>s+(+r.reported||0),0)/n).toFixed(2),
+      reported: +(rows.reduce((s,r)=>s+(+r.reported||0),0)/n).toFixed(2),
     };
   });
 
-  const maxCases  = Math.max(...pts.map(p=>p.cases));
-  const maxAHT    = Math.max(Math.max(...pts.map(p=>p.aht)), Math.max(...pts.map(p=>p.normalAht)));
-  const maxPct    = Math.max(100, Math.max(...pts.map(p=>p.occ)));
-  const pad = {top:24, right:60, bottom:42, left:58};
-  const cw = W - pad.left - pad.right;
-  const ch = H - pad.top  - pad.bottom;
-  const n  = pts.length;
-  const barW = Math.max(6, cw/n * 0.5);
-  const gap  = cw/n;
-
-  ctx.clearRect(0,0,W,H);
-
-  // Grid
-  ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1;
-  [0,.25,.5,.75,1].forEach(f=>{
-    const y=pad.top+ch*(1-f);
-    ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+cw,y); ctx.stroke();
+  const labels = pts.map(p => {
+    const dt = new Date(p.date+'T00:00:00');
+    return dt.getDate()+' '+dt.toLocaleString('en',{month:'short'});
   });
 
-  // Left Y axis — Cases
-  ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.font='10px DM Mono,monospace'; ctx.textAlign='right';
-  [0,.25,.5,.75,1].forEach(f=>{
-    const y=pad.top+ch*(1-f); const v=Math.round(maxCases*f);
-    ctx.fillText(v>=1000?(v/1000).toFixed(0)+'k':v, pad.left-6, y+3);
-  });
+  const ctx = canvas.getContext('2d');
 
-  // Right Y axis — AHT (seconds)
-  ctx.fillStyle='rgba(180,138,247,0.6)'; ctx.textAlign='left';
-  [0,.25,.5,.75,1].forEach(f=>{
-    const y=pad.top+ch*(1-f);
-    ctx.fillText((maxAHT*f).toFixed(0)+'s', pad.left+cw+6, y+3);
-  });
+  // Vivid gradient fill for the Cases area — this is the visual anchor of the chart
+  const casesGradient = ctx.createLinearGradient(0, 0, 0, 300);
+  casesGradient.addColorStop(0, 'rgba(0,212,160,0.55)');
+  casesGradient.addColorStop(0.6, 'rgba(0,212,160,0.12)');
+  casesGradient.addColorStop(1, 'rgba(0,212,160,0.0)');
 
-  // Right Y axis label — %
-  ctx.fillStyle='rgba(255,170,68,0.6)'; ctx.font='9px sans-serif'; ctx.textAlign='right';
-  ctx.fillText('100%', W-2, pad.top+3);
-  ctx.fillText('0%',   W-2, pad.top+ch+3);
+  const hasReported = pts.some(p => p.reported > 0);
 
-  // BARS — Cases
-  pts.forEach((p,i)=>{
-    const x   = pad.left + i*gap + gap/2 - barW/2;
-    const bH  = (p.cases/maxCases)*ch;
-    const y   = pad.top+ch-bH;
-    const col = p.occ>=80?'rgba(0,212,160,0.65)':p.occ>=70?'rgba(255,170,68,0.65)':'rgba(255,94,110,0.65)';
-    ctx.fillStyle=col;
-    ctx.beginPath(); ctx.roundRect(x,y,barW,bH,3); ctx.fill();
-    // cases label
-    ctx.fillStyle='rgba(255,255,255,0.65)'; ctx.font='8px DM Mono,monospace'; ctx.textAlign='center';
-    ctx.fillText(p.cases>=1000?(p.cases/1000).toFixed(1)+'k':p.cases, x+barW/2, y-3);
-    // date label
-    ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.font='9px sans-serif';
-    const dt=new Date(p.date+'T00:00:00');
-    ctx.fillText(dt.getDate()+' '+dt.toLocaleString('en',{month:'short'}), pad.left+i*gap+gap/2, H-6);
-  });
+  const datasets = [
+    {
+      type: 'bar',
+      label: 'Cases',
+      data: pts.map(p => p.cases),
+      backgroundColor: (c) => {
+        const v = c.parsed?.y ?? 0;
+        const maxC = Math.max(...pts.map(p=>p.cases)) || 1;
+        const ratio = v / maxC;
+        // gradient bars: brighter teal-to-violet for higher volumes — eye-catching, not flat
+        const g = c.chart.ctx.createLinearGradient(0, c.chart.chartArea?.top || 0, 0, c.chart.chartArea?.bottom || 300);
+        g.addColorStop(0, ratio > 0.7 ? '#00f0c0' : '#00d4a0');
+        g.addColorStop(1, 'rgba(0,212,160,0.35)');
+        return g;
+      },
+      borderRadius: 8,
+      borderSkipped: false,
+      yAxisID: 'yCases',
+      order: 5,
+      maxBarThickness: 38,
+    },
+    {
+      type: 'line',
+      label: 'AHT (Action)',
+      data: pts.map(p => p.aht),
+      borderColor: '#b48af7',
+      backgroundColor: '#b48af7',
+      pointBackgroundColor: '#b48af7',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2.5,
+      tension: 0.4,
+      yAxisID: 'yAht',
+      order: 1,
+    },
+    {
+      type: 'line',
+      label: 'Normal AHT',
+      data: pts.map(p => p.normalAht),
+      borderColor: '#00c8e0',
+      backgroundColor: '#00c8e0',
+      pointBackgroundColor: '#00c8e0',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2.5,
+      borderDash: [6,4],
+      tension: 0.4,
+      yAxisID: 'yAht',
+      order: 2,
+    },
+    {
+      type: 'line',
+      label: 'Occupancy %',
+      data: pts.map(p => p.occ),
+      borderColor: '#ffaa44',
+      backgroundColor: '#ffaa44',
+      pointBackgroundColor: '#ffaa44',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2.5,
+      tension: 0.4,
+      yAxisID: 'yPct',
+      order: 3,
+    },
+    {
+      type: 'line',
+      label: 'Abandoned %',
+      data: pts.map(p => p.abandoned),
+      borderColor: '#ff5e6e',
+      backgroundColor: '#ff5e6e',
+      pointBackgroundColor: '#ff5e6e',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2.5,
+      borderDash: [4,3],
+      tension: 0.4,
+      yAxisID: 'yPct',
+      order: 4,
+    },
+  ];
 
-  // Helper: draw a line metric
-  const drawLine = (getValue, maxVal, color, dash=[], dotR=3) => {
-    ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.lineJoin='round';
-    ctx.setLineDash(dash);
-    ctx.beginPath();
-    pts.forEach((p,i)=>{
-      const x=pad.left+i*gap+gap/2;
-      const y=pad.top+ch*(1-(getValue(p)/maxVal));
-      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  if(hasReported) {
+    datasets.push({
+      type: 'line',
+      label: 'Reported %',
+      data: pts.map(p => p.reported),
+      borderColor: '#5ec8ff',
+      backgroundColor: '#5ec8ff',
+      pointBackgroundColor: '#5ec8ff',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 2.5,
+      borderDash: [2,3],
+      tension: 0.4,
+      yAxisID: 'yPct',
+      order: 4.5,
     });
-    ctx.stroke(); ctx.setLineDash([]);
-    // dots + value labels
-    ctx.fillStyle=color;
-    pts.forEach((p,i)=>{
-      const x=pad.left+i*gap+gap/2;
-      const y=pad.top+ch*(1-(getValue(p)/maxVal));
-      ctx.beginPath(); ctx.arc(x,y,dotR,0,Math.PI*2); ctx.fill();
-      ctx.font='8px DM Mono,monospace'; ctx.textAlign='center';
-      ctx.fillText(getValue(p), x, y-5);
-    });
-  };
-
-  // AHT A.A — purple
-  drawLine(p=>p.aht,      maxAHT, 'rgba(180,138,247,0.9)', []);
-  // Normal AHT — teal
-  drawLine(p=>p.normalAht,maxAHT, 'rgba(0,200,180,0.9)',   [4,3]);
-  // Occupancy — amber
-  drawLine(p=>p.occ,      maxPct, 'rgba(255,170,68,0.9)',  []);
-  // Abandoned — red
-  drawLine(p=>p.abandoned,maxPct, 'rgba(255,94,110,0.9)',  [3,3]);
-  // Reported (if has data)
-  if(pts.some(p=>p.reported>0))
-    drawLine(p=>p.reported,maxPct,'rgba(0,180,216,0.9)',   [4,3]);
-}
-
-function renderDashProdKPIs() {
-
-  // Group prod data by date, last 14 days
-  const all = load('prod');
-  const byDate = {};
-  all.forEach(p => {
-    if(!byDate[p.date]) byDate[p.date] = [];
-    byDate[p.date].push(p);
-  });
-  const dates = Object.keys(byDate).sort().slice(-14);
-  if(!dates.length) {
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.font = '13px DM Sans, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('No production data yet', w/2, h/2);
-    return;
   }
 
-  const points = dates.map(d => {
-    const rows = byDate[d];
-    return {
-      date: d,
-      cases: rows.reduce((s,r) => s + (+r.cases||0), 0),
-      occ:   rows.reduce((s,r) => s + (+r.occ||0), 0) / rows.length
-    };
-  });
+  // Apply gradient fill specifically to the Cases dataset
+  datasets[0].fill = true;
+  datasets[0].backgroundColor = casesGradient;
 
-  const maxCases = Math.max(...points.map(p => p.cases));
-  const pad = { top:20, right:16, bottom:38, left:56 };
-  const cw = w - pad.left - pad.right;
-  const ch = h - pad.top - pad.bottom;
-  const barW = Math.max(8, cw / points.length * 0.55);
-  const gap  = cw / points.length;
-
-  // Background
-  ctx.clearRect(0,0,w,h);
-
-  // Grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.lineWidth = 1;
-  [0,25,50,75,100].forEach(pct => {
-    const y = pad.top + ch - (pct/100)*ch;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left+cw, y); ctx.stroke();
-  });
-
-  // Y axis labels (cases)
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.font = `10px DM Mono, monospace`;
-  ctx.textAlign = 'right';
-  [0,0.25,0.5,0.75,1].forEach(frac => {
-    const y = pad.top + ch - frac*ch;
-    const val = Math.round(maxCases * frac);
-    ctx.fillText(val >= 1000 ? (val/1000).toFixed(0)+'k' : val, pad.left - 6, y + 3);
-  });
-
-  // Bars
-  points.forEach((p, i) => {
-    const x = pad.left + i*gap + gap/2 - barW/2;
-    const barH = (p.cases / maxCases) * ch;
-    const y = pad.top + ch - barH;
-    const occ = p.occ;
-    const col = occ >= 80 ? 'rgba(0,212,160,0.75)' : occ >= 70 ? 'rgba(255,170,68,0.75)' : 'rgba(255,94,110,0.75)';
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.roundRect(x, y, barW, barH, 3);
-    ctx.fill();
-
-    // Case count on top of bar
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = '9px DM Mono, monospace';
-    ctx.textAlign = 'center';
-    const label = p.cases >= 1000 ? (p.cases/1000).toFixed(1)+'k' : p.cases;
-    ctx.fillText(label, x + barW/2, y - 4);
-
-    // X axis date label
-    ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.font = '9px DM Sans, sans-serif';
-    const d = new Date(p.date+'T00:00:00');
-    ctx.fillText(d.getDate()+' '+ d.toLocaleString('en',{month:'short'}), x + barW/2, h - 6);
-  });
-
-  // Occupancy line
-  ctx.strokeStyle = 'rgba(255,170,68,0.9)';
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  ctx.beginPath();
-  points.forEach((p, i) => {
-    const x = pad.left + i*gap + gap/2;
-    const y = pad.top + ch - (p.occ/100)*ch;
-    i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-  });
-  ctx.stroke();
-
-  // Dots on line
-  ctx.fillStyle = 'rgba(255,170,68,1)';
-  points.forEach((p, i) => {
-    const x = pad.left + i*gap + gap/2;
-    const y = pad.top + ch - (p.occ/100)*ch;
-    ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+  _dashPerfChartInstance = new Chart(ctx, {
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      animation: { duration: 700, easing: 'easeOutQuart' },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: 'rgba(255,255,255,0.75)',
+            font: { size: 11, weight: '600', family: "'DM Sans', sans-serif" },
+            usePointStyle: true,
+            pointStyle: 'circle',
+            padding: 16,
+            boxWidth: 8,
+            boxHeight: 8,
+          },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(8,20,16,0.95)',
+          titleColor: '#00d4a0',
+          bodyColor: '#e8f5f0',
+          borderColor: 'rgba(0,212,160,0.35)',
+          borderWidth: 1,
+          padding: 12,
+          titleFont: { size: 12, weight: '700' },
+          bodyFont: { size: 11 },
+          boxPadding: 4,
+          usePointStyle: true,
+          callbacks: {
+            label: (c) => {
+              const lbl = c.dataset.label;
+              const v = c.parsed.y;
+              if(lbl === 'Cases') return `  ${lbl}: ${v.toLocaleString()}`;
+              if(lbl.includes('%')) return `  ${lbl}: ${v}%`;
+              return `  ${lbl}: ${v}s`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false },
+          ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 10, family: "'DM Mono', monospace" } },
+          border: { display: false },
+        },
+        yCases: {
+          position: 'left',
+          grid: { color: 'rgba(255,255,255,0.06)', drawTicks: false },
+          ticks: {
+            color: 'rgba(0,212,160,0.7)',
+            font: { size: 10, family: "'DM Mono', monospace" },
+            callback: (v) => v >= 1000 ? (v/1000).toFixed(0)+'k' : v,
+          },
+          border: { display: false },
+          beginAtZero: true,
+        },
+        yAht: {
+          position: 'right',
+          grid: { display: false },
+          ticks: {
+            color: 'rgba(180,138,247,0.7)',
+            font: { size: 10, family: "'DM Mono', monospace" },
+            callback: (v) => v+'s',
+          },
+          border: { display: false },
+          beginAtZero: true,
+        },
+        yPct: {
+          position: 'right',
+          display: false,
+          min: 0,
+          max: 100,
+        },
+      },
+    },
   });
 }
 
 function renderDashProdKPIs() {
   const el = document.getElementById('dash-prod-kpis');
   const lbl = document.getElementById('dash-prod-date-label');
+  const sub = document.getElementById('dash-prod-sub-label');
   if(!el) return;
 
-  const yday = yesterday();
-  const prod = load('prod').filter(p => p.date === yday);
+  const allProd = load('prod');
+  const allDates = [...new Set(allProd.map(p => p.date))].sort();
+  const latestDate = allDates[allDates.length - 1]; // most recent date that actually has data
 
-  if(lbl) lbl.textContent = fmtDate(yday);
+  if(!latestDate) {
+    if(lbl) lbl.textContent = '—';
+    el.innerHTML = `<div style="color:var(--text3);font-size:12px;grid-column:span 5;text-align:center;padding:20px">No production data fed yet.</div>`;
+    return;
+  }
+
+  const prod = allProd.filter(p => p.date === latestDate);
+
+  if(lbl) lbl.textContent = fmtDate(latestDate);
+  if(sub) {
+    const isToday = latestDate === today();
+    const isYday  = latestDate === yesterday();
+    sub.textContent = 'Live from Production Tracker · ' + (isToday ? 'Today' : isYday ? 'Previous working day' : 'Most recently fed date');
+  }
 
   if(!prod.length) {
-    el.innerHTML = `<div style="color:var(--text3);font-size:12px;grid-column:span 5;text-align:center;padding:20px">No production data for ${fmtDate(yday)} yet.</div>`;
+    el.innerHTML = `<div style="color:var(--text3);font-size:12px;grid-column:span 5;text-align:center;padding:20px">No production data for ${fmtDate(latestDate)} yet.</div>`;
     return;
   }
 
@@ -6119,6 +7209,23 @@ function selectRole(role) {
   if(role === 'operator') {
     if(opPanel)  opPanel.style.display  = 'block';
     if(stdPanel) stdPanel.style.display = 'none';
+    // Populate from the live roster — never hand-typed, so new operators always show up
+    const sel = document.getElementById('op-login-name');
+    if(sel && sel.options.length <= 1) {
+      sel.innerHTML = '<option value="">— Select your name —</option>';
+      const kingsOpt = document.createElement('optgroup'); kingsOpt.label = 'Team Kings';
+      const swatOpt  = document.createElement('optgroup'); swatOpt.label  = 'Team SWAT';
+      OPERATOR_ROSTER
+        .sort((a,b) => operatorLabel(a.id).localeCompare(operatorLabel(b.id)))
+        .forEach(o => {
+          const opt = document.createElement('option');
+          opt.value = o.id;
+          opt.textContent = operatorLabel(o.id) + (o.type==='TR' ? ' [TR]' : '');
+          (o.team === 'kings' ? kingsOpt : swatOpt).appendChild(opt);
+        });
+      sel.appendChild(kingsOpt);
+      sel.appendChild(swatOpt);
+    }
     // Focus the name dropdown
     setTimeout(()=>{ document.getElementById('op-login-name')?.focus(); }, 50);
     return;
@@ -6170,17 +7277,20 @@ function doOperatorLogin() {
   if(wli && (selectedRole==='tl'||selectedRole==='admin')) wli.style.display='block';
   initWakeLockForRole(); // activate wake lock for TL/Admin only
 
-  // Pre-select operator in the WFH operator portal
-  const opSel = document.getElementById('wfh-op-self');
-  if(opSel) { opSel.value = opId; onWFHOperatorSelect(); }
+  // Remember identity for the WFH/Leave hand-off flows used by the tile menu
+  localStorage.setItem('wfh_op_id', opId);
+  localStorage.setItem('leave_op_id', opId);
+  localStorage.setItem('ophub_op_id', opId);
 
-  // Activate WFH-only mode (hides full hub chrome)
+  // Activate WFH-only mode (hides full hub chrome — this is the operator's entire view)
   document.body.classList.add('wfh-op-mode');
   const hdrName = document.getElementById('wfh-op-header-name');
   if(hdrName) hdrName.textContent = operatorLabel(opId);
 
-  nav('wfh-operator');
-  toast('Welcome, ' + operatorLabel(opId) + '! 👋', '🏠');
+  // Land on the Operator Hub tile menu — pick WFH, Leave, Production, Attendance, or Shift Plan from there
+  _opHubId = opId;
+  openOpHubMenu(opId);
+  toast('Welcome, ' + operatorLabel(opId) + '! 👋', '🧭');
 
   // Log last login to Supabase
   fetch(_SUPA_URL + '/rest/v1/wfh_operator_creds?op_id=eq.' + opId, {
@@ -6529,7 +7639,6 @@ const NAME_TO_ID = {
   'Ernest Maina':'ernest.maina',
   'Faith Mutinda':'faith.mutinda',
   'Synthiakane Otieno':'synthiakane.otieno',
-  'Ken Okoth':'ken.okoth',
 };
 
 const MONTHS_2026 = [
@@ -7067,7 +8176,12 @@ async function dbSetApproved(opIds, date) {
   const rows = opIds.map(id=>({op_id:id, date:d}));
   await fetch(_SUPA_URL+'/rest/v1/wfh_approved',
     {method:'POST', headers:WFH_HDR, body:JSON.stringify(rows)});
-  _approvedCache = opIds;
+  // Normalize IDs and deduplicate
+  _approvedCache = [...new Set(opIds.map(id => {
+    if(id === 'rading.yvonne') return 'rading.yvonne2';
+    if(id === 'christopher.wanyama') return 'christopher.wanyama2';
+    return id;
+  }))];
 }
 
 // ── Sessions ───────────────────────────────────────────────────────
@@ -7079,27 +8193,42 @@ async function dbGetSessions(date) {
     const rows = await r.json();
     if(!Array.isArray(rows)) return {};
     const out = {};
+    const now = Date.now();
     rows.forEach(row => {
-      const opId = normalizeOpId(row.op_id);
-      out[opId] = {
-        status:       row.status,
-        checkIn:      row.check_in,
-        checkOut:     row.check_out,
-        shift:        row.shift,
-        location:     row.location,
-        device:       row.device,
-        totalCases:   row.total_cases,
-        totalBreakMs: row.total_break_ms,
-        lastAHT:      row.last_aht,
-        lastFocus:    row.last_focus,
-        lastEnergy:   row.last_energy,
-        breakCount:   row.break_count,
-        preInternet:  row.pre_internet,
-        preEnv:       row.pre_env,
-        prePower:     row.pre_power,
-        preTools:     row.pre_tools,
-        workspace:    row.workspace,
-        totalHours:   row.total_hours,
+      row.op_id = normalizeOpId(row.op_id);
+      const hbMs   = row.last_heartbeat ? now - new Date(row.last_heartbeat).getTime() : Infinity;
+      const hbMins = hbMs / 60000;
+
+      // If checked out → force offline regardless of heartbeat
+      let effStatus = row.status || 'online';
+      if(row.check_out) {
+        effStatus = 'offline';
+      } else if(hbMins > 40) {
+        effStatus = 'offline';
+      } else if(hbMins > 20) {
+        effStatus = 'idle';
+      }
+
+      out[row.op_id] = {
+        status:        effStatus,
+        checkIn:       row.check_in,
+        checkOut:      row.check_out,
+        lastHeartbeat: row.last_heartbeat,  // ← WAS MISSING — root cause fixed
+        shift:         row.shift,
+        location:      row.location,
+        device:        row.device,
+        totalCases:    row.total_cases,
+        totalBreakMs:  row.total_break_ms,
+        lastAHT:       row.last_aht,
+        lastFocus:     row.last_focus,
+        lastEnergy:    row.last_energy,
+        breakCount:    row.break_count,
+        preInternet:   row.pre_internet,
+        preEnv:        row.pre_env,
+        prePower:      row.pre_power,
+        preTools:      row.pre_tools,
+        workspace:     row.workspace,
+        totalHours:    row.total_hours,
       };
     });
     return out;
@@ -7157,7 +8286,7 @@ async function dbSaveSession(opId, data, date) {
 async function dbGetLogs(date) {
   try {
     const d = date || today();
-    const r = await fetch(_SUPA_URL+'/rest/v1/wfh_logs?date=eq.'+d+'&order=logged_at.asc&limit=500',
+    const r = await fetch(_SUPA_URL+'/rest/v1/wfh_logs?date=eq.'+d+'&order=logged_at.desc&limit=3000',
       {headers:{...WFH_HDR,'Prefer':''}});
     const rows = await r.json();
     if(!Array.isArray(rows)) return [];
@@ -7271,7 +8400,22 @@ function getEODs() {
   return {};  // replaced by dbGetEODs
 }
 function getApproved() {
-  return _approvedCache;
+  const raw = _approvedCache || [];
+  // Step 1: normalize all IDs to canonical form
+  const normed = raw.map(id => {
+    const s = id.replace('.impact.nbo','').toLowerCase().trim();
+    if(s.startsWith('rading.yvonne') && !s.includes('yvonne2')) return 'rading.yvonne2';
+    if(s === 'christopher.wanyama') return 'christopher.wanyama2';
+    if(s === 'synthia.kaneotieno') return 'synthiakane.otieno';
+    return s; // use short form without .impact.nbo
+  });
+  // Step 2: deduplicate — one entry per person, period
+  const seen = new Set();
+  return normed.filter(id => {
+    if(seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 }
 function getSession(date, opId) {
   return _sessionsCache[date]?.[opId] || null;
@@ -7298,6 +8442,33 @@ async function refreshWFHCache(date) {
   _sessionsCache[d] = sessions;
   _logsCache        = logs;
   _approvedCache    = approved;
+
+  // ── Heartbeat fallback ──────────────────────────────────────────
+  // last_heartbeat is only written by the Chrome extension, and inconsistently —
+  // some operators never get one at all, so dbGetSessions' own heartbeat check
+  // can never mark them offline/idle even after they've gone quiet for hours.
+  // Fall back to "most recent log timestamp" as a proxy heartbeat whenever the
+  // real field is missing or older than the latest known activity.
+  const lastLogTimeByOp = {};
+  logs.forEach(l => {
+    const id = l.opId;
+    if(!id || !l.isoTime) return;
+    if(!lastLogTimeByOp[id] || l.isoTime > lastLogTimeByOp[id]) lastLogTimeByOp[id] = l.isoTime;
+  });
+  const nowTs = Date.now();
+  Object.keys(sessions).forEach(opId => {
+    const sess = sessions[opId];
+    if(sess.checkOut) return; // already correctly offline, nothing to recompute
+    const lastLog = lastLogTimeByOp[opId] || null;
+    const hbTime  = sess.lastHeartbeat || null;
+    // Use whichever signal is more recent — real heartbeat or last actual submission
+    const effectiveLast = [hbTime, lastLog].filter(Boolean).sort().pop() || sess.checkIn || null;
+    sess.effectiveLastSeen = effectiveLast;
+    const ageMins = effectiveLast ? (nowTs - new Date(effectiveLast).getTime()) / 60000 : Infinity;
+    if(ageMins > 40) sess.status = 'offline';
+    else if(ageMins > 20 && sess.status !== 'break' && sess.status !== 'meeting') sess.status = 'idle';
+  });
+
   // Index face events per operator
   _faceEventsCache  = {};
   if(Array.isArray(faceEvts)) {
@@ -7436,6 +8607,7 @@ function openWFHFlagModal() {
 }
 // ── TL MONITOR ───────────────────────────────────────────────────
 let _camGridInterval = null;
+let _lastRenderedWFHDate = null;
 
 async function initWFH() {
   const dateEl = document.getElementById('wfh-filter-date');
@@ -7533,6 +8705,20 @@ async function renderEODReports() {
   }).join('');
 }
 
+// ── Determine an operator's effective status from their session record ──
+// Top-level so it's usable from renderWorkingNow, renderWFHMonitor, etc.
+function opStatus(id, sessionsMap) {
+  const s = (sessionsMap || _sessionsCache[document.getElementById('wfh-filter-date')?.value || today()] || {})[id];
+  if(!s) return 'offline';
+  if(s.checkOut) return 'offline';
+  if(s.status === 'offline') return 'offline';
+  if(s.status === 'idle')    return 'idle';
+  if(s.status === 'break')   return 'break';
+  if(s.status === 'meeting') return 'meeting';
+  if(s.checkIn) return 'online';
+  return 'offline';
+}
+
 function renderWorkingNow(sessions, approved, date) {
   const grid    = document.getElementById('working-now-grid');
   const notGrid = document.getElementById('not-working-grid');
@@ -7546,11 +8732,13 @@ function renderWorkingNow(sessions, approved, date) {
   const checkedOut = [];
   const pending  = [];
 
+  // STRICT: only approved, only those truly active
   approved.forEach(opId => {
     const sess = sessions[opId];
-    if(sess?.checkIn && !sess?.checkOut) active.push(opId);
-    else if(sess?.checkIn && sess?.checkOut) checkedOut.push(opId);
-    else pending.push(opId);
+    const st   = opStatus(opId, sessions);
+    if(!sess || !sess.checkIn) { pending.push(opId); return; }
+    if(sess.checkOut || st === 'offline') { checkedOut.push(opId); return; }
+    active.push(opId);
   });
 
   // Update counter
@@ -7619,13 +8807,14 @@ function renderWorkingNow(sessions, approved, date) {
     </div>`;
   }).join('');
 
-  // ── Pending (not checked in) ──────────────────────────────────
+  // ── Pending (not checked in) + Checked-out, clearly separated ──
   if(!notGrid) return;
   if(!pending.length && !checkedOut.length) {
     notGrid.innerHTML = '<div style="color:var(--green);font-size:11px;font-weight:600">✅ All approved operators are checked in!</div>';
   } else {
-    notGrid.innerHTML =
-      pending.map(opId => {
+    let html = '';
+    if(pending.length) {
+      html += pending.map(opId => {
         const team    = getOpTeam(opId);
         const teamCol = team==='kings' ? 'rgba(0,212,160,0.4)' : 'rgba(255,133,52,0.4)';
         return `<div style="
@@ -7636,49 +8825,122 @@ function renderWorkingNow(sessions, approved, date) {
           <div style="width:6px;height:6px;border-radius:50%;background:var(--border2);flex-shrink:0"></div>
           <div style="font-size:11px;font-weight:600;color:var(--text3)">${operatorLabel(opId)}</div>
         </div>`;
-      }).join('') + (checkedOutHtml || '');
+      }).join('');
+    }
+    if(checkedOut.length) {
+      html += `<div style="width:100%;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px">⬛ Checked Out (${checkedOut.length})</div>` + checkedOutHtml;
+    }
+    notGrid.innerHTML = html;
   }
 }
 
-function renderWFHMonitor() {
+// ── Live Shift Activity: session counts + full timeline per working operator ──
+function renderShiftActivity(sessions, approved, date) {
+  const el = document.getElementById('shift-activity-table');
+  if(!el) return;
+
+  const logs = getLogs().filter(l => l.date === date);
+  // Non-counted event types — everything else counts as a real "session"/submission
+  const NON_SESSION_TYPES = ['checkin','checkout','break','resume','idle','tab_switch','status_change','force_logout','cursor_return'];
+
+  // Normalize to canonical id and dedupe (fixes e.g. christopher.wanyama vs christopher.wanyama2)
+  const canon = normalizeOpId;
+
+  const working = [...new Set(approved.map(canon))].filter(opId => {
+    const sess = sessions[opId];
+    return sess?.checkIn && !sess?.checkOut && sess?.status !== 'offline';
+  });
+
+  if(!working.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;font-style:italic">No one is checked in right now.</div>';
+    return;
+  }
+
+  // Clock-skew guard: never show a negative "min ago" — floor at 0
+  const minsAgo = iso => {
+    if(!iso) return null;
+    const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    return Math.max(0, m);
+  };
+
+  const rows = working.map(opId => {
+    const sess     = sessions[opId];
+    const opLogs   = logs.filter(l => canon(l.opId || l.op_id) === opId)
+                          .sort((a,b) => (a.isoTime||'').localeCompare(b.isoTime||''));
+    const sessionLogs = opLogs.filter(l => !NON_SESSION_TYPES.includes(l.type || l.log_type));
+    const sessionCount = sessionLogs.length;
+    const totalCases = sessionLogs.reduce((s,l) => s + (+l.cases || 0), 0) || sess?.totalCases || 0;
+    const lastLog   = opLogs[opLogs.length - 1];
+    const lastTime  = sess?.effectiveLastSeen
+      ? new Date(sess.effectiveLastSeen).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
+      : (lastLog?.timeStr || (sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–'));
+    const hbAge     = minsAgo(sess?.lastHeartbeat);
+    const team      = getOpTeam(opId);
+    const checkInT  = sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+
+    return { opId, team, sessionCount, totalCases, lastTime, hbAge, checkInT, opLogs };
+  }).sort((a,b) => b.sessionCount - a.sessionCount);
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1.4fr 0.6fr 0.8fr 0.8fr 0.8fr 0.9fr;gap:0;font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;padding:0 4px 8px;border-bottom:1px solid var(--border)">
+      <div>Operator</div><div>Team</div><div>Since</div><div>Sessions</div><div>Cases</div><div>Last Activity</div>
+    </div>
+    ${rows.map(r => `
+      <div onclick="toggleShiftTimeline('${r.opId}')" style="display:grid;grid-template-columns:1.4fr 0.6fr 0.8fr 0.8fr 0.8fr 0.9fr;gap:0;align-items:center;padding:9px 4px;border-bottom:1px solid var(--border2);cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="font-weight:700;color:var(--text)">${operatorLabel(r.opId)}</div>
+        <div style="font-size:9px;font-weight:700;color:${r.team==='kings'?'var(--accent)':'var(--orange)'};text-transform:uppercase">${r.team}</div>
+        <div style="font-family:'DM Mono',monospace;color:var(--text3)">${r.checkInT}</div>
+        <div style="font-weight:700;color:var(--teal)">${r.sessionCount}</div>
+        <div style="font-weight:700;color:var(--green)">${r.totalCases || '–'}</div>
+        <div style="font-size:11px;color:var(--text3)">${r.lastTime}${r.hbAge!==null ? ` · hb ${r.hbAge}m ago` : ''}</div>
+      </div>
+      <div id="shift-timeline-${r.opId}" style="display:none;padding:10px 12px;background:var(--surface2);border-radius:8px;margin:4px 0 8px;font-size:11px">
+        ${r.opLogs.length ? r.opLogs.map(l => `
+          <div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border2)">
+            <div style="font-family:'DM Mono',monospace;color:var(--text3);min-width:48px">${l.timeStr||'–'}</div>
+            <div style="font-weight:700;color:var(--text2);min-width:90px">${(l.type||l.log_type||'').replace('_',' ')}</div>
+            <div style="color:var(--text3)">${l.cases ? 'Cases: '+l.cases+(l.aht?' · AHT '+l.aht+'s':'') : (l.notes||'')}</div>
+          </div>`).join('') : '<div style="color:var(--text3);font-style:italic">No activity logged yet this shift.</div>'}
+      </div>
+    `).join('')}
+  `;
+}
+
+function toggleShiftTimeline(opId) {
+  const el = document.getElementById('shift-timeline-' + opId);
+  if(!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function renderWFHMonitor() {
   const date    = document.getElementById('wfh-filter-date')?.value || today();
   const statusF = document.getElementById('wfh-filter-status')?.value || '';
   const searchF = (document.getElementById('wfh-filter-search')?.value||'').toLowerCase();
 
+  // If looking at a date not yet cached (e.g. TL picked a past day), fetch it fresh
+  if(!_sessionsCache[date] || date !== _lastRenderedWFHDate) {
+    await refreshWFHCache(date);
+    _lastRenderedWFHDate = date;
+  }
+
   const sessions = getSessions()[date] || {};
   const logs     = getLogs().filter(l=>l.date===date);
   const eods     = getEODs()[date]   || {};
-  const approved = getApproved();
+  const approved = date === today() ? getApproved() : Object.keys(sessions);
 
   // ── Render "Who's Working Now" panel ──────────────────────────
   renderWorkingNow(sessions, approved, date);
+  renderShiftActivity(sessions, approved, date);
 
   const lrEl = document.getElementById('wfh-last-refresh');
   if(lrEl) lrEl.textContent = '↺ '+new Date().toLocaleTimeString('en-GB');
 
-  // Determine status incl. idle detection
-  function opStatus(id) {
-    const s = sessions[id];
-    if(!s || !s.checkIn) return 'offline';
-    if(s.checkOut)              return 'logged_out';
-    if(s.status === 'logged_out') return 'logged_out';
-    if(s.status === 'offline')  return 'logged_out';
-    if(s.status === 'break')    return 'break';
-    if(s.status === 'idle')     return 'idle';
-    // Heartbeat stale check — no ping in 5+ min = not actually online
-    if(s.lastHeartbeat) {
-      const mins = (Date.now() - new Date(s.lastHeartbeat).getTime()) / 60000;
-      if(mins > 5) return 'logged_out';
-    }
-    return 'online';
-  }
-
   const allOps    = Object.keys(sessions);
-  const onlineOps = allOps.filter(id=>opStatus(id)==='online');
-  const breakOps  = allOps.filter(id=>opStatus(id)==='break');
+  const onlineOps = allOps.filter(id=>opStatus(id, sessions)==='online');
+  const breakOps  = allOps.filter(id=>opStatus(id, sessions)==='break');
   // idleOps = operators where cursor/cam system set status='idle' in Supabase
-  const idleOps   = allOps.filter(id=>opStatus(id)==='idle');
-  const offOps    = allOps.filter(id=>opStatus(id)==='offline');
+  const idleOps   = allOps.filter(id=>opStatus(id, sessions)==='idle');
+  const offOps    = allOps.filter(id=>opStatus(id, sessions)==='offline');
 
   // KPIs
   const totalCases  = allOps.reduce((s,id)=>s+(sessions[id].totalCases||0),0);
@@ -7712,8 +8974,8 @@ function renderWFHMonitor() {
   // Status grid
   const gridEl = document.getElementById('wfh-status-grid');
   // Only show actively online operators on the Live Board
-  let gridOps  = allOps.filter(id => ['online','break','idle'].includes(opStatus(id)));
-  if(statusF) gridOps = gridOps.filter(id=>opStatus(id)===statusF);
+  let gridOps  = allOps.filter(id => ['online','break','idle'].includes(opStatus(id, sessions)));
+  if(statusF) gridOps = gridOps.filter(id=>opStatus(id, sessions)===statusF);
   if(searchF) gridOps = gridOps.filter(id=>operatorLabel(id).toLowerCase().includes(searchF));
 
   if(!gridOps.length) {
@@ -7722,7 +8984,7 @@ function renderWFHMonitor() {
     const statusLabel = {online:'🟢 Online',break:'☕ On Break',idle:'🔴 Idle',offline:'⚫ Offline'};
     gridEl.innerHTML = gridOps.map(id => {
       const sess   = sessions[id];
-      const status = opStatus(id);
+      const status = opStatus(id, sessions);
       const cases  = sess.totalCases || 0;
       const score  = wfhComplianceScore(id, date);
       const opLogs = _logsCache.filter(l=>(l.opId||l.op_id)===id && l.date===date && (l.type||l.log_type)==='hourly');
@@ -7787,7 +9049,7 @@ function renderWFHMonitor() {
   } else {
     compTbody.innerHTML = allOps.map(id=>{
       const sess  = sessions[id];
-      const status= opStatus(id);
+      const status= opStatus(id, sessions);
       const score = wfhComplianceScore(id, date);
       const sc    = scoreColor(score);
       const opLogs= logs.filter(l=>l.opId===id);
@@ -7854,6 +9116,68 @@ function renderWFHMonitor() {
         <td style="font-size:10px;color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.notes||''}">${l.notes||l.proof||'–'}</td>
       </tr>`;
     }).join('');
+  }
+
+  // ── Task Submit Tracker ──────────────────────────────────
+  const subTbody = document.getElementById('submit-tracker-tbody');
+  if(subTbody) {
+    const todayLogs = getLogs().filter(l => l.date === date);
+    if(!todayLogs.length) {
+      subTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3)">No submits yet.</td></tr>';
+    } else {
+      const byOp = {};
+      todayLogs.forEach(l => {
+        const id = l.opId || l.op_id;
+        if(!id) return;
+        if(!byOp[id]) byOp[id] = {submits:0, cases:0, ahts:[], lastTime:'', eodDone:false, tabBreaches:0};
+        const e  = byOp[id];
+        const lt = l.type || l.log_type || '';
+        const lc = +(l.cases || 0);
+
+        // ONLY count as a real submission if:
+        // log_type is 'submission' OR cases > 0 (actual work done)
+        // Heartbeats have no cases and no submission type — exclude them
+        const isRealSubmit = lt === 'submission' || (lc > 0 && !['break','resume','checkout','checkin','tab_switch','eod'].includes(lt));
+
+        if(isRealSubmit) {
+          e.submits++;
+          if(lc > e.cases) e.cases = lc; // track highest case count
+          if(l.aht && +l.aht > 0) e.ahts.push(+l.aht);
+          if(!e.lastTime || l.isoTime > e.lastTime) e.lastTime = l.isoTime;
+        }
+        if(lt === 'eod' || l.is_eod) e.eodDone = true;
+        if(lt === 'tab_switch') e.tabBreaches++;
+      });
+
+      // Clean up operator names — remove ".impact.nbo" suffix
+      const cleanName = id => {
+        const base = id.replace('.impact.nbo','').replace('impact.nbo','');
+        return operatorLabel(base) || operatorLabel(id) || base;
+      };
+
+      const rows = Object.entries(byOp).filter(([,d]) => d.submits > 0 || d.cases > 0);
+      if(!rows.length) {
+        subTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3)">No submissions recorded yet.</td></tr>';
+      } else {
+        subTbody.innerHTML = rows
+          .sort((a,b) => b[1].cases - a[1].cases || b[1].submits - a[1].submits)
+          .map(([id,d]) => {
+            const avg = d.ahts.length ? +(d.ahts.reduce((s,v)=>s+v,0)/d.ahts.length).toFixed(1) : '–';
+            const lt  = d.lastTime ? new Date(d.lastTime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+            const ec  = d.eodDone ? 'var(--green)' : 'var(--red)';
+            const tc  = d.tabBreaches > 3 ? 'var(--red)' : d.tabBreaches > 0 ? 'var(--amber)' : 'var(--text3)';
+            return '<tr>' +
+              '<td style="font-weight:700;font-size:11px">' + cleanName(id) + '</td>' +
+              '<td style="text-align:center;color:var(--teal);font-weight:700">' + d.submits + '</td>' +
+              '<td style="font-size:10px;font-family:monospace">' + lt + '</td>' +
+              '<td style="color:var(--green);font-weight:700;text-align:right">' + (d.cases || '–') + '</td>' +
+              '<td style="font-family:monospace;text-align:right">' + avg + (avg !== '–' ? 's' : '') + '</td>' +
+              '<td style="text-align:center"><span style="color:' + ec + ';font-weight:800">' + (d.eodDone ? '✅' : '❌') + '</span></td>' +
+              '<td style="text-align:center;color:' + tc + ';font-weight:700">' + (d.tabBreaches || 0) + '</td>' +
+              '</tr>';
+          }).join('');
+      }
+    }
   }
 }
 
@@ -7925,6 +9249,13 @@ async function initWFHOperator() {
   opEl.innerHTML = '<option value="">-- Select your name --</option>' +
     OPERATOR_ROSTER.map(o=>`<option value="${o.id}">${operatorLabel(o.id)} [${o.type}]</option>`).join('');
   document.getElementById('wfh-op-date').value = today();
+
+  // If we already know who this is (e.g. handed off from the Operator Hub
+  // tile menu), pre-select them instead of asking again.
+  const knownOpId = localStorage.getItem('wfh_op_id');
+  if(knownOpId && opEl.querySelector('option[value="'+knownOpId+'"]')) {
+    opEl.value = knownOpId;
+  }
   onWFHOperatorSelect();
 }
 
@@ -7949,6 +9280,7 @@ async function onWFHOperatorSelect() {
   }
   renderMyLogs(opId);
   renderOpChecklist(opId);
+  loadWFHLeaveBalance(opId);
 }
 
 function showCheckinUI() {
@@ -8026,9 +9358,25 @@ function checkIdleWarning(opId) {
   if(timer)  timer.classList.toggle('idle-flash', idle>=60 && !_wfhOnBreak);
 }
 
-function wfhCheckIn() {
+async function wfhCheckIn() {
   const opId = document.getElementById('wfh-op-self').value;
   if(!opId) { toast('Select your name first','⚠️'); return; }
+
+  // Check approval live from Supabase
+  const today_ci = new Date().toISOString().split('T')[0];
+  try {
+    const ar = await fetch(
+      _SUPA_URL+'/rest/v1/wfh_approved?date=eq.'+today_ci+'&op_id=eq.'+encodeURIComponent(opId)+'&select=op_id',
+      {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}}
+    );
+    const rows = ar.ok ? await ar.json() : [];
+    if(!rows.length) {
+      toast('🔒 Not approved for WFH today. Contact your Team Lead.','❌');
+      document.getElementById('wfh-session-status-text') &&
+        (document.getElementById('wfh-session-status-text').textContent = '🔒 Not approved — contact Team Lead');
+      return;
+    }
+  } catch(e) { toast('❌ Cannot verify approval — check connection','❌'); return; }
 
   // One-login rule: if already checked out today, require TL permission
   const existingSess = getSession(today(), opId);
@@ -8291,9 +9639,22 @@ async function submitEOD() {
     sess.lockedOut = true;  // requires TL to unlock before next login
     saveSession(today(),opId,sess);
   }
-  logWFHEntry(opId,'checkout',{notes:`Checked out. Total hours: ${sess?.totalHours||'–'}`});
+  logWFHEntry(opId,'checkout',{notes:'Checked out. Total hours: '+(sess?.totalHours||'–')});
   clearInterval(_wfhTimerInterval); clearInterval(_wfhIdleInterval);
   stopHeartbeat();
+  // Lock out: remove from approved, clear session heartbeat, clear status
+  const today_co = new Date().toISOString().split('T')[0];
+  const coTime   = new Date().toISOString();
+  const coHdr    = {'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'};
+  Promise.all([
+    fetch(_SUPA_URL+'/rest/v1/wfh_approved?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_co,
+      {method:'DELETE', headers:coHdr}),
+    fetch(_SUPA_URL+'/rest/v1/wfh_sessions?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_co,
+      {method:'PATCH', headers:coHdr,
+       body:JSON.stringify({status:'offline',check_out:coTime,last_heartbeat:null,updated_at:coTime})}),
+    fetch(_SUPA_URL+'/rest/v1/wfh_status?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_co,
+      {method:'DELETE', headers:coHdr})
+  ]).catch(e=>console.warn('Checkout cleanup error:',e.message));
   // Take final checkout snapshot, then stop camera
   opTakeSnapshot('checkout').then(()=>{ setTimeout(opStopCam, 1500); });
   document.getElementById('wfh-eod-form-card').style.display='none';
@@ -8421,6 +9782,9 @@ let _opSnapCount      = 0;
 let _opAwayCount      = 0;
 
 // Supabase helpers for snapshots
+// NOTE: snapshot images are intentionally NOT saved — only presence/face-detection
+// metadata is stored. The b64 image argument is accepted (so call sites don't need
+// to change) but discarded before anything reaches the database.
 async function saveSnapshot(opId, snapB64, faceDetected, trigger='auto') {
   if(!_SUPA_URL_CAM) return;
   const date = today();
@@ -8433,7 +9797,7 @@ async function saveSnapshot(opId, snapB64, faceDetected, trigger='auto') {
         'Authorization':'Bearer '+_SUPA_KEY_CAM,
         'Prefer':'return=minimal'
       },
-      body: JSON.stringify({ op_id:opId, date, snapshot_b64:snapB64, face_detected:faceDetected, trigger })
+      body: JSON.stringify({ op_id:opId, date, snapshot_b64:null, face_detected:faceDetected, trigger })
     });
   } catch(e) { console.warn('Snapshot save failed:', e); }
 }
@@ -8450,7 +9814,7 @@ async function saveFaceEvent(opId, eventType, durationS=null, snapB64=null) {
         'Authorization':'Bearer '+_SUPA_KEY_CAM,
         'Prefer':'return=minimal'
       },
-      body: JSON.stringify({ op_id:opId, date, event_type:eventType, duration_s:durationS, snapshot_b64:snapB64 })
+      body: JSON.stringify({ op_id:opId, date, event_type:eventType, duration_s:durationS, snapshot_b64:null })
     });
   } catch(e) { console.warn('Face event save failed:', e); }
 }
@@ -8470,13 +9834,11 @@ async function fetchLatestSnapshots(date) {
 }
 
 async function fetchFaceEvents(date) {
-  if(!_SUPA_URL_CAM) return [];
   try {
-    const r = await fetch(
-      _SUPA_URL_CAM+'/rest/v1/wfh_face_events?date=eq.'+date+
-      '&order=event_at.desc&limit=100',
-      { headers:{ 'apikey':_SUPA_KEY_CAM, 'Authorization':'Bearer '+_SUPA_KEY_CAM } }
-    );
+    const url = (_SUPA_URL_CAM || _SUPA_URL) + '/rest/v1/wfh_face_events?date=eq.'+date+'&order=event_at.desc&limit=100';
+    const key = _SUPA_KEY_CAM || _SUPA_KEY;
+    const r = await fetch(url, { headers:{ 'apikey':key, 'Authorization':'Bearer '+key } });
+    if(!r.ok) return [];  // table may not exist — return empty safely
     return await r.json();
   } catch(e) { return []; }
 }
@@ -8736,131 +10098,26 @@ async function opCheckFace() {
 
 // ── TL: Render Cam Grid ─────────────────────────────────────────
 async function renderCamGrid() {
-  const grid = document.getElementById('wfh-cam-grid');
-  if(!grid) return;
-
-  const date = document.getElementById('wfh-filter-date')?.value || today();
-
-  // Show loading state
-  grid.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:30px 0">⏳ Loading snapshots...</div>';
-
-  try {
-    // Fetch latest snapshots
-    const url = _SUPA_URL + '/rest/v1/wfh_snapshots?date=eq.' + date + '&order=captured_at.desc&limit=200';
-    const resp = await fetch(url, {
-      headers: { 'apikey': _SUPA_KEY, 'Authorization': 'Bearer ' + _SUPA_KEY }
-    });
-    const snaps = await resp.json();
-    if(!Array.isArray(snaps) || !snaps.length) {
-      grid.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:30px 0">No snapshots yet today.</div>';
-      return;
-    }
-
-    // Build latest-per-operator map
-    const latest = {};
-    snaps.forEach(s => {
-      if(!latest[s.op_id] || s.captured_at > latest[s.op_id].captured_at)
-        latest[s.op_id] = s;
-    });
-
-    // Also fetch face events for away detection
-    let events = [];
-    try {
-      const er = await fetch(_SUPA_URL+'/rest/v1/wfh_face_events?date=eq.'+date+'&order=event_at.desc&limit=100', {
-        headers: { 'apikey': _SUPA_KEY, 'Authorization': 'Bearer ' + _SUPA_KEY }
-      });
-      events = await er.json();
-      if(!Array.isArray(events)) events = [];
-    } catch(e) { events = []; }
-
-    const currentlyAway = [];
-    events.filter(e=>e.event_type==='face_away').forEach(e=>{
-      const back = events.find(r=>r.op_id===e.op_id&&r.event_type==='face_back'&&r.event_at>e.event_at);
-      if(!back) currentlyAway.push(e.op_id);
-    });
-    const uniqueAway = [...new Set(currentlyAway)];
-
-    // Banner
-    const banner = document.getElementById('cam-alert-banner');
-    const alertT = document.getElementById('cam-alert-text');
-    if(uniqueAway.length && banner && alertT) {
-      banner.style.display='block';
-      alertT.textContent = uniqueAway.length+' operator(s) away from camera: '+uniqueAway.map(id=>operatorLabel(id)).join(', ');
-    } else if(banner) banner.style.display='none';
-
-    // Render tiles
-    const opIds = Object.keys(latest);
-    grid.innerHTML = opIds.map(opId => {
-      const snap = latest[opId];
-      const hasSnap = snap && snap.snapshot_b64;
-      const isAway = uniqueAway.includes(opId);
-      const t = snap ? new Date(snap.captured_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
-      const initials = operatorLabel(opId).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-      const snapCount = snaps.filter(s=>s.op_id===opId).length;
-      const awayCount = events.filter(e=>e.op_id===opId&&e.event_type==='face_away').length;
-      const tileClass = !hasSnap ? 'no-data' : isAway ? 'face-away' : 'face-ok';
-      const statusLbl = !hasSnap ? 'No Data' : isAway ? '⚠️ FACE AWAY' : '✅ Present';
-      const statusCls = !hasSnap ? 'nodata' : isAway ? 'away' : 'ok';
-
-      return `<div class="cam-tile ${tileClass}" onclick="tlViewOperatorCam('${opId}')">
-        ${hasSnap
-          ? `<img class="cam-img" src="data:image/jpeg;base64,${snap.snapshot_b64}" loading="lazy"/>`
-          : `<div class="cam-img-placeholder">
-               <div style="font-size:32px;font-weight:900;color:var(--text3);opacity:.4">${initials}</div>
-               <div style="font-size:10px;color:var(--text3)">No snapshot</div>
-             </div>`}
-        <div class="cam-overlay">
-          <div class="cam-overlay-name">${operatorLabel(opId)}</div>
-          <div class="cam-overlay-status ${statusCls}">${statusLbl}</div>
-        </div>
-        ${isAway ? '<div class="cam-face-banner">⚠️ AWAY FROM CAMERA</div>' : ''}
-        <div class="cam-footer">
-          <div class="cam-footer-time">📸 ${t} · ${snapCount} snaps</div>
-          ${awayCount>0?`<div class="cam-footer-away">⚠️ ${awayCount}×</div>`:''}
-        </div>
-      </div>`;
-    }).join('');
-
-    // Event log
-    const evLog = document.getElementById('cam-event-log');
-    if(evLog) {
-      evLog.innerHTML = events.length
-        ? events.slice(0,40).map(e=>{
-            const t2 = new Date(e.event_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-            const icon = e.event_type==='face_away'?'🔴':e.event_type==='face_back'?'🟢':'📷';
-            const col  = e.event_type==='face_away'?'var(--red)':'var(--green)';
-            return `<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
-              <div style="font-family:'DM Mono',monospace;color:var(--text3);font-size:10px">${t2}</div>
-              <div style="font-weight:700;font-size:11px">${operatorLabel(e.op_id)}</div>
-              <div style="font-size:11px;color:${col}">${icon} ${e.event_type.replace('_',' ')}</div>
-            </div>`;
-          }).join('')
-        : '<div style="color:var(--text3)">No face-away events today ✅</div>';
-    }
-
-  } catch(err) {
-    grid.innerHTML = '<div style="color:var(--red);padding:20px;grid-column:span 6">Error loading snapshots: '+err.message+'</div>';
-  }
-}
-
-// ── TL: View single operator cam history ────────────────────────
-async function renderCamGrid() {
   const date      = document.getElementById('wfh-filter-date')?.value || today();
   const grid      = document.getElementById('wfh-cam-grid');
   if(!grid) return;
 
   const snapshots = await fetchLatestSnapshots(date);
-  const events    = await fetchFaceEvents(date);
+  const _evRaw    = await fetchFaceEvents(date);
+  const events    = Array.isArray(_evRaw) ? _evRaw : [];
 
-  // Build operator list from snapshots + sessions + approved
-  let approved = getApproved();
-  const snapOpIds = [...new Set(snapshots.map(s=>s.op_id))];
-  const sessOpIds = Object.keys(getSessions()[date] || {});
-  const allOpIds  = [...new Set([...approved, ...snapOpIds, ...sessOpIds])];
-  const knownIds  = new Set(OPERATOR_ROSTER.map(o=>o.id));
-  approved        = allOpIds.filter(id => knownIds.has(id));
+  // ONLY show approved operators — deduplicate by display name
+  // Get approved list — already normalized and deduped by getApproved()
+  const approved = getApproved();
 
-  const sessions  = getSessions()[date] || {};
+  // Normalize session keys to remove duplicates
+  const _rawSess = getSessions()[date] || {};
+  const sessions = {};
+  Object.keys(_rawSess).forEach(id => {
+    const norm = id.replace('rading.yvonne.impact.nbo','rading.yvonne2.impact.nbo')
+                   .replace('christopher.wanyama.impact.nbo','christopher.wanyama2.impact.nbo');
+    if(!sessions[norm]) sessions[norm] = _rawSess[id];
+  });
   const evLog     = document.getElementById('cam-event-log');
   const banner    = document.getElementById('cam-alert-banner');
   const alertT    = document.getElementById('cam-alert-text');
@@ -8981,18 +10238,20 @@ async function tlViewOperatorCam(opId) {
     ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;max-height:340px;overflow-y:auto">
         ${snapshots.map(s=>{
           const t = new Date(s.captured_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-          const borderC = s.face_detected!==false ? 'rgba(0,212,160,0.4)' : 'rgba(255,94,110,0.6)';
-          return `<div style="position:relative;border-radius:8px;overflow:hidden;border:2px solid ${borderC}">
-            <img src="data:image/jpeg;base64,${s.snapshot_b64}" style="width:100%;display:block" loading="lazy"/>
-            <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.65);padding:3px 6px;font-size:9px;color:#fff;font-family:'DM Mono',monospace;display:flex;justify-content:space-between">
-              <span>${t}</span><span>${s.face_detected!==false?'✅':'⚠️'}</span>
+          const present = s.face_detected!==false;
+          const borderC = present ? 'rgba(0,212,160,0.4)' : 'rgba(255,94,110,0.6)';
+          return `<div style="position:relative;border-radius:8px;overflow:hidden;border:2px solid ${borderC};background:var(--surface2);min-height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px">
+            <div style="font-size:24px">${present?'✅':'⚠️'}</div>
+            <div style="font-size:10px;font-weight:700;color:${present?'var(--green)':'var(--red)'};margin-top:4px">${present?'Present':'Away'}</div>
+            <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.45);padding:3px 6px;font-size:9px;color:#fff;font-family:'DM Mono',monospace;text-align:center">
+              <span>${t}</span>
             </div>
           </div>`;
         }).join('')}
       </div>`
     : '<div style="color:var(--text3);font-size:12px;text-align:center;padding:24px">No snapshots today.</div>';
 
-  openModal(`📷 ${name} — Webcam History`, `
+  openModal(`📷 ${name} — Presence History`, `
     <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
       <div style="background:var(--surface2);border-radius:8px;padding:10px 16px;flex:1">
         <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Snapshots</div>
@@ -11079,8 +12338,15 @@ async function saveDRSection(section) {
   const all = load('dr_entries');
   const idx = all.findIndex(e=>(e.section||e.person)===section && e.date===date);
   if(idx>=0) all[idx]=entry; else all.push(entry);
-  save('dr_entries', all);
-  toast(LABELS[section]+' report saved for '+fmtDate(date),'💾');
+
+  const ok = await saveAndVerify('dr_entries', all);
+  if(ok) {
+    toast(LABELS[section]+' report saved for '+fmtDate(date),'💾');
+    pushNotif(entry);
+  } else {
+    toast('⚠️ Save failed — check your connection and try again','🚫');
+    return; // don't clear the form if the save didn't actually land
+  }
 
   // Clear fields
   document.querySelectorAll(`[id^="${pfx}"]`).forEach(el=>{
@@ -11240,7 +12506,7 @@ function crTab(tab) {
   document.getElementById('cr-tab-list').style.display = tab==='list' ? 'block' : 'none';
 }
 
-function saveCallReport() {
+async function saveCallReport() {
   const entry = {
     id:        Date.now(),
     date:      document.getElementById('cr-date').value||today(),
@@ -11254,9 +12520,18 @@ function saveCallReport() {
     feedback:  document.getElementById('cr-feedback').value,
     nextDate:  document.getElementById('cr-next').value,
     prepared:  document.getElementById('cr-prepared').value,
+    person:    currentRole,
+    name:      (currentRole==='kings'?'Kingori — Team Kings QA':currentRole==='swat'?'Rosemary Nyaleso — Team SWAT QA':currentRole==='tl'?'John Paul Kimongo (TL)':'Admin') + ' — Call Report',
   };
-  const all = load('call_reports'); all.push(entry); save('call_reports',all);
+  const all = load('call_reports'); all.push(entry);
+
+  const ok = await saveAndVerify('call_reports', all);
+  if(!ok) {
+    toast('⚠️ Save failed — check your connection and try again','🚫');
+    return; // keep the form filled in so nothing is lost
+  }
   toast('Call report saved ✓','📞');
+  pushNotif({ ...entry, type: 'call_report' });
   // Clear form
   ['cr-initiated','cr-attendees','cr-client','cr-discussion','cr-actions','cr-feedback','cr-prepared','cr-next'].forEach(id=>{
     const el=document.getElementById(id); if(el&&id!=='cr-prepared')el.value='';
@@ -11461,8 +12736,14 @@ async function saveDailyPlan() {
   const all = load('daily_plans');
   const idx = all.findIndex(e=>e.person===person&&e.date===date&&!e.isAchieved);
   if(idx>=0) all[idx]=entry; else all.push(entry);
-  save('daily_plans', all);
+
+  const ok = await saveAndVerify('daily_plans', all);
+  if(!ok) {
+    toast('⚠️ Save failed — check your connection and try again','🚫');
+    return; // keep the form filled in so nothing is lost
+  }
   toast(NAMES[person]+' plan saved for '+fmtDate(date),'📅');
+  pushNotif({ ...entry, type: 'plan' });
   document.getElementById('dp-person').value = '';
   document.getElementById('dp-date').value = '';
   document.getElementById('dp-internal-audits').value = '';
@@ -11997,6 +13278,111 @@ function renderTeamPerf(team) {
 
 
 
+// ── Daily / Weekly / Monthly view switcher for team performance pages ──
+let _perfView = { kings: 'daily', swat: 'daily' };
+
+function setPerfView(team, view) {
+  _perfView[team] = view;
+  const prefix = team === 'kings' ? 'kperf' : 'sperf';
+  ['daily','weekly','monthly'].forEach(v => {
+    const btn = document.getElementById(`${prefix}-tab-${v}`);
+    if(btn) btn.classList.toggle('active', v === view);
+  });
+  const dateWrap = document.getElementById(`${prefix}-date-wrap`);
+  if(dateWrap) dateWrap.style.display = view === 'daily' ? 'block' : 'none';
+
+  if(view === 'daily') renderTeamPerf(team);
+  else renderTeamPerfAggregate(team, view);
+}
+
+// Group op_perf entries into ISO week (Mon–Sun) or calendar month buckets
+function perfBucketKey(dateStr, view) {
+  const d = new Date(dateStr + 'T00:00:00');
+  if(view === 'monthly') return dateStr.slice(0, 7); // YYYY-MM
+  // weekly: find Monday of that week
+  const day = d.getDay(); // 0=Sun..6=Sat
+  const diffToMon = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMon);
+  return monday.toISOString().split('T')[0]; // week key = Monday's date
+}
+
+function renderTeamPerfAggregate(team, view) {
+  const pool = team === 'kings' ? KINGS_OPS : SWAT_OPS;
+  const allPerf = load('op_perf').filter(e => e.team === team);
+  const elId = `team-perf-${team}-grid`;
+  const el = document.getElementById(elId);
+  if(!el) return;
+
+  if(!allPerf.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px">No performance data yet. Click "+ Feed Data" to add.</div>';
+    return;
+  }
+
+  // Bucket all entries by week or month
+  const buckets = {};
+  allPerf.forEach(e => {
+    const key = perfBucketKey(e.date, view);
+    if(!buckets[key]) buckets[key] = [];
+    buckets[key].push(e);
+  });
+  const sortedKeys = Object.keys(buckets).sort().reverse().slice(0, view === 'monthly' ? 6 : 8);
+
+  const fields = ['cases','aht','quality','abandoned','refreshed','reported'];
+  const avg = (entries, field) => entries.length ? (entries.reduce((s,e)=>s+(+e[field]||0),0)/entries.length) : 0;
+  const sum = (entries, field) => entries.reduce((s,e)=>s+(+e[field]||0),0);
+
+  const bucketLabel = key => {
+    if(view === 'monthly') {
+      const [y,m] = key.split('-');
+      return new Date(+y, +m-1, 1).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+    }
+    const start = new Date(key + 'T00:00:00');
+    const end = new Date(start); end.setDate(start.getDate()+6);
+    return start.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' – ' + end.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+  };
+
+  const rowsHtml = sortedKeys.map(key => {
+    const entries = buckets[key];
+    const opIds = [...new Set(entries.map(e=>e.opId))];
+    const c = {
+      cases: sum(entries,'cases'),
+      aht: avg(entries,'aht').toFixed(1),
+      quality: avg(entries,'quality').toFixed(1),
+      abandoned: avg(entries,'abandoned').toFixed(1),
+      refreshed: avg(entries,'refreshed').toFixed(1),
+      reported: avg(entries,'reported').toFixed(1),
+    };
+    return `<tr style="border-bottom:1px solid var(--border2)">
+      <td style="padding:10px 12px;font-weight:700;font-size:12px">${bucketLabel(key)}</td>
+      <td style="padding:10px 8px;text-align:center;font-size:11px;color:var(--text3)">${opIds.length} ops · ${entries.length} entries</td>
+      <td style="padding:10px 8px;text-align:right;font-weight:700;color:var(--green)">${c.cases.toLocaleString()}</td>
+      <td style="padding:10px 8px;text-align:right;font-family:'DM Mono',monospace">${c.aht}s</td>
+      <td style="padding:10px 8px;text-align:right;color:var(--teal)">${c.quality}%</td>
+      <td style="padding:10px 8px;text-align:right;color:var(--amber)">${c.abandoned}%</td>
+      <td style="padding:10px 8px;text-align:right;color:var(--violet)">${c.refreshed}%</td>
+      <td style="padding:10px 8px;text-align:right;color:var(--orange)">${c.reported}%</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--surface2)">
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase">${view === 'monthly' ? 'Month' : 'Week'}</th>
+          <th style="padding:8px;font-size:10px;color:var(--text3);text-transform:uppercase">Coverage</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Total Cases</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Avg AHT</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Avg Quality</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Avg Abandoned</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Avg Refreshed</th>
+          <th style="padding:8px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase">Avg Reported</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+}
+
 function testFirebase() {
   // Write a test value to Firebase and read it back
   const testKey = 'aifi_test_' + Date.now();
@@ -12052,32 +13438,16 @@ function saveNotifs(n) {
 }
 
 function pushNotif(data) {
-  // Routing rules:
-  // Kingori/Rosemary submit   → TL + Admin notified
-  // John Paul submits         → Admin notified
-  // Gidraph submits           → TL notified
-  // Approved/Rejected         → submitter notified (feedback)
-  // Submitter always sees their own in their dashboard
+  // The submitter ALWAYS records the notification — who SEES it is decided later,
+  // at render time, based on the viewer's own role. Gating creation on the
+  // submitter's currentRole was the bug: Kingori/Rosemary's own browser would
+  // check "am I TL or Admin?", say no, and silently skip writing anything —
+  // so TL/Admin never got notified unless their own browser happened to be
+  // the one running this code (which it never is for someone else's submission).
 
-  // Approval/rejection feedback — always deliver to the submitter
-  if(data.notifType === 'feedback') {
-    // Only notify the submitter of this entry
-    const submitterRole = data.person; // 'kings','swat','tl','admin'
-    if(currentRole !== submitterRole && currentRole !== 'tl' && currentRole !== 'admin') return;
-  } else {
-    // New submission routing
-    const isOwn = (currentRole === data.person) || currentRole === 'tl' || currentRole === 'admin';
-    const isTL    = currentRole === 'tl' || currentRole === 'admin';
-    const isAdmin = currentRole === 'admin';
-    // TL sees: kings, swat, admin submissions (not own)
-    // Admin sees: kings, swat, tl submissions (not own)
-    // QAs only see their own (handled via dashboard, not push notif)
-    if(!isTL && !isAdmin) return;
-    if(isOwn) return; // skip own for TL/Admin (they submitted it)
-  }
   const notifs = getNotifs();
   // Avoid duplicates by entry id
-  if(notifs.find(n => n.entryId === data.id)) return;
+  if(notifs.find(n => n.entryId === data.id && n.notifType !== 'feedback')) return;
   const entry = {
     id:      Date.now() + Math.random(),
     entryId: data.id,
@@ -12102,11 +13472,28 @@ function pushNotif(data) {
   toast(`${data.name} submitted a ${data.type === 'plan' ? 'Daily Plan' : 'Daily Report'} for ${fmtDate(data.date)}`, icon);
 }
 
+// Who should see a given notification, based on the CURRENT viewer's role —
+// this is where routing actually happens now (not at creation time).
+function notifVisibleToMe(n) {
+  if(n.notifType === 'feedback') {
+    // Approval/rejection feedback — only the original submitter (or TL/Admin) should see it
+    return currentRole === n.person || currentRole === 'tl' || currentRole === 'admin';
+  }
+  // New submission routing:
+  // Kingori (kings) / Rosemary (swat) submit → TL + Admin see it
+  // TL submits                                → Admin sees it
+  // Admin submits                              → TL sees it (kept symmetric)
+  if(currentRole === n.person) return true; // always see your own
+  if(currentRole === 'admin') return true;  // Admin sees absolutely everything
+  if(currentRole === 'tl' && n.person !== 'tl') return true; // TL sees kings/swat/admin
+  return false; // Kings/SWAT QAs only see their own — not each other's
+}
+
 function renderNotifs() {
   // Dashboard panel
   const el = document.getElementById('notif-panel');
   if(!el) return;
-  const notifs = getNotifs();
+  const notifs = getNotifs().filter(notifVisibleToMe);
   const unread = notifs.filter(n => !n.read).length;
   const badge  = document.getElementById('notif-unread-count');
   if(badge) { badge.style.display = unread > 0 ? 'inline' : 'none'; badge.textContent = unread > 9 ? '9+' : unread; }
@@ -12121,40 +13508,42 @@ function renderNotifs() {
 function renderNotifDropdown() {
   const el = document.getElementById('notif-dropdown-list');
   if(!el) return;
-  const notifs = getNotifs();
+  const notifs = getNotifs().filter(notifVisibleToMe);
   if(!notifs.length) { el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">No notifications yet</div>'; return; }
   el.innerHTML = notifs.slice(0, 20).map(n => buildNotifCard(n, true)).join('');
 }
 
 function buildNotifCard(n, compact) {
   const TEAM_COLOR = { kings:'var(--accent)', swat:'var(--violet)', tl:'var(--green)' };
-  const TYPE_ICON  = { plan:'📅', report:'📝' };
+  const TYPE_ICON  = { plan:'📅', report:'📝', call_report:'📞' };
+  const TYPE_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report' };
   const sc = n.status==='Approved'?'var(--green)':n.status==='Rejected'?'var(--red)':'var(--amber)';
   const name = n.name || (n.person==='kings'?'Kingori':n.person==='swat'?'Rosemary Nyaleso':'Team Lead');
+  const isApprovable = n.type==='plan' || n.type==='report'; // call reports have no approval workflow
   return `
   <div class="notif-item ${n.read?'':'unread'}" onclick="openFromNotif('${n.type}','${n.person}','${n.date}',${n.entryId})">
     <div class="notif-icon">${TYPE_ICON[n.type]||'🔔'}</div>
     <div style="flex:1;min-width:0">
       <div class="notif-title">
         ${n.isFeedback
-          ? `<span style="color:${sc}">Your ${n.type==='plan'?'Daily Plan':'Daily Report'} was ${n.status}</span>`
+          ? `<span style="color:${sc}">Your ${TYPE_LABEL[n.type]||'submission'} was ${n.status}</span>`
           : n.notifType==='own'
-            ? `<span style="color:var(--teal)">✅ ${n.type==='plan'?'Plan':'Report'} submitted</span>`
+            ? `<span style="color:var(--teal)">✅ ${TYPE_LABEL[n.type]||'Submission'} submitted</span>`
             : `<span style="color:${TEAM_COLOR[n.person]||'var(--text)'}">${name}</span>
-               <span style="font-weight:400;color:var(--text3)"> — ${n.type==='plan'?'Daily Plan':'Daily Report'}</span>`
+               <span style="font-weight:400;color:var(--text3)"> — ${TYPE_LABEL[n.type]||'Submission'}</span>`
         }
       </div>
       <div class="notif-body">
-        ${n.isFeedback?`<span style="font-weight:700">Your ${n.type==='plan'?'plan':'report'} was </span>`:''}
+        ${n.isFeedback?`<span style="font-weight:700">Your ${(TYPE_LABEL[n.type]||'submission').toLowerCase()} was </span>`:''}
         📆 ${fmtDate(n.date)}
         ${n.cases?` · 🎯 ${Number(n.cases).toLocaleString()} cases`:''}
         ${n.quality?` · ✅ ${n.quality}% quality`:''}
-        · <span style="color:${sc};font-weight:${n.isFeedback?700:400}">${n.status}</span>
+        ${isApprovable ? ` · <span style="color:${sc};font-weight:${n.isFeedback?700:400}">${n.status}</span>` : (n.status ? ` · <span style="color:var(--text3)">${n.status}</span>` : '')}
         ${n.score!=null?`· <span style="font-weight:800;color:${scoreColor(n.score)}">${scoreEmoji(n.score)} Score: ${n.score}%</span>`:''}
       </div>
       <div class="notif-time">${n.time}</div>
       ${!compact ? `<div class="notif-actions">
-        ${n.status==='Pending'?`<button class="btn btn-green btn-sm" onclick="event.stopPropagation();approveFromNotif('${n.type}',${n.entryId},${n.id})">✓ Approve</button>
+        ${isApprovable && n.status==='Pending'?`<button class="btn btn-green btn-sm" onclick="event.stopPropagation();approveFromNotif('${n.type}',${n.entryId},${n.id})">✓ Approve</button>
         <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();rejectFromNotif('${n.type}',${n.entryId},${n.id})">✗ Reject</button>`:''}
         <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();dismissNotif(${n.id})">✕</button>
       </div>` : ''}
@@ -12163,7 +13552,7 @@ function buildNotifCard(n, compact) {
 }
 
 function updateBellCount() {
-  const count = getNotifs().filter(n=>!n.read).length;
+  const count = getNotifs().filter(notifVisibleToMe).filter(n=>!n.read).length;
   const el    = document.getElementById('notif-bell-count');
   if(el) { el.style.display = count > 0 ? 'flex' : 'none'; el.textContent = count > 9 ? '9+' : count; }
 }
@@ -12175,7 +13564,16 @@ function openFromNotif(type, person, date, entryId) {
   const notifs = getNotifs().map(n => n.entryId===entryId ? {...n,read:true} : n);
   saveNotifs(notifs); renderNotifs(); updateNavBadges(); updateBellCount();
   // Navigate and auto-filter
-  nav(type==='plan' ? 'daily-plan' : 'daily-report');
+  const PAGE_MAP = { plan:'daily-plan', report:'daily-report', call_report:'call-reports' };
+  nav(PAGE_MAP[type] || 'daily-report');
+  if(type === 'call_report') {
+    setTimeout(() => {
+      const dEl = document.getElementById('cr-filter-date');
+      if(dEl) dEl.value = date;
+      renderCallReports();
+    }, 300);
+    return;
+  }
   setTimeout(() => {
     const pEl = document.getElementById(type==='plan'?'dp-filter-person':'dr-view-person');
     const dEl = document.getElementById(type==='plan'?'dp-filter-date':'dr-view-date');
@@ -12249,7 +13647,7 @@ function clearAllNotifs() {
   renderNotifs(); renderNotifDropdown(); updateNavBadges(); updateBellCount();
 }
 function updateNavBadges() {
-  const notifs  = getNotifs();
+  const notifs  = getNotifs().filter(notifVisibleToMe);
   const plans   = notifs.filter(n=>n.type==='plan'   && !n.read).length;
   const reports = notifs.filter(n=>n.type==='report'  && !n.read).length;
   const pb = document.getElementById('badge-daily-plan');
@@ -12464,7 +13862,6 @@ function matchOperator(name) {
     'vivian.adhiambo':   'adhiambo.vivian',
     'adhiambo.vivian':   'adhiambo.vivian',
     'synthiakane.otieno':'synthiakane.otieno',
-    'ken.okoth':         'ken.okoth',
   };
   if(ALIAS[clean]) return ALIAS[clean];
   // Direct match
