@@ -8442,6 +8442,33 @@ async function refreshWFHCache(date) {
   _sessionsCache[d] = sessions;
   _logsCache        = logs;
   _approvedCache    = approved;
+
+  // ── Heartbeat fallback ──────────────────────────────────────────
+  // last_heartbeat is only written by the Chrome extension, and inconsistently —
+  // some operators never get one at all, so dbGetSessions' own heartbeat check
+  // can never mark them offline/idle even after they've gone quiet for hours.
+  // Fall back to "most recent log timestamp" as a proxy heartbeat whenever the
+  // real field is missing or older than the latest known activity.
+  const lastLogTimeByOp = {};
+  logs.forEach(l => {
+    const id = l.opId;
+    if(!id || !l.isoTime) return;
+    if(!lastLogTimeByOp[id] || l.isoTime > lastLogTimeByOp[id]) lastLogTimeByOp[id] = l.isoTime;
+  });
+  const nowTs = Date.now();
+  Object.keys(sessions).forEach(opId => {
+    const sess = sessions[opId];
+    if(sess.checkOut) return; // already correctly offline, nothing to recompute
+    const lastLog = lastLogTimeByOp[opId] || null;
+    const hbTime  = sess.lastHeartbeat || null;
+    // Use whichever signal is more recent — real heartbeat or last actual submission
+    const effectiveLast = [hbTime, lastLog].filter(Boolean).sort().pop() || sess.checkIn || null;
+    sess.effectiveLastSeen = effectiveLast;
+    const ageMins = effectiveLast ? (nowTs - new Date(effectiveLast).getTime()) / 60000 : Infinity;
+    if(ageMins > 40) sess.status = 'offline';
+    else if(ageMins > 20 && sess.status !== 'break' && sess.status !== 'meeting') sess.status = 'idle';
+  });
+
   // Index face events per operator
   _faceEventsCache  = {};
   if(Array.isArray(faceEvts)) {
@@ -8821,7 +8848,7 @@ function renderShiftActivity(sessions, approved, date) {
 
   const working = [...new Set(approved.map(canon))].filter(opId => {
     const sess = sessions[opId];
-    return sess?.checkIn && !sess?.checkOut;
+    return sess?.checkIn && !sess?.checkOut && sess?.status !== 'offline';
   });
 
   if(!working.length) {
@@ -8844,7 +8871,9 @@ function renderShiftActivity(sessions, approved, date) {
     const sessionCount = sessionLogs.length;
     const totalCases = sessionLogs.reduce((s,l) => s + (+l.cases || 0), 0) || sess?.totalCases || 0;
     const lastLog   = opLogs[opLogs.length - 1];
-    const lastTime  = lastLog?.timeStr || (sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–');
+    const lastTime  = sess?.effectiveLastSeen
+      ? new Date(sess.effectiveLastSeen).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
+      : (lastLog?.timeStr || (sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–'));
     const hbAge     = minsAgo(sess?.lastHeartbeat);
     const team      = getOpTeam(opId);
     const checkInT  = sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
