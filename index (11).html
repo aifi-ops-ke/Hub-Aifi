@@ -4269,6 +4269,28 @@ const OPERATOR_ROSTER = [
 const OPERATORS = OPERATOR_ROSTER.map(o => o.id);
 function getOpType(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{type:'FT'}).type; }
 function getOpTeam(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{team:''}).team; }
+
+// ── Normalize operator IDs coming from different sources (hub vs Chrome
+// extension) so they always resolve to the same canonical roster ID.
+// The extension sometimes writes IDs like "alfred.korir.impact.nbo" while
+// the hub itself always uses clean IDs like "alfred.korir" — without this,
+// sessions/logs from the extension silently fail to match anywhere in the
+// hub's display logic (WFH Monitor, Who's Working Now, etc).
+function normalizeOpId(rawId) {
+  if(!rawId) return rawId;
+  let id = String(rawId).trim().toLowerCase();
+  // Strip common email/domain-style suffixes the extension may attach
+  id = id.replace(/\.impact\.nbo$/, '')
+         .replace(/\.impactoutsourcing\.com$/, '')
+         .replace(/@.*$/, ''); // strip anything after an @ entirely, just in case
+  // Known legacy/alias IDs (kept in sync with opToLeaveKey's alias table)
+  if(id === 'rading.yvonne') return 'rading.yvonne2';
+  if(id === 'christopher.wanyama') return 'christopher.wanyama2';
+  if(id === 'synthia.kaneotieno') return 'synthiakane.otieno';
+  // If the normalized id matches a known roster id, use it; otherwise
+  // return the cleaned-up id as-is (better than the raw, suffixed version)
+  return OPERATORS.includes(id) ? id : id;
+}
 const KINGS_OPS = OPERATOR_ROSTER.filter(o=>o.team==='kings').map(o=>o.id);
 const SWAT_OPS  = OPERATOR_ROSTER.filter(o=>o.team==='swat').map(o=>o.id);
 function visibleOps() {
@@ -7033,7 +7055,7 @@ async function dbGetApproved(date) {
     const r = await fetch(_SUPA_URL+'/rest/v1/wfh_approved?date=eq.'+d+'&select=op_id',
       {headers:{...WFH_HDR,'Prefer':''}});
     const rows = await r.json();
-    return Array.isArray(rows) ? rows.map(r=>r.op_id) : [];
+    return Array.isArray(rows) ? rows.map(r=>normalizeOpId(r.op_id)) : [];
   } catch(e) { return loadObj(WFH_APPROVED_KEY)[today()]||[]; }
 }
 async function dbSetApproved(opIds, date) {
@@ -7058,7 +7080,8 @@ async function dbGetSessions(date) {
     if(!Array.isArray(rows)) return {};
     const out = {};
     rows.forEach(row => {
-      out[row.op_id] = {
+      const opId = normalizeOpId(row.op_id);
+      out[opId] = {
         status:       row.status,
         checkIn:      row.check_in,
         checkOut:     row.check_out,
@@ -7138,11 +7161,13 @@ async function dbGetLogs(date) {
       {headers:{...WFH_HDR,'Prefer':''}});
     const rows = await r.json();
     if(!Array.isArray(rows)) return [];
-    return rows.map(row=>({
+    return rows.map(row=>{
+      const opId = normalizeOpId(row.op_id);
+      return {
       id:       row.id,
       date:     row.date,
-      opId:     row.op_id,
-      name:     operatorLabel(row.op_id),
+      opId:     opId,
+      name:     operatorLabel(opId),
       timeStr:  new Date(row.logged_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
       isoTime:  row.logged_at,
       type:     row.log_type,
@@ -7160,7 +7185,8 @@ async function dbGetLogs(date) {
       flags:    row.flags,
       location: row.location,
       device:   row.device,
-    }));
+      };
+    });
   } catch(e) { return load(WFH_LOGS_KEY)||[]; }
 }
 async function dbInsertLog(opId, type, data={}) {
@@ -7215,7 +7241,7 @@ async function dbGetEODs(date) {
     const rows = await r.json();
     if(!Array.isArray(rows)) return {};
     const out = {};
-    rows.forEach(row => { out[row.op_id] = row; });
+    rows.forEach(row => { out[normalizeOpId(row.op_id)] = row; });
     return out;
   } catch(e) { return loadObj(WFH_EOD_KEY)[date||today()]||{}; }
 }
@@ -9452,7 +9478,7 @@ async function dbGetAllStatuses(date) {
     );
     const rows = await r.json();
     const out = {};
-    if(Array.isArray(rows)) rows.forEach(r => { out[r.op_id] = r; });
+    if(Array.isArray(rows)) rows.forEach(r => { out[normalizeOpId(r.op_id)] = r; });
     return out;
   } catch(e) { return {}; }
 }
