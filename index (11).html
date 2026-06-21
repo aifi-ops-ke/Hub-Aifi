@@ -4466,7 +4466,8 @@ function nav(page) {
   if(page==='dashboard') { renderNotifs(); updateNavBadges(); renderDashProdKPIs(); renderDashPerfChart(); }
   if(page==='call-reports') { renderCallReports(); }
   if(page==='team-dash') { initTeamDash(); }
-  if(page==='daily-plan') { renderDailyPlan(); }
+  if(page==='daily-report') { applyDRRoleVisibility(); refreshDRView(); }
+  if(page==='daily-plan') { refreshDPView(); }
   if(page==='team-perf-kings') { renderTeamPerf('kings'); }
   if(page==='team-perf-swat')  { renderTeamPerf('swat'); }
   if(page==='payroll-full') { initPayrollPage(); }
