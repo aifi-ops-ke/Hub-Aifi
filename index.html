@@ -416,6 +416,8 @@
   .btn-primary { background: var(--accent); color: white; }
   .btn-primary:hover { opacity: 0.88; }
   .btn-secondary { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); }
+  .btn-red { background: linear-gradient(135deg, var(--red), #d4404f); color: #fff; border: none; font-weight: 800; }
+  .btn-red:hover { filter: brightness(1.1); }
   .tab-btn { background: var(--surface2); color: var(--text3); border: 1px solid var(--border2); padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
   .tab-btn:hover { color: var(--text2); }
   .tab-btn.active { background: rgba(0,212,160,0.12); color: var(--accent); border-color: rgba(0,212,160,0.4); }
@@ -1546,6 +1548,13 @@ function _dbRefreshPage(key) {
     </div>
   </div>
   <div class="nav-section">
+    <div class="nav-label">Critical</div>
+    <div class="nav-item" onclick="nav('critical-reports')" style="background:rgba(255,94,110,0.08);border:1px solid rgba(255,94,110,0.25)">
+      <span class="nav-icon">🚨</span><span style="font-weight:800">Critical Reports</span>
+      <span id="critical-nav-badge" style="display:none;margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px"></span>
+    </div>
+  </div>
+  <div class="nav-section">
     <div class="nav-label">Remote Work</div>
     <div class="nav-item" onclick="nav('wfh')">
       <span class="nav-icon">🏠</span><span>WFH Monitor</span>
@@ -1806,6 +1815,67 @@ function _dbRefreshPage(key) {
         </div>
         <button class="btn btn-primary" onclick="saveDashEntry()">💾 Save</button>
         <div id="dash-hist-display" style="margin-top:16px"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE: CRITICAL REPORTS
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-critical-reports">
+      <div class="page-header">
+        <h1>🚨 Critical Reports</h1>
+        <p>Log urgent issues that need immediate attention — outages, safety concerns, client escalations, security incidents</p>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;border-color:rgba(255,94,110,0.3);background:linear-gradient(160deg, rgba(255,94,110,0.06), var(--surface2))">
+        <div class="card-header" style="margin-bottom:14px">
+          <div>
+            <div class="card-title">📝 Report a Critical Issue</div>
+            <div class="card-sub">Only use this for things that need immediate attention — not routine issues</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+          <div>
+            <label style="font-size:11px;color:var(--text2);font-weight:700;display:block;margin-bottom:6px">SEVERITY</label>
+            <select id="crit-severity" style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:11px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none">
+              <option value="critical">🔴 Critical — system down / urgent risk</option>
+              <option value="high">🟠 High — major disruption</option>
+              <option value="medium">🟡 Medium — needs attention today</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text2);font-weight:700;display:block;margin-bottom:6px">CATEGORY</label>
+            <select id="crit-category" style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:11px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none">
+              <option value="system">System / Tooling Outage</option>
+              <option value="client">Client Escalation</option>
+              <option value="security">Security Incident</option>
+              <option value="safety">Safety Concern</option>
+              <option value="staffing">Staffing Emergency</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        <label style="font-size:11px;color:var(--text2);font-weight:700;display:block;margin-bottom:6px">WHAT HAPPENED — be specific</label>
+        <textarea id="crit-description" rows="4" placeholder="Describe the issue, who's affected, and what's been done so far..."
+          style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:12px 14px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;margin-bottom:14px;resize:vertical"></textarea>
+        <button class="btn btn-red" onclick="submitCriticalReport()" style="font-weight:800">🚨 Submit Critical Report</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="margin-bottom:14px">
+          <div>
+            <div class="card-title">📋 All Reports</div>
+            <div class="card-sub">Most recent first · click to mark resolved</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="crit-filter" onchange="renderCriticalReports()" style="font-size:11px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;outline:none">
+              <option value="open">Open only</option>
+              <option value="all">All reports</option>
+              <option value="resolved">Resolved only</option>
+            </select>
+          </div>
+        </div>
+        <div id="critical-reports-list"></div>
       </div>
     </div>
 
@@ -5542,6 +5612,7 @@ function nav(page) {
   if(page==='errors') renderErrors();
   if(page==='leave') { renderLeave(); renderLeaveBalanceGrid(); }
   if(page==='dashboard') { renderNotifs(); updateNavBadges(); renderDashProdKPIs(); renderDashPerfChart(); }
+  if(page==='critical-reports') { renderCriticalReports(); }
   if(page==='call-reports') { renderCallReports(); }
   if(page==='team-dash') { initTeamDash(); }
   if(page==='daily-report') { applyDRRoleVisibility(); refreshDRView(); }
@@ -5934,32 +6005,173 @@ function renderDashProdKPIs() {
   const operators   = new Set(prod.map(p => p.operator)).size;
   const occColor    = +avgOcc >= 80 ? 'var(--green)' : +avgOcc >= 70 ? 'var(--amber)' : 'var(--red)';
 
-  el.innerHTML = `
-    <div style="background:var(--surface2);border:1px solid rgba(0,212,160,0.25);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:22px;font-weight:900;color:var(--green);font-family:'DM Mono',monospace">${totalCases.toLocaleString()}</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px">Total Cases</div>
-    </div>
-    <div style="background:var(--surface2);border:1px solid rgba(0,180,216,0.25);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:22px;font-weight:900;color:${occColor};font-family:'DM Mono',monospace">${avgOcc}%</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px">Avg Occupancy</div>
-    </div>
-    <div style="background:var(--surface2);border:1px solid rgba(255,170,68,0.25);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:22px;font-weight:900;color:var(--amber);font-family:'DM Mono',monospace">${totalGlobal.toLocaleString()}</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px">Total Global Sessions</div>
-    </div>
-    <div style="background:var(--surface2);border:1px solid rgba(180,138,247,0.25);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:22px;font-weight:900;color:var(--violet);font-family:'DM Mono',monospace">${avgAHT}s</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px">Avg AHT</div>
-    </div>
-    <div style="background:var(--surface2);border:1px solid rgba(0,200,150,0.25);border-radius:10px;padding:14px;text-align:center">
-      <div style="font-size:22px;font-weight:900;color:var(--teal);font-family:'DM Mono',monospace">${operators}</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px">Operators</div>
+  // ── Trend vs previous available date (real data only, no fabrication) ──
+  const prevDate = allDates[allDates.length - 2] || null;
+  const prevProd = prevDate ? allProd.filter(p => p.date === prevDate) : [];
+  const prevCases  = prevProd.reduce((s,p) => s + (+p.cases||0), 0);
+  const prevOcc    = prevProd.length ? (prevProd.reduce((s,p) => s + (+p.occ||0), 0) / prevProd.length) : null;
+  const prevGlobal = prevProd.reduce((s,p) => s + (+p.globalSess||0), 0);
+  const prevAHT    = prevProd.length ? (prevProd.reduce((s,p) => s + (+p.aht||0), 0) / prevProd.length) : null;
+  const prevOps    = prevProd.length ? new Set(prevProd.map(p => p.operator)).size : null;
+
+  function pctDelta(curr, prev) {
+    if(prev === null || prev === undefined || prev === 0) return null;
+    return ((curr - prev) / prev) * 100;
+  }
+  function deltaChip(delta, goodWhenUp = true) {
+    if(delta === null || !isFinite(delta)) return `<span style="font-size:10px;color:var(--text3)">no prior data</span>`;
+    const isUp = delta >= 0;
+    const isGood = goodWhenUp ? isUp : !isUp;
+    const col = Math.abs(delta) < 0.5 ? 'var(--text3)' : (isGood ? 'var(--green)' : 'var(--red)');
+    const arrow = Math.abs(delta) < 0.5 ? '→' : (isUp ? '↑' : '↓');
+    return `<span style="font-size:10px;font-weight:800;color:${col};font-family:'DM Mono',monospace">${arrow} ${Math.abs(delta).toFixed(1)}%</span>`;
+  }
+
+  // ── Sparkline: last up to 8 dates of total cases, as a tiny inline SVG ──
+  function sparkline(values, color) {
+    if(values.length < 2) return '';
+    const w = 64, h = 20, pad = 2;
+    const min = Math.min(...values), max = Math.max(...values);
+    const range = (max - min) || 1;
+    const pts = values.map((v,i) => {
+      const x = pad + (i/(values.length-1)) * (w - pad*2);
+      const y = h - pad - ((v - min)/range) * (h - pad*2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;margin-top:6px">
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+    </svg>`;
+  }
+  const last8Dates = allDates.slice(-8);
+  const casesSeries = last8Dates.map(d => allProd.filter(p=>p.date===d).reduce((s,p)=>s+(+p.cases||0),0));
+  const occSeries   = last8Dates.map(d => { const rows=allProd.filter(p=>p.date===d); return rows.length ? rows.reduce((s,p)=>s+(+p.occ||0),0)/rows.length : 0; });
+  const globSeries  = last8Dates.map(d => allProd.filter(p=>p.date===d).reduce((s,p)=>s+(+p.globalSess||0),0));
+  const ahtSeries   = last8Dates.map(d => { const rows=allProd.filter(p=>p.date===d); return rows.length ? rows.reduce((s,p)=>s+(+p.aht||0),0)/rows.length : 0; });
+  const opsSeries   = last8Dates.map(d => new Set(allProd.filter(p=>p.date===d).map(p=>p.operator)).size);
+
+  function kpiCard({icon, value, label, color, glow, delta, deltaGoodUp, spark, sparkColor}) {
+    return `
+    <div style="background:linear-gradient(160deg, ${glow}, var(--surface2));border:1px solid ${color}3a;border-radius:12px;padding:14px 16px;
+                display:flex;flex-direction:column;gap:2px;position:relative;overflow:hidden;transition:border-color .15s"
+         onmouseover="this.style.borderColor='${color}80'" onmouseout="this.style.borderColor='${color}3a'">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div style="width:26px;height:26px;border-radius:7px;background:${color}1c;display:flex;align-items:center;justify-content:center;font-size:13px">${icon}</div>
+        ${deltaChip(delta, deltaGoodUp)}
+      </div>
+      <div style="font-size:24px;font-weight:900;color:${color};font-family:'DM Mono',monospace;margin-top:6px;line-height:1">${value}</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${label}</div>
+      ${sparkline(spark, sparkColor)}
     </div>`;
+  }
+
+  el.innerHTML =
+    kpiCard({icon:'📦', value:totalCases.toLocaleString(), label:'Total Cases', color:'var(--green)', glow:'rgba(0,212,160,0.08)',
+      delta:pctDelta(totalCases, prevCases), deltaGoodUp:true, spark:casesSeries, sparkColor:'var(--green)'}) +
+    kpiCard({icon:'🎯', value:avgOcc+'%', label:'Avg Occupancy', color:occColor, glow:'rgba(0,180,216,0.08)',
+      delta:pctDelta(+avgOcc, prevOcc), deltaGoodUp:true, spark:occSeries, sparkColor:occColor}) +
+    kpiCard({icon:'⚡', value:totalGlobal.toLocaleString(), label:'Global Sessions', color:'var(--amber)', glow:'rgba(255,170,68,0.08)',
+      delta:pctDelta(totalGlobal, prevGlobal), deltaGoodUp:true, spark:globSeries, sparkColor:'var(--amber)'}) +
+    kpiCard({icon:'⏱️', value:avgAHT+'s', label:'Avg AHT', color:'var(--violet)', glow:'rgba(180,138,247,0.08)',
+      delta:pctDelta(+avgAHT, prevAHT), deltaGoodUp:false, spark:ahtSeries, sparkColor:'var(--violet)'}) +
+    kpiCard({icon:'👥', value:operators, label:'Operators', color:'var(--teal)', glow:'rgba(0,200,150,0.08)',
+      delta:pctDelta(operators, prevOps), deltaGoodUp:true, spark:opsSeries, sparkColor:'var(--teal)'});
 }
 
 function today() { return new Date().toISOString().split('T')[0]; }
 function fmtDate(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '–'; }
 function daysBetween(a,b) { return Math.round((new Date(b)-new Date(a))/(1000*60*60*24))+1; }
+
+// ════════════════════════════════════════════════════════════════
+//  CRITICAL REPORTS
+// ════════════════════════════════════════════════════════════════
+const CRIT_SEVERITY_CFG = {
+  critical: { icon:'🔴', label:'Critical', color:'var(--red)' },
+  high:     { icon:'🟠', label:'High',     color:'var(--amber)' },
+  medium:   { icon:'🟡', label:'Medium',   color:'var(--gold)' },
+};
+const CRIT_CATEGORY_LABELS = {
+  system:'System / Tooling Outage', client:'Client Escalation', security:'Security Incident',
+  safety:'Safety Concern', staffing:'Staffing Emergency', other:'Other',
+};
+
+async function submitCriticalReport() {
+  const severity = document.getElementById('crit-severity').value;
+  const category = document.getElementById('crit-category').value;
+  const description = document.getElementById('crit-description').value.trim();
+  if(!description) { toast('Please describe what happened','⚠️'); return; }
+
+  const reports = load('critical_reports');
+  const entry = {
+    id: Date.now() + Math.random(),
+    severity, category, description,
+    status: 'open',
+    reportedBy: (typeof currentUserName !== 'undefined' && currentUserName) || 'TL',
+    createdAt: new Date().toISOString(),
+    resolvedAt: null,
+  };
+  reports.push(entry);
+
+  const ok = await saveAndVerify('critical_reports', reports);
+  if(!ok) { toast('❌ Failed to save — please retry','❌'); return; }
+
+  document.getElementById('crit-description').value = '';
+  document.getElementById('crit-severity').value = 'critical';
+  document.getElementById('crit-category').value = 'system';
+  toast('🚨 Critical report submitted','✅');
+  renderCriticalReports();
+  updateNavBadges();
+}
+
+async function resolveCriticalReport(id) {
+  const reports = load('critical_reports');
+  const entry = reports.find(r => r.id === id);
+  if(!entry) return;
+  entry.status = entry.status === 'resolved' ? 'open' : 'resolved';
+  entry.resolvedAt = entry.status === 'resolved' ? new Date().toISOString() : null;
+  await saveAndVerify('critical_reports', reports);
+  renderCriticalReports();
+  updateNavBadges();
+}
+
+function renderCriticalReports() {
+  const el = document.getElementById('critical-reports-list');
+  if(!el) return;
+  const filter = document.getElementById('crit-filter')?.value || 'open';
+  let reports = load('critical_reports').slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  if(filter === 'open') reports = reports.filter(r => r.status !== 'resolved');
+  if(filter === 'resolved') reports = reports.filter(r => r.status === 'resolved');
+
+  if(!reports.length) {
+    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3);font-size:12px">
+      ${filter==='open' ? '✅ No open critical reports right now.' : 'No reports match this filter.'}
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = reports.map(r => {
+    const sev = CRIT_SEVERITY_CFG[r.severity] || CRIT_SEVERITY_CFG.medium;
+    const isResolved = r.status === 'resolved';
+    const when = new Date(r.createdAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    return `
+    <div style="background:var(--surface2);border:1px solid ${isResolved?'var(--border)':sev.color+'40'};border-radius:10px;
+                padding:14px;margin-bottom:10px;${isResolved?'opacity:0.6':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:800;color:${sev.color}">${sev.icon} ${sev.label}</span>
+          <span style="font-size:10px;color:var(--text3)">·</span>
+          <span style="font-size:11px;color:var(--text2)">${CRIT_CATEGORY_LABELS[r.category]||r.category}</span>
+          ${isResolved ? `<span style="font-size:9px;background:rgba(0,212,160,0.15);color:var(--green);padding:1px 7px;border-radius:8px;font-weight:700">✓ RESOLVED</span>` : ''}
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="resolveCriticalReport(${r.id})" style="font-size:10px;padding:4px 10px;white-space:nowrap">
+          ${isResolved ? '↺ Reopen' : '✓ Mark Resolved'}
+        </button>
+      </div>
+      <div style="font-size:13px;color:var(--text);line-height:1.5;margin-bottom:8px">${r.description.replace(/</g,'&lt;')}</div>
+      <div style="font-size:10px;color:var(--text3)">Reported by ${r.reportedBy} · ${when}</div>
+    </div>`;
+  }).join('');
+}
 
 // ════════════════════════════════════════════════════════════════
 //  DAILY REPORT
@@ -11764,6 +11976,7 @@ const PAGE_LABELS = {
   'payroll-full':      '💰 Payroll',
   'pay-history':       '📊 Pay History',
   'wfh':               '🏠 WFH Monitor',
+  'critical-reports':  '🚨 Critical Reports',
   'wfh-operator':      '💻 WFH Operator Station',
   'meeting':           '📹 Video Meeting',
   'hub-activity':      '📊 Activity Tracker',
@@ -13689,6 +13902,10 @@ function updateNavBadges() {
   const rb = document.getElementById('badge-daily-report');
   if(pb){ pb.style.display = plans   > 0 ? 'inline-flex':'none'; pb.textContent=plans;   }
   if(rb){ rb.style.display = reports > 0 ? 'inline-flex':'none'; rb.textContent=reports; }
+
+  const openCritical = load('critical_reports').filter(r => r.status !== 'resolved').length;
+  const cb = document.getElementById('critical-nav-badge');
+  if(cb) { cb.style.display = openCritical > 0 ? 'inline-flex' : 'none'; cb.textContent = openCritical; }
 }
 function clearNavBadge(page) {
   const map = {'daily-plan':'plan','daily-report':'report'};
