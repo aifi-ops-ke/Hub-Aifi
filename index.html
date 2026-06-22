@@ -10795,7 +10795,10 @@ async function renderStatusBoard() {
   // ── Summary counts per status ─────────────────────────────────
   const counts = {};
   checkedIn.forEach(id => {
-    const st = statuses[id]?.status || 'working';
+    const checkInT = sessions[id]?.checkIn ? new Date(sessions[id].checkIn).getTime() : 0;
+    const statusT  = statuses[id]?.started_at ? new Date(statuses[id].started_at).getTime() : 0;
+    const isStale  = statusT > 0 && statusT < checkInT;
+    const st = isStale ? 'working' : (statuses[id]?.status || 'working');
     counts[st] = (counts[st] || 0) + 1;
   });
   if(summary) {
@@ -10810,13 +10813,14 @@ async function renderStatusBoard() {
 
   // ── Status tiles per operator ─────────────────────────────────
   grid.innerHTML = checkedIn.map(opId => {
-    const st     = statuses[opId]?.status || 'working';
-    const note   = statuses[opId]?.status_note || '';
     const checkInTime = sessions[opId]?.checkIn ? new Date(sessions[opId].checkIn).getTime() : 0;
     const statusStartedTime = statuses[opId]?.started_at ? new Date(statuses[opId].started_at).getTime() : 0;
-    // A status timestamp from before the current check-in is stale (left over from a previous
-    // session/day) and must not be used — fall back to check-in time in that case.
-    const effectiveStart = (statusStartedTime >= checkInTime && statusStartedTime > 0)
+    // A status record from before the current check-in is entirely stale (left over from a
+    // previous session/day, e.g. a forgotten "In Meeting") — reset both its label and timestamp.
+    const statusIsStale = statusStartedTime > 0 && statusStartedTime < checkInTime;
+    const st     = statusIsStale ? 'working' : (statuses[opId]?.status || 'working');
+    const note   = statusIsStale ? '' : (statuses[opId]?.status_note || '');
+    const effectiveStart = (!statusIsStale && statusStartedTime > 0)
       ? statusStartedTime
       : (checkInTime || null);
     const since  = effectiveStart
