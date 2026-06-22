@@ -9414,13 +9414,8 @@ async function wfhCheckIn() {
     }
   } catch(e) { toast('❌ Cannot verify approval — check connection','❌'); return; }
 
-  // One-login rule: if already checked out today, require TL permission
+  // Already checked in today and still active? Don't let them check in twice.
   const existingSess = getSession(today(), opId);
-  if(existingSess?.checkOut && !existingSess?.reloginApproved) {
-    document.getElementById('wfh-session-status-text').textContent = '🔒 Shift ended.';
-    showLockedOutUI(opId);
-    return;
-  }
   if(existingSess?.checkIn && !existingSess?.checkOut) { toast('Already checked in today','⚠️'); return; }
 
   // Validate pre-check-in fields
@@ -9678,7 +9673,6 @@ async function submitEOD() {
   if(sess) {
     const ms=(Date.now()-new Date(sess.checkIn).getTime())-(_wfhTotalBreak||0);
     sess.status='offline'; sess.checkOut=new Date().toISOString(); sess.totalHours=(ms/3600000).toFixed(2);
-    sess.lockedOut = true;  // requires TL to unlock before next login
     saveSession(today(),opId,sess);
   }
   logWFHEntry(opId,'checkout',{notes:'Checked out. Total hours: '+(sess?.totalHours||'–')});
