@@ -8871,9 +8871,11 @@ function renderShiftActivity(sessions, approved, date) {
     const sessionCount = sessionLogs.length;
     const totalCases = sessionLogs.reduce((s,l) => s + (+l.cases || 0), 0) || sess?.totalCases || 0;
     const lastLog   = opLogs[opLogs.length - 1];
-    const lastTime  = sess?.effectiveLastSeen
-      ? new Date(sess.effectiveLastSeen).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
-      : (lastLog?.timeStr || (sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–'));
+    const lastTime  = lastLog?.timeStr
+      ? lastLog.timeStr
+      : (sess?.effectiveLastSeen
+          ? new Date(sess.effectiveLastSeen).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
+          : (sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–'));
     const hbAge     = minsAgo(sess?.lastHeartbeat);
     const team      = getOpTeam(opId);
     const checkInT  = sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
@@ -10782,7 +10784,7 @@ async function renderStatusBoard() {
   const summary = document.getElementById('status-summary');
   if(!grid) return;
 
-  const checkedIn = approved.filter(id => sessions[id]?.checkIn && !sessions[id]?.checkOut);
+  const checkedIn = approved.filter(id => opStatus(id, sessions) !== 'offline' && sessions[id]?.checkIn);
 
   if(!checkedIn.length) {
     grid.innerHTML = '<div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:16px">No operators checked in yet.</div>';
@@ -10810,14 +10812,21 @@ async function renderStatusBoard() {
   grid.innerHTML = checkedIn.map(opId => {
     const st     = statuses[opId]?.status || 'working';
     const note   = statuses[opId]?.status_note || '';
-    const since  = statuses[opId]?.started_at
-      ? new Date(statuses[opId].started_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
+    const checkInTime = sessions[opId]?.checkIn ? new Date(sessions[opId].checkIn).getTime() : 0;
+    const statusStartedTime = statuses[opId]?.started_at ? new Date(statuses[opId].started_at).getTime() : 0;
+    // A status timestamp from before the current check-in is stale (left over from a previous
+    // session/day) and must not be used — fall back to check-in time in that case.
+    const effectiveStart = (statusStartedTime >= checkInTime && statusStartedTime > 0)
+      ? statusStartedTime
+      : (checkInTime || null);
+    const since  = effectiveStart
+      ? new Date(effectiveStart).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
       : '–';
     const cfg    = STATUS_CONFIG[st] || STATUS_CONFIG.working;
     const team   = getOpTeam(opId);
     const teamCol= team==='kings' ? 'var(--accent)' : 'var(--orange)';
     // Duration in this status
-    const durMs  = statuses[opId]?.started_at ? Date.now() - new Date(statuses[opId].started_at).getTime() : 0;
+    const durMs  = effectiveStart ? Date.now() - effectiveStart : 0;
     const durMin = Math.floor(durMs / 60000);
     const durStr = durMin > 0 ? `${durMin}m` : 'just now';
 
