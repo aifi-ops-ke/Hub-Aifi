@@ -8451,7 +8451,7 @@ async function refreshWFHCache(date) {
   // real field is missing or older than the latest known activity.
   const lastLogTimeByOp = {};
   logs.forEach(l => {
-    const id = l.opId;
+    const id = l.opId || l.op_id;
     if(!id || !l.isoTime) return;
     if(!lastLogTimeByOp[id] || l.isoTime > lastLogTimeByOp[id]) lastLogTimeByOp[id] = l.isoTime;
   });
@@ -10805,7 +10805,8 @@ async function renderStatusBoard() {
   checkedIn.forEach(id => {
     const checkInT = sessions[id]?.checkIn ? new Date(sessions[id].checkIn).getTime() : 0;
     const statusT  = statuses[id]?.started_at ? new Date(statuses[id].started_at).getTime() : 0;
-    const isStale  = statusT > 0 && statusT < checkInT;
+    const lastSeenT = sessions[id]?.effectiveLastSeen ? new Date(sessions[id].effectiveLastSeen).getTime() : 0;
+    const isStale  = statusT > 0 && (statusT < checkInT || lastSeenT > statusT);
     const st = isStale ? 'working' : (statuses[id]?.status || 'working');
     counts[st] = (counts[st] || 0) + 1;
   });
@@ -10823,9 +10824,11 @@ async function renderStatusBoard() {
   grid.innerHTML = checkedIn.map(opId => {
     const checkInTime = sessions[opId]?.checkIn ? new Date(sessions[opId].checkIn).getTime() : 0;
     const statusStartedTime = statuses[opId]?.started_at ? new Date(statuses[opId].started_at).getTime() : 0;
-    // A status record from before the current check-in is entirely stale (left over from a
-    // previous session/day, e.g. a forgotten "In Meeting") — reset both its label and timestamp.
-    const statusIsStale = statusStartedTime > 0 && statusStartedTime < checkInTime;
+    const lastSeenTime = sessions[opId]?.effectiveLastSeen ? new Date(sessions[opId].effectiveLastSeen).getTime() : 0;
+    // A status record is stale if it predates the current check-in (leftover from a previous
+    // session/day), OR if the operator has real, more-recent activity than the status itself —
+    // e.g. they set "In Meeting" earlier and have since resumed submitting without clearing it.
+    const statusIsStale = statusStartedTime > 0 && (statusStartedTime < checkInTime || lastSeenTime > statusStartedTime);
     const st     = statusIsStale ? 'working' : (statuses[opId]?.status || 'working');
     const note   = statusIsStale ? '' : (statuses[opId]?.status_note || '');
     const effectiveStart = (!statusIsStale && statusStartedTime > 0)
