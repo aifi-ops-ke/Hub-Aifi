@@ -8465,8 +8465,16 @@ async function refreshWFHCache(date) {
     const effectiveLast = [hbTime, lastLog].filter(Boolean).sort().pop() || sess.checkIn || null;
     sess.effectiveLastSeen = effectiveLast;
     const ageMins = effectiveLast ? (nowTs - new Date(effectiveLast).getTime()) / 60000 : Infinity;
-    if(ageMins > 40) sess.status = 'offline';
-    else if(ageMins > 20 && sess.status !== 'break' && sess.status !== 'meeting') sess.status = 'idle';
+    if(ageMins > 40) {
+      sess.status = 'offline';
+    } else if(ageMins > 20) {
+      if(sess.status !== 'break' && sess.status !== 'meeting') sess.status = 'idle';
+    } else {
+      // Fresh activity detected — restore online status if it was previously
+      // marked offline/idle by this same fallback. Don't override a genuine
+      // manual status like 'break' or 'meeting' that the operator explicitly set.
+      if(sess.status === 'offline' || sess.status === 'idle') sess.status = 'online';
+    }
   });
 
   // Index face events per operator
