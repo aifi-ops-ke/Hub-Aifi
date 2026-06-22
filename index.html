@@ -8367,8 +8367,12 @@ async function dbInsertLog(opId, type, data={}) {
     const r = await fetch(_SUPA_URL+'/rest/v1/wfh_logs',{
       method:'POST', headers:WFH_HDR, body:JSON.stringify(row)
     });
-    if(!r.ok) console.error('Log insert failed:', r.status, await r.text());
-    else {
+    if(!r.ok) {
+      const errText = await r.text();
+      console.error('Log insert failed:', r.status, errText);
+      toast('❌ Submission FAILED to save — please retry or contact your TL', '❌');
+      return null;
+    } else {
       // Append to local cache
       const entry = {...row, id:Date.now(), name:operatorLabel(opId),
         timeStr:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
@@ -8378,11 +8382,8 @@ async function dbInsertLog(opId, type, data={}) {
     }
   } catch(e) {
     console.error('Log insert error:', e);
-    const entry = {id:Date.now()+Math.random(), date:today(), opId, name:operatorLabel(opId),
-      timeStr:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-      isoTime:new Date().toISOString(), type, ...row};
-    _logsCache.push(entry);
-    return entry;
+    toast('❌ Submission FAILED to save (network error) — please retry', '❌');
+    return null;
   }
 }
 
@@ -9583,7 +9584,7 @@ function startWFHTimer() {
   }, 60000);
 }
 
-function submitHourlyLog() {
+async function submitHourlyLog() {
   const opId = document.getElementById('wfh-op-self').value;
   if(!opId) { toast('Select your name first','⚠️'); return; }
   const sess = getSession(today(),opId);
@@ -9616,9 +9617,15 @@ function submitHourlyLog() {
   if(+energy<=2) flags.push('⚡ Low energy ('+energy+'/5)');
   if(tool==='down'||tool==='internet') flags.push('🔴 Tool: '+tool);
 
-  logWFHEntry(opId,'hourly',{cases,aht,occ,open,activity,tool,net,env,quality,
+  const savedEntry = await logWFHEntry(opId,'hourly',{cases,aht,occ,open,activity,tool,net,env,quality,
     focus:+focus,energy:+energy,breaks,caseref,proof,notes,
     flags:flags.join(' | ')});
+
+  if(!savedEntry) {
+    // dbInsertLog already showed a specific error toast — stop here and
+    // leave the form filled in so nothing the operator typed is lost.
+    return;
+  }
 
   // Save submit to Supabase submit log
   saveSubmitLog(opId, 'hourly', cases, aht, occ);
@@ -12165,13 +12172,12 @@ function logWFHBreach(opId, message) {
   save('wfh_breaches', breaches);
 }
 function getBreaches() { return loadObj('wfh_breaches'); }
-function logWFHEntry(opId, type, data={}) {
-  // Fire-and-forget to Supabase — no blocking
-  dbInsertLog(opId, type, data).then(entry => {
-    // Update operator's "My Logs" panel if they're the active operator
-    const selfId = document.getElementById('wfh-op-self')?.value;
-    if(entry && selfId === opId) renderMyLogs(opId);
-  });
+async function logWFHEntry(opId, type, data={}) {
+  const entry = await dbInsertLog(opId, type, data);
+  // Update operator's "My Logs" panel if they're the active operator
+  const selfId = document.getElementById('wfh-op-self')?.value;
+  if(entry && selfId === opId) renderMyLogs(opId);
+  return entry;
 }
 
 function renderMyLogs(opId) {
