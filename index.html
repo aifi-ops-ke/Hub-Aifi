@@ -1553,6 +1553,10 @@ function _dbRefreshPage(key) {
       <span class="nav-icon">🚨</span><span style="font-weight:800">Critical Reports</span>
       <span id="critical-nav-badge" style="display:none;margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px"></span>
     </div>
+    <div class="nav-item" onclick="nav('team-chat')" style="background:rgba(0,212,160,0.08);border:1px solid rgba(0,212,160,0.25)">
+      <span class="nav-icon">💬</span><span style="font-weight:800">Team Chat</span>
+      <span id="chat-nav-badge" style="display:none;margin-left:auto;background:var(--accent);color:#04261c;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px"></span>
+    </div>
   </div>
   <div class="nav-section">
     <div class="nav-label">Remote Work</div>
@@ -1877,6 +1881,23 @@ function _dbRefreshPage(key) {
         </div>
         <div id="critical-reports-list"></div>
       </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE: TEAM CHAT (TL / Admin / QA view)
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-team-chat">
+      <div class="page-header">
+        <h1>💬 Team Chat</h1>
+        <p>Talk with the whole team, or keep it between leadership</p>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:18px">
+        <button class="btn btn-secondary btn-sm" id="chat-tab-leadership" onclick="switchChatTab('leadership')" style="font-weight:800">🛡️ Leadership</button>
+        <button class="btn btn-secondary btn-sm" id="chat-tab-team" onclick="switchChatTab('team')" style="font-weight:800">👥 Whole Team</button>
+      </div>
+
+      <div id="chat-container-tl"></div>
     </div>
 
     <!-- ══════════════════════════════════════════════════════════
@@ -4228,7 +4249,28 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
           <div class="ophub-tile-title">Shift Plan</div>
           <div class="ophub-tile-sub">See your upcoming shifts and schedule</div>
         </div>
+
+        <div class="ophub-tile" style="--tile-accent: #00d4a0" onclick="ophubGo('chat')">
+          <div class="ophub-tile-icon">💬</div>
+          <div class="ophub-tile-title">Team Chat</div>
+          <div class="ophub-tile-sub">Message your TL, QAs, and the whole team</div>
+        </div>
       </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: OPERATOR — TEAM CHAT
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-ophub-chat">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <h1 style="margin:0">💬 Team Chat</h1>
+          <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Everyone on the project can see this channel</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeChatChannel();nav('ophub-menu')">← Back</button>
+      </div>
+      <div style="height:3px;width:64px;background:linear-gradient(90deg,#00d4a0,#00f0b5);border-radius:3px;margin:14px 0 20px"></div>
+      <div id="chat-container-ophub"></div>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════
@@ -5090,6 +5132,7 @@ function ophubGo(dest) {
   if(dest === 'production') { nav('ophub-production'); renderOpHubProduction(_opHubId); return; }
   if(dest === 'attendance') { nav('ophub-attendance'); renderOpHubAttendance(_opHubId); return; }
   if(dest === 'shift')      { nav('ophub-shift');      renderOpHubShift(_opHubId);      return; }
+  if(dest === 'chat')       { nav('ophub-chat'); openChatChannel('team', operatorLabel(_opHubId), _opHubId); return; }
 }
 
 // ── My Production (read-only) ──────────────────────────────────────
@@ -5601,6 +5644,7 @@ function nav(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
+  if(page !== 'team-chat' && page !== 'ophub-chat' && _chatPollInterval) closeChatChannel();
   document.querySelectorAll('.nav-item').forEach(n => {
     if(n.getAttribute('onclick') && n.getAttribute('onclick').includes("'"+page+"'")) n.classList.add('active');
   });
@@ -5613,6 +5657,7 @@ function nav(page) {
   if(page==='leave') { renderLeave(); renderLeaveBalanceGrid(); }
   if(page==='dashboard') { renderNotifs(); updateNavBadges(); renderDashProdKPIs(); renderDashPerfChart(); }
   if(page==='critical-reports') { renderCriticalReports(); }
+  if(page==='team-chat') { switchChatTab(_currentChatTab || 'leadership'); }
   if(page==='call-reports') { renderCallReports(); }
   if(page==='team-dash') { initTeamDash(); }
   if(page==='daily-report') { applyDRRoleVisibility(); refreshDRView(); }
@@ -6080,6 +6125,142 @@ function renderDashProdKPIs() {
 function today() { return new Date().toISOString().split('T')[0]; }
 function fmtDate(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '–'; }
 function daysBetween(a,b) { return Math.round((new Date(b)-new Date(a))/(1000*60*60*24))+1; }
+
+// ════════════════════════════════════════════════════════════════
+//  TEAM CHAT
+// ════════════════════════════════════════════════════════════════
+let _chatPollInterval = null;
+let _activeChatChannel = null;   // 'leadership' | 'team'
+let _activeChatContainerId = null;
+let _activeChatSenderName = null;
+let _activeChatSenderId = null;  // opId if an operator, else null for TL/Admin/QA
+let _currentChatTab = 'leadership';
+
+const CHAT_CHANNELS = {
+  leadership: { label: '🛡️ Leadership', sub: 'Visible to TL, Admin, and QAs only', color: 'var(--violet)' },
+  team:       { label: '👥 Whole Team',  sub: 'Visible to everyone — TL, Admin, QAs, and all operators', color: 'var(--accent)' },
+};
+
+function chatStoreKey(channel) { return 'chat_' + channel; }
+
+function chatBubbleHTML(msg, senderIsMe) {
+  const time = new Date(msg.at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  const roleTag = msg.role ? `<span style="font-size:9px;color:var(--text3);margin-left:6px">${msg.role}</span>` : '';
+  return `
+  <div style="display:flex;flex-direction:column;align-items:${senderIsMe?'flex-end':'flex-start'};margin-bottom:10px">
+    <div style="max-width:72%;background:${senderIsMe?'linear-gradient(135deg, var(--accent), #00a578)':'var(--surface2)'};
+                color:${senderIsMe?'#04261c':'var(--text)'};border:1px solid ${senderIsMe?'transparent':'var(--border2)'};
+                border-radius:14px;padding:9px 13px;font-size:13px;line-height:1.5;word-break:break-word">
+      ${!senderIsMe ? `<div style="font-size:10px;font-weight:800;color:var(--accent);margin-bottom:2px">${msg.name}${roleTag}</div>` : ''}
+      ${msg.text.replace(/</g,'&lt;')}
+    </div>
+    <div style="font-size:9px;color:var(--text3);margin-top:3px;padding:0 4px">${time}</div>
+  </div>`;
+}
+
+function renderChatUI(containerId, channel, senderName, senderId) {
+  const cfg = CHAT_CHANNELS[channel];
+  const container = document.getElementById(containerId);
+  if(!container) return;
+  container.innerHTML = `
+    <div class="card" style="display:flex;flex-direction:column;height:560px;padding:0;overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);background:${cfg.color}0d">
+        <div style="font-size:14px;font-weight:800;color:${cfg.color}">${cfg.label}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${cfg.sub}</div>
+      </div>
+      <div id="${containerId}-msgs" style="flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column"></div>
+      <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end">
+        <textarea id="${containerId}-input" rows="1" placeholder="Type a message..."
+          style="flex:1;background:var(--surface2);border:1.5px solid var(--border2);border-radius:10px;padding:10px 14px;
+                 color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;resize:none;max-height:90px"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage('${containerId}');}"></textarea>
+        <button class="btn btn-secondary btn-sm" onclick="sendChatMessage('${containerId}')" style="font-weight:800;padding:10px 16px">Send</button>
+      </div>
+    </div>`;
+  refreshChatMessages(containerId, channel, senderId);
+}
+
+function refreshChatMessages(containerId, channel, senderId) {
+  const msgsEl = document.getElementById(containerId + '-msgs');
+  if(!msgsEl) return;
+  const msgs = load(chatStoreKey(channel)).slice().sort((a,b) => new Date(a.at) - new Date(b.at));
+  const wasAtBottom = (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight) < 60;
+
+  if(!msgs.length) {
+    msgsEl.innerHTML = `<div style="text-align:center;color:var(--text3);font-size:12px;margin:auto">No messages yet — say hello 👋</div>`;
+    return;
+  }
+  msgsEl.innerHTML = msgs.map(m => chatBubbleHTML(m, m.senderId === senderId)).join('');
+  if(wasAtBottom) msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+async function sendChatMessage(containerId) {
+  const input = document.getElementById(containerId + '-input');
+  const text = input.value.trim();
+  if(!text) return;
+
+  const channel = _activeChatChannel;
+  const senderName = _activeChatSenderName;
+  const senderId = _activeChatSenderId;
+  const role = senderId
+    ? 'Operator'
+    : (currentRole === 'tl' ? 'Team Lead' : currentRole === 'admin' ? 'Admin' : currentRole === 'kings' ? 'Kings QA' : 'SWAT QA');
+
+  const msgs = load(chatStoreKey(channel));
+  msgs.push({
+    id: Date.now() + Math.random(),
+    senderId: senderId || currentRole,
+    name: senderName,
+    role,
+    text,
+    at: new Date().toISOString(),
+  });
+  await saveAndVerify(chatStoreKey(channel), msgs);
+  input.value = '';
+  refreshChatMessages(containerId, channel, senderId);
+}
+
+function openChatChannel(channel, senderName, senderId) {
+  _activeChatChannel = channel;
+  _activeChatSenderName = senderName;
+  _activeChatSenderId = senderId || null;
+  _activeChatContainerId = 'chat-container-ophub';
+  renderChatUI(_activeChatContainerId, channel, senderName, senderId);
+  clearInterval(_chatPollInterval);
+  _chatPollInterval = setInterval(() => refreshChatMessages(_activeChatContainerId, channel, senderId), 5000);
+}
+
+function closeChatChannel() {
+  clearInterval(_chatPollInterval);
+  _chatPollInterval = null;
+}
+
+function switchChatTab(channel) {
+  _currentChatTab = channel;
+  ['leadership','team'].forEach(c => {
+    const btn = document.getElementById('chat-tab-'+c);
+    if(btn) {
+      const isActive = c === channel;
+      btn.style.background = isActive ? CHAT_CHANNELS[c].color : 'var(--surface2)';
+      btn.style.color = isActive ? '#04261c' : 'var(--text2)';
+    }
+  });
+  const tlName = (typeof currentUserName !== 'undefined' && currentUserName) ||
+    (currentRole === 'tl' ? 'John Paul Kimongo' : currentRole === 'admin' ? 'Gidraph' : currentRole === 'kings' ? 'Kingori' : 'Rosemary Nyaleso');
+
+  _activeChatChannel = channel;
+  _activeChatSenderName = tlName;
+  _activeChatSenderId = null;
+  _activeChatContainerId = 'chat-container-tl';
+  renderChatUI('chat-container-tl', channel, tlName, null);
+  if(channel === 'leadership') {
+    localStorage.setItem('chat_leadership_lastseen', Date.now().toString());
+    updateNavBadges();
+  }
+  clearInterval(_chatPollInterval);
+  _chatPollInterval = setInterval(() => refreshChatMessages('chat-container-tl', channel, null), 5000);
+}
+
 
 // ════════════════════════════════════════════════════════════════
 //  CRITICAL REPORTS
@@ -11977,6 +12158,7 @@ const PAGE_LABELS = {
   'pay-history':       '📊 Pay History',
   'wfh':               '🏠 WFH Monitor',
   'critical-reports':  '🚨 Critical Reports',
+  'team-chat':         '💬 Team Chat',
   'wfh-operator':      '💻 WFH Operator Station',
   'meeting':           '📹 Video Meeting',
   'hub-activity':      '📊 Activity Tracker',
@@ -13906,6 +14088,12 @@ function updateNavBadges() {
   const openCritical = load('critical_reports').filter(r => r.status !== 'resolved').length;
   const cb = document.getElementById('critical-nav-badge');
   if(cb) { cb.style.display = openCritical > 0 ? 'inline-flex' : 'none'; cb.textContent = openCritical; }
+
+  const leadershipMsgs = load(chatStoreKey('leadership'));
+  const lastSeen = +(localStorage.getItem('chat_leadership_lastseen') || 0);
+  const unread = leadershipMsgs.filter(m => new Date(m.at).getTime() > lastSeen).length;
+  const chb = document.getElementById('chat-nav-badge');
+  if(chb) { chb.style.display = unread > 0 ? 'inline-flex' : 'none'; chb.textContent = unread; }
 }
 function clearNavBadge(page) {
   const map = {'daily-plan':'plan','daily-report':'report'};
