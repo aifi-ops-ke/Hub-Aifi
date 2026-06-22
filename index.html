@@ -9416,6 +9416,11 @@ async function wfhCheckIn() {
 
   // Already checked in today and still active? Don't let them check in twice.
   const existingSess = getSession(today(), opId);
+  if(existingSess?.lockedOut && !existingSess?.reloginApproved) {
+    document.getElementById('wfh-session-status-text').textContent = '🔒 Shift completed.';
+    showLockedOutUI(opId);
+    return;
+  }
   if(existingSess?.checkIn && !existingSess?.checkOut) { toast('Already checked in today','⚠️'); return; }
 
   // Validate pre-check-in fields
@@ -9468,29 +9473,6 @@ async function wfhCheckIn() {
   saveFaceEvent(opId, 'cam_on');
   setTimeout(()=>opTakeSnapshot('checkin'), 2000);
   toast(operatorLabel(opId)+' — remote shift started ✓','▶️');
-}
-
-function showLockedOutUI(opId) {
-  document.getElementById('wfh-checkin-btn').style.display = 'none';
-  document.getElementById('wfh-checkout-btn').style.display = 'none';
-  document.getElementById('wfh-break-btn').style.display = 'none';
-  const lockEl = document.getElementById('wfh-locked-msg');
-  if(lockEl) lockEl.style.display = 'block';
-  else {
-    const hero = document.querySelector('.wfh-hero');
-    if(hero) {
-      const div = document.createElement('div');
-      div.id = 'wfh-locked-msg';
-      div.style = 'margin:18px auto;max-width:420px;padding:18px 20px;background:rgba(255,94,110,0.1);border:1.5px solid rgba(255,94,110,0.4);border-radius:12px;text-align:center';
-      div.innerHTML = `
-        <div style="font-size:28px;margin-bottom:8px">🔒</div>
-        <div style="font-size:14px;font-weight:800;color:var(--red);margin-bottom:6px">Shift Ended — Access Locked</div>
-        <div style="font-size:12px;color:var(--text2);line-height:1.7">You have already checked out today.<br>
-        Contact <strong>John Paul Kimongo (TL)</strong> for permission<br>to start a new shift.</div>
-      `;
-      hero.insertBefore(div, hero.firstChild);
-    }
-  }
 }
 
 function showLockedOutUI(opId) {
@@ -9672,7 +9654,11 @@ async function submitEOD() {
   const sess=getSession(today(),opId);
   if(sess) {
     const ms=(Date.now()-new Date(sess.checkIn).getTime())-(_wfhTotalBreak||0);
-    sess.status='offline'; sess.checkOut=new Date().toISOString(); sess.totalHours=(ms/3600000).toFixed(2);
+    const hoursWorked = ms/3600000;
+    sess.status='offline'; sess.checkOut=new Date().toISOString(); sess.totalHours=hoursWorked.toFixed(2);
+    // A full shift (9+ hours) completed and checked out requires TL approval before
+    // starting a new shift the same day. Shorter/accidental checkouts do not.
+    if(hoursWorked >= 9) sess.lockedOut = true;
     saveSession(today(),opId,sess);
   }
   logWFHEntry(opId,'checkout',{notes:'Checked out. Total hours: '+(sess?.totalHours||'–')});
@@ -9687,7 +9673,7 @@ async function submitEOD() {
       {method:'DELETE', headers:coHdr}),
     fetch(_SUPA_URL+'/rest/v1/wfh_sessions?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_co,
       {method:'PATCH', headers:coHdr,
-       body:JSON.stringify({status:'offline',check_out:coTime,last_heartbeat:null,updated_at:coTime})}),
+       body:JSON.stringify({status:'offline',check_out:coTime,updated_at:coTime})}),
     fetch(_SUPA_URL+'/rest/v1/wfh_status?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_co,
       {method:'DELETE', headers:coHdr})
   ]).catch(e=>console.warn('Checkout cleanup error:',e.message));
