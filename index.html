@@ -8196,6 +8196,30 @@ async function dbGetSessions(date) {
     const now = Date.now();
     rows.forEach(row => {
       row.op_id = normalizeOpId(row.op_id);
+
+      // Duplicate-row guard: if another row already claimed this normalized id
+      // (e.g. extension wrote to "name.impact.nbo" while the portal wrote to
+      // the clean "name"), don't just let array order decide the winner.
+      // A still-active session (no checkout) always beats a checked-out one,
+      // and among two with the same checkout state, the most recently
+      // updated row wins.
+      const existing = out[row.op_id];
+      if(existing) {
+        const existingActive = !existing._raw.check_out;
+        const incomingActive = !row.check_out;
+        if(existingActive && !incomingActive) {
+          return; // keep the existing active session, ignore this stale checked-out duplicate
+        }
+        if(!existingActive && incomingActive) {
+          // incoming row is the real active one — fall through and overwrite
+        } else {
+          // both same activity state — prefer whichever was updated more recently
+          const existingUpdated = existing._raw.updated_at ? new Date(existing._raw.updated_at).getTime() : 0;
+          const incomingUpdated = row.updated_at ? new Date(row.updated_at).getTime() : 0;
+          if(existingUpdated >= incomingUpdated) return;
+        }
+      }
+
       const hbMs   = row.last_heartbeat ? now - new Date(row.last_heartbeat).getTime() : Infinity;
       const hbMins = hbMs / 60000;
 
@@ -8229,6 +8253,7 @@ async function dbGetSessions(date) {
         preTools:      row.pre_tools,
         workspace:     row.workspace,
         totalHours:    row.total_hours,
+        _raw:          { check_out: row.check_out, updated_at: row.updated_at }, // internal use only, for duplicate-row resolution
       };
     });
     return out;
