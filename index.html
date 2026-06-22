@@ -1892,11 +1892,6 @@ function _dbRefreshPage(key) {
         <p>Talk with the whole team, or keep it between leadership</p>
       </div>
 
-      <div style="display:flex;gap:8px;margin-bottom:18px">
-        <button class="btn btn-secondary btn-sm" id="chat-tab-leadership" onclick="switchChatTab('leadership')" style="font-weight:800">🛡️ Leadership</button>
-        <button class="btn btn-secondary btn-sm" id="chat-tab-team" onclick="switchChatTab('team')" style="font-weight:800">👥 Whole Team</button>
-      </div>
-
       <div id="chat-container-tl"></div>
     </div>
 
@@ -5098,6 +5093,7 @@ function openOpHubMenu(opId) {
   const greet = document.getElementById('ophub-greeting');
   if(greet) greet.textContent = '👋 Welcome, ' + operatorLabel(opId) + ' — pick what you want to work on';
   nav('ophub-menu');
+  startChatNotifyWatcher();
 }
 
 function closeOpHubMenu() {
@@ -5108,6 +5104,7 @@ function closeOpHubMenu() {
     if(_opCamActive && typeof opStopCam === 'function') opStopCam();
     sessionStorage.removeItem('aifi_session');
     document.getElementById('login-overlay').style.display = 'flex';
+    clearInterval(_chatNotifyPollInterval);
     nav('dashboard');
   } else {
     // TL/Admin previewing the Operator Hub from their own sidebar — just go back
@@ -5132,7 +5129,7 @@ function ophubGo(dest) {
   if(dest === 'production') { nav('ophub-production'); renderOpHubProduction(_opHubId); return; }
   if(dest === 'attendance') { nav('ophub-attendance'); renderOpHubAttendance(_opHubId); return; }
   if(dest === 'shift')      { nav('ophub-shift');      renderOpHubShift(_opHubId);      return; }
-  if(dest === 'chat')       { nav('ophub-chat'); openChatChannel('team', operatorLabel(_opHubId), _opHubId); return; }
+  if(dest === 'chat')       { nav('ophub-chat'); initChatPage('chat-container-ophub'); return; }
 }
 
 // ── My Production (read-only) ──────────────────────────────────────
@@ -5657,7 +5654,7 @@ function nav(page) {
   if(page==='leave') { renderLeave(); renderLeaveBalanceGrid(); }
   if(page==='dashboard') { renderNotifs(); updateNavBadges(); renderDashProdKPIs(); renderDashPerfChart(); }
   if(page==='critical-reports') { renderCriticalReports(); }
-  if(page==='team-chat') { switchChatTab(_currentChatTab || 'leadership'); }
+  if(page==='team-chat') { initChatPage('chat-container-tl'); }
   if(page==='call-reports') { renderCallReports(); }
   if(page==='team-dash') { initTeamDash(); }
   if(page==='daily-report') { applyDRRoleVisibility(); refreshDRView(); }
@@ -5682,6 +5679,7 @@ function switchTab(el, show, ...hide) {
 }
 
 let currentRole = 'tl';
+let currentUserName = null;
 function switchRole() {
   const roles = [{id:'tl',label:'Team Lead',icon:'🛡️'},{id:'kings',label:'Team Kings',icon:'🔵'},{id:'swat',label:'Team SWAT',icon:'🟣'}];
   const idx = roles.findIndex(r=>r.id===currentRole);
@@ -6130,104 +6128,263 @@ function daysBetween(a,b) { return Math.round((new Date(b)-new Date(a))/(1000*60
 //  TEAM CHAT
 // ════════════════════════════════════════════════════════════════
 let _chatPollInterval = null;
-let _activeChatChannel = null;   // 'leadership' | 'team'
+let _chatNotifyPollInterval = null;
+let _activeConvoId = null;
 let _activeChatContainerId = null;
-let _activeChatSenderName = null;
-let _activeChatSenderId = null;  // opId if an operator, else null for TL/Admin/QA
-let _currentChatTab = 'leadership';
+let _myChatId = null;     // opId for operators, currentRole for TL/Admin/QA
+let _myChatName = null;
+let _myChatRole = null;
+let _lastSeenMsgCount = {};  // convoId -> count, to detect genuinely new messages for toasts
 
-const CHAT_CHANNELS = {
-  leadership: { label: '🛡️ Leadership', sub: 'Visible to TL, Admin, and QAs only', color: 'var(--violet)' },
-  team:       { label: '👥 Whole Team',  sub: 'Visible to everyone — TL, Admin, QAs, and all operators', color: 'var(--accent)' },
+const CHAT_GROUP_CHANNELS = {
+  leadership: { label: '🛡️ Leadership', sub: 'TL, Admin, and QAs only', color: 'var(--violet)', icon:'🛡️' },
+  team:       { label: '👥 Whole Team',  sub: 'Everyone on the project', color: 'var(--accent)', icon:'👥' },
 };
 
-function chatStoreKey(channel) { return 'chat_' + channel; }
+function chatStoreKey(convoId) { return 'chat_' + convoId; }
+function dmConvoId(idA, idB) { return 'dm:' + [idA, idB].sort().join(':'); }
 
-function chatBubbleHTML(msg, senderIsMe) {
+function myChatIdentity() {
+  if(_opHubId) {
+    return { id: _opHubId, name: operatorLabel(_opHubId), role: 'Operator' };
+  }
+  const role = currentRole === 'tl' ? 'Team Lead' : currentRole === 'admin' ? 'Admin' : currentRole === 'kings' ? 'Kings QA' : 'SWAT QA';
+  return { id: currentRole, name: currentUserName || role, role };
+}
+
+function canDeleteAnyMessage() {
+  return !_opHubId && (currentRole === 'tl' || currentRole === 'admin');
+}
+
+function chatPeopleDirectory() {
+  // Everyone a person could possibly DM: TL, Admin, both QAs, and every operator on the roster
+  const leadership = [
+    { id:'tl', name:'John Paul Kimongo', role:'Team Lead' },
+    { id:'admin', name:'Gidraph', role:'Admin' },
+    { id:'kings', name:'Kingori', role:'Kings QA' },
+    { id:'swat', name:'Rosemary Nyaleso', role:'SWAT QA' },
+  ];
+  const operators = OPERATOR_ROSTER.map(o => ({ id:o.id, name:operatorLabel(o.id), role:'Operator' }));
+  return [...leadership, ...operators].filter(p => p.id !== _myChatId);
+}
+
+function chatBubbleHTML(msg, isMine) {
   const time = new Date(msg.at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
   const roleTag = msg.role ? `<span style="font-size:9px;color:var(--text3);margin-left:6px">${msg.role}</span>` : '';
+  const editedTag = msg.editedAt ? `<span style="font-size:9px;color:var(--text3);font-style:italic"> (edited)</span>` : '';
+  const canEdit = isMine;
+  const canDelete = isMine || canDeleteAnyMessage();
+  const actions = (canEdit || canDelete) ? `
+    <div class="chat-msg-actions" style="display:none;gap:6px;margin-top:3px">
+      ${canEdit ? `<span onclick="startEditMessage('${msg.id}')" style="font-size:9px;color:var(--accent);cursor:pointer;font-weight:700">Edit</span>` : ''}
+      ${canDelete ? `<span onclick="deleteMessage('${msg.id}')" style="font-size:9px;color:var(--red);cursor:pointer;font-weight:700">Delete</span>` : ''}
+    </div>` : '';
   return `
-  <div style="display:flex;flex-direction:column;align-items:${senderIsMe?'flex-end':'flex-start'};margin-bottom:10px">
-    <div style="max-width:72%;background:${senderIsMe?'linear-gradient(135deg, var(--accent), #00a578)':'var(--surface2)'};
-                color:${senderIsMe?'#04261c':'var(--text)'};border:1px solid ${senderIsMe?'transparent':'var(--border2)'};
+  <div class="chat-msg-row" data-msg-id="${msg.id}" style="display:flex;flex-direction:column;align-items:${isMine?'flex-end':'flex-start'};margin-bottom:10px"
+       onmouseover="const a=this.querySelector('.chat-msg-actions');if(a)a.style.display='flex'"
+       onmouseout="const a=this.querySelector('.chat-msg-actions');if(a)a.style.display='none'">
+    <div style="max-width:72%;background:${isMine?'linear-gradient(135deg, var(--accent), #00a578)':'var(--surface2)'};
+                color:${isMine?'#04261c':'var(--text)'};border:1px solid ${isMine?'transparent':'var(--border2)'};
                 border-radius:14px;padding:9px 13px;font-size:13px;line-height:1.5;word-break:break-word">
-      ${!senderIsMe ? `<div style="font-size:10px;font-weight:800;color:var(--accent);margin-bottom:2px">${msg.name}${roleTag}</div>` : ''}
-      ${msg.text.replace(/</g,'&lt;')}
+      ${!isMine ? `<div style="font-size:10px;font-weight:800;color:var(--accent);margin-bottom:2px">${msg.name}${roleTag}</div>` : ''}
+      <span class="chat-msg-text" id="chat-msg-text-${msg.id}">${msg.text.replace(/</g,'&lt;')}</span>
     </div>
-    <div style="font-size:9px;color:var(--text3);margin-top:3px;padding:0 4px">${time}</div>
+    <div style="font-size:9px;color:var(--text3);margin-top:3px;padding:0 4px">${time}${editedTag}</div>
+    ${actions}
   </div>`;
 }
 
-function renderChatUI(containerId, channel, senderName, senderId) {
-  const cfg = CHAT_CHANNELS[channel];
+function chatSidebarHTML(activeConvoId) {
+  const dms = chatMyDMList();
+  const groupItem = (id, cfg) => `
+    <div onclick="openConvo('${id}')" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;
+         background:${activeConvoId===id?cfg.color+'18':'transparent'};margin-bottom:2px"
+         onmouseover="if('${activeConvoId}'!=='${id}')this.style.background='var(--surface2)'"
+         onmouseout="if('${activeConvoId}'!=='${id}')this.style.background='transparent'">
+      <div style="width:30px;height:30px;border-radius:8px;background:${cfg.color}20;display:flex;align-items:center;justify-content:center;font-size:14px">${cfg.icon}</div>
+      <div style="font-size:12px;font-weight:700;color:${activeConvoId===id?cfg.color:'var(--text)'}">${cfg.label}</div>
+    </div>`;
+  const dmItem = (p) => {
+    const convoId = dmConvoId(_myChatId, p.id);
+    const isActive = activeConvoId === convoId;
+    return `
+    <div onclick="openConvo('${convoId}','${p.id}','${p.name.replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;
+         background:${isActive?'rgba(0,212,160,0.12)':'transparent'};margin-bottom:2px"
+         onmouseover="if(!${isActive})this.style.background='var(--surface2)'" onmouseout="if(!${isActive})this.style.background='transparent'">
+      <div style="width:30px;height:30px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--accent)">${p.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;color:${isActive?'var(--accent)':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+      </div>
+    </div>`;
+  };
+
+  return `
+  <div style="width:220px;border-right:1px solid var(--border);padding:12px 8px;display:flex;flex-direction:column;height:100%;overflow-y:auto">
+    <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;padding:6px 12px 4px">Channels</div>
+    ${_opHubId ? groupItem('team', CHAT_GROUP_CHANNELS.team) : Object.entries(CHAT_GROUP_CHANNELS).map(([id,cfg])=>groupItem(id,cfg)).join('')}
+    <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;padding:14px 12px 4px">Direct Messages</div>
+    ${dms.map(dmItem).join('') || `<div style="font-size:11px;color:var(--text3);padding:8px 12px">No conversations yet</div>`}
+    <div onclick="openNewDMPicker()" style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;cursor:pointer;color:var(--accent);font-size:12px;font-weight:700;margin-top:4px"
+         onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+      <div style="width:30px;height:30px;border-radius:50%;border:1.5px dashed var(--accent);display:flex;align-items:center;justify-content:center;font-size:15px">+</div>
+      New message
+    </div>
+  </div>`;
+}
+
+function chatMyDMList() {
+  // Anyone we've already exchanged messages with — derived from which dm: keys have content,
+  // checked against the directory so we always show a real name.
+  const directory = chatPeopleDirectory();
+  return directory.filter(p => {
+    const msgs = load(chatStoreKey(dmConvoId(_myChatId, p.id)));
+    return msgs.length > 0;
+  });
+}
+
+function openNewDMPicker() {
+  const directory = chatPeopleDirectory();
+  const html = `
+    <div style="padding:4px">
+      <input id="dm-picker-search" placeholder="Search people..." oninput="filterDMPicker()"
+        style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:10px">
+      <div id="dm-picker-list" style="max-height:280px;overflow-y:auto"></div>
+    </div>`;
+  openModal('Start a new message', html);
+  window._dmDirectory = directory;
+  filterDMPicker();
+}
+function filterDMPicker() {
+  const q = (document.getElementById('dm-picker-search')?.value || '').toLowerCase();
+  const list = (window._dmDirectory || []).filter(p => p.name.toLowerCase().includes(q));
+  document.getElementById('dm-picker-list').innerHTML = list.map(p => `
+    <div onclick="closeModal();openConvo('${dmConvoId(_myChatId,p.id)}','${p.id}','${p.name.replace(/'/g,"\\'")}')"
+         style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer"
+         onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--accent)">${p.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+      <div style="font-size:13px;font-weight:600">${p.name}</div>
+      <div style="font-size:10px;color:var(--text3);margin-left:auto">${p.role}</div>
+    </div>`).join('') || `<div style="font-size:12px;color:var(--text3);padding:10px">No matches</div>`;
+}
+
+function renderChatUI(containerId) {
+  const identity = myChatIdentity();
+  _myChatId = identity.id; _myChatName = identity.name; _myChatRole = identity.role;
   const container = document.getElementById(containerId);
   if(!container) return;
   container.innerHTML = `
-    <div class="card" style="display:flex;flex-direction:column;height:560px;padding:0;overflow:hidden">
-      <div style="padding:14px 18px;border-bottom:1px solid var(--border);background:${cfg.color}0d">
-        <div style="font-size:14px;font-weight:800;color:${cfg.color}">${cfg.label}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">${cfg.sub}</div>
-      </div>
-      <div id="${containerId}-msgs" style="flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column"></div>
-      <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end">
-        <textarea id="${containerId}-input" rows="1" placeholder="Type a message..."
-          style="flex:1;background:var(--surface2);border:1.5px solid var(--border2);border-radius:10px;padding:10px 14px;
-                 color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;resize:none;max-height:90px"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage('${containerId}');}"></textarea>
-        <button class="btn btn-secondary btn-sm" onclick="sendChatMessage('${containerId}')" style="font-weight:800;padding:10px 16px">Send</button>
+    <div class="card" style="display:flex;height:560px;padding:0;overflow:hidden">
+      <div id="${containerId}-sidebar"></div>
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+        <div id="${containerId}-header" style="padding:14px 18px;border-bottom:1px solid var(--border)"></div>
+        <div id="${containerId}-msgs" style="flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column"></div>
+        <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end">
+          <textarea id="${containerId}-input" rows="1" placeholder="Type a message..."
+            style="flex:1;background:var(--surface2);border:1.5px solid var(--border2);border-radius:10px;padding:10px 14px;
+                   color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;resize:none;max-height:90px"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage('${containerId}');}"></textarea>
+          <button class="btn btn-secondary btn-sm" onclick="sendChatMessage('${containerId}')" style="font-weight:800;padding:10px 16px">Send</button>
+        </div>
       </div>
     </div>`;
-  refreshChatMessages(containerId, channel, senderId);
+  // Default to the team channel (or leadership for TL/Admin/QA) on first open
+  const defaultConvo = _opHubId ? 'team' : (_currentChatTab || 'leadership');
+  openConvo(defaultConvo);
 }
 
-function refreshChatMessages(containerId, channel, senderId) {
+function openConvo(convoId, otherPersonId, otherPersonName) {
+  _activeConvoId = convoId;
+  const containerId = _activeChatContainerId;
+  document.getElementById(containerId+'-sidebar').innerHTML = chatSidebarHTML(convoId);
+
+  const headerEl = document.getElementById(containerId+'-header');
+  const group = CHAT_GROUP_CHANNELS[convoId];
+  if(group) {
+    headerEl.innerHTML = `<div style="font-size:14px;font-weight:800;color:${group.color}">${group.label}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">${group.sub}</div>`;
+  } else {
+    headerEl.innerHTML = `<div style="font-size:14px;font-weight:800;color:var(--accent)">${otherPersonName||'Direct Message'}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">Private conversation</div>`;
+  }
+  if(convoId === 'leadership') {
+    localStorage.setItem('chat_leadership_lastseen', Date.now().toString());
+    updateNavBadges();
+  }
+  refreshChatMessages(containerId);
+  clearInterval(_chatPollInterval);
+  _chatPollInterval = setInterval(() => refreshChatMessages(containerId), 5000);
+}
+
+function refreshChatMessages(containerId) {
   const msgsEl = document.getElementById(containerId + '-msgs');
-  if(!msgsEl) return;
-  const msgs = load(chatStoreKey(channel)).slice().sort((a,b) => new Date(a.at) - new Date(b.at));
+  if(!msgsEl || !_activeConvoId) return;
+  const msgs = load(chatStoreKey(_activeConvoId)).slice().sort((a,b) => new Date(a.at) - new Date(b.at));
   const wasAtBottom = (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight) < 60;
 
   if(!msgs.length) {
     msgsEl.innerHTML = `<div style="text-align:center;color:var(--text3);font-size:12px;margin:auto">No messages yet — say hello 👋</div>`;
-    return;
+  } else {
+    msgsEl.innerHTML = msgs.map(m => chatBubbleHTML(m, m.senderId === _myChatId)).join('');
+    if(wasAtBottom) msgsEl.scrollTop = msgsEl.scrollHeight;
   }
-  msgsEl.innerHTML = msgs.map(m => chatBubbleHTML(m, m.senderId === senderId)).join('');
-  if(wasAtBottom) msgsEl.scrollTop = msgsEl.scrollHeight;
 }
 
 async function sendChatMessage(containerId) {
   const input = document.getElementById(containerId + '-input');
   const text = input.value.trim();
-  if(!text) return;
+  if(!text || !_activeConvoId) return;
 
-  const channel = _activeChatChannel;
-  const senderName = _activeChatSenderName;
-  const senderId = _activeChatSenderId;
-  const role = senderId
-    ? 'Operator'
-    : (currentRole === 'tl' ? 'Team Lead' : currentRole === 'admin' ? 'Admin' : currentRole === 'kings' ? 'Kings QA' : 'SWAT QA');
-
-  const msgs = load(chatStoreKey(channel));
+  const msgs = load(chatStoreKey(_activeConvoId));
   msgs.push({
-    id: Date.now() + Math.random(),
-    senderId: senderId || currentRole,
-    name: senderName,
-    role,
+    id: (Date.now() + Math.random()).toString(),
+    senderId: _myChatId,
+    name: _myChatName,
+    role: _myChatRole,
     text,
     at: new Date().toISOString(),
+    editedAt: null,
   });
-  await saveAndVerify(chatStoreKey(channel), msgs);
+  await saveAndVerify(chatStoreKey(_activeConvoId), msgs);
   input.value = '';
-  refreshChatMessages(containerId, channel, senderId);
+  refreshChatMessages(containerId);
+  // Refresh sidebar so a brand-new DM appears in the list immediately
+  document.getElementById(containerId+'-sidebar').innerHTML = chatSidebarHTML(_activeConvoId);
 }
 
-function openChatChannel(channel, senderName, senderId) {
-  _activeChatChannel = channel;
-  _activeChatSenderName = senderName;
-  _activeChatSenderId = senderId || null;
-  _activeChatContainerId = 'chat-container-ophub';
-  renderChatUI(_activeChatContainerId, channel, senderName, senderId);
-  clearInterval(_chatPollInterval);
-  _chatPollInterval = setInterval(() => refreshChatMessages(_activeChatContainerId, channel, senderId), 5000);
+function startEditMessage(msgId) {
+  const span = document.getElementById('chat-msg-text-'+msgId);
+  if(!span) return;
+  const currentText = span.textContent;
+  span.outerHTML = `<input id="chat-edit-input-${msgId}" value="${currentText.replace(/"/g,'&quot;')}"
+    style="background:rgba(255,255,255,0.15);border:none;border-radius:6px;padding:3px 6px;color:inherit;font-size:13px;width:100%;outline:none"
+    onkeydown="if(event.key==='Enter'){event.preventDefault();saveEditMessage('${msgId}')} if(event.key==='Escape'){refreshChatMessages(_activeChatContainerId)}">`;
+  document.getElementById('chat-edit-input-'+msgId).focus();
+}
+
+async function saveEditMessage(msgId) {
+  const input = document.getElementById('chat-edit-input-'+msgId);
+  if(!input) return;
+  const newText = input.value.trim();
+  if(!newText) return;
+  const msgs = load(chatStoreKey(_activeConvoId));
+  const msg = msgs.find(m => m.id === msgId);
+  if(!msg) return;
+  msg.text = newText;
+  msg.editedAt = new Date().toISOString();
+  await saveAndVerify(chatStoreKey(_activeConvoId), msgs);
+  refreshChatMessages(_activeChatContainerId);
+}
+
+async function deleteMessage(msgId) {
+  if(!confirm('Delete this message?')) return;
+  const msgs = load(chatStoreKey(_activeConvoId)).filter(m => m.id !== msgId);
+  await saveAndVerify(chatStoreKey(_activeConvoId), msgs);
+  refreshChatMessages(_activeChatContainerId);
+}
+
+function initChatPage(containerId) {
+  _activeChatContainerId = containerId;
+  renderChatUI(containerId);
 }
 
 function closeChatChannel() {
@@ -6235,30 +6392,29 @@ function closeChatChannel() {
   _chatPollInterval = null;
 }
 
-function switchChatTab(channel) {
-  _currentChatTab = channel;
-  ['leadership','team'].forEach(c => {
-    const btn = document.getElementById('chat-tab-'+c);
-    if(btn) {
-      const isActive = c === channel;
-      btn.style.background = isActive ? CHAT_CHANNELS[c].color : 'var(--surface2)';
-      btn.style.color = isActive ? '#04261c' : 'var(--text2)';
+// ── Global new-message notifications (toast), checked across ALL convos
+// the current person is part of, even while they're not on the chat page ──
+function startChatNotifyWatcher() {
+  clearInterval(_chatNotifyPollInterval);
+  _chatNotifyPollInterval = setInterval(checkForNewChatMessages, 5000);
+  checkForNewChatMessages(true); // prime counts silently on first run
+}
+function checkForNewChatMessages(silent) {
+  const identity = myChatIdentity();
+  const myConvos = ['team', ...(_opHubId ? [] : ['leadership']),
+    ...chatPeopleDirectory().map(p => dmConvoId(identity.id, p.id))];
+  myConvos.forEach(convoId => {
+    const msgs = load(chatStoreKey(convoId));
+    const prevCount = _lastSeenMsgCount[convoId] ?? msgs.length;
+    if(!silent && msgs.length > prevCount) {
+      const newest = msgs[msgs.length-1];
+      if(newest && newest.senderId !== identity.id) {
+        toast(`💬 ${newest.name}: ${newest.text.slice(0,60)}${newest.text.length>60?'…':''}`, '💬');
+      }
     }
+    _lastSeenMsgCount[convoId] = msgs.length;
   });
-  const tlName = (typeof currentUserName !== 'undefined' && currentUserName) ||
-    (currentRole === 'tl' ? 'John Paul Kimongo' : currentRole === 'admin' ? 'Gidraph' : currentRole === 'kings' ? 'Kingori' : 'Rosemary Nyaleso');
-
-  _activeChatChannel = channel;
-  _activeChatSenderName = tlName;
-  _activeChatSenderId = null;
-  _activeChatContainerId = 'chat-container-tl';
-  renderChatUI('chat-container-tl', channel, tlName, null);
-  if(channel === 'leadership') {
-    localStorage.setItem('chat_leadership_lastseen', Date.now().toString());
-    updateNavBadges();
-  }
-  clearInterval(_chatPollInterval);
-  _chatPollInterval = setInterval(() => refreshChatMessages('chat-container-tl', channel, null), 5000);
+  if(typeof updateNavBadges === 'function') updateNavBadges();
 }
 
 
@@ -7764,6 +7920,7 @@ function startSession(role, cred) {
   document.getElementById('role-label').textContent = cred.role;
   document.getElementById('role-icon').textContent = cred.icon;
   currentRole = role;
+  currentUserName = cred.name;
 
   // Restrict nav for QA roles (they only see their own QA pages + dashboard)
   applyRoleRestrictions(role);
@@ -7777,6 +7934,7 @@ function startSession(role, cred) {
   if(sNav) sNav.style.display = (role==='swat' ||role==='tl'||role==='admin') ? 'flex' : 'none';
 
   toast(`Welcome, ${cred.name}! 👋`, cred.icon);
+  startChatNotifyWatcher();
   init();
 }
 
