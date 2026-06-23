@@ -9425,8 +9425,10 @@ function renderShiftActivity(sessions, approved, date) {
   if(!el) return;
 
   const logs = getLogs().filter(l => l.date === date);
-  // Non-counted event types — everything else counts as a real "session"/submission
-  const NON_SESSION_TYPES = ['checkin','checkout','break','resume','idle','tab_switch','status_change','force_logout','cursor_return'];
+  // Non-counted event types — everything else counts as a real "session"/submission.
+  // not_on_hub and face_changed are extension monitoring pings, not real work submissions.
+  const NON_SESSION_TYPES = ['checkin','checkout','break','resume','idle','tab_switch','status_change',
+    'force_logout','cursor_return','not_on_hub','face_changed'];
 
   // Normalize to canonical id and dedupe (fixes e.g. christopher.wanyama vs christopher.wanyama2)
   const canon = normalizeOpId;
@@ -9452,9 +9454,18 @@ function renderShiftActivity(sessions, approved, date) {
     const sess     = sessions[opId];
     const opLogs   = logs.filter(l => canon(l.opId || l.op_id) === opId)
                           .sort((a,b) => (a.isoTime||'').localeCompare(b.isoTime||''));
-    const sessionLogs = opLogs.filter(l => !NON_SESSION_TYPES.includes(l.type || l.log_type));
-    const sessionCount = sessionLogs.length;
-    const totalCases = sessionLogs.reduce((s,l) => s + (+l.cases || 0), 0) || sess?.totalCases || 0;
+    const extensionLogs = opLogs.filter(l => (l.type||l.log_type) === 'submission');
+    const hourlyFormLogs = opLogs.filter(l => (l.type||l.log_type) === 'hourly');
+    const sessionLogs = extensionLogs; // "Sessions" reflects real extension-tracked work sessions
+    const sessionCount = sessionLogs.length + hourlyFormLogs.length;
+    // Extension's 'submission' cases field is a running cumulative total per shift (confirmed
+    // against raw data: values climb steadily, e.g. 1,2,4,6...114) — the most recent row holds
+    // the true total so far. The manual hourly form's 'cases' field is an explicit per-hour
+    // delta ("Cases Done This Hour"), so those are correctly summed instead.
+    const lastCasesLog = extensionLogs[extensionLogs.length - 1];
+    const cumulativeCases = (+lastCasesLog?.cases) || 0;
+    const hourlyFormCases = hourlyFormLogs.reduce((s,l) => s + (+l.cases || 0), 0);
+    const totalCases = (cumulativeCases + hourlyFormCases) || sess?.totalCases || 0;
     const lastLog   = opLogs[opLogs.length - 1];
     const lastTime  = lastLog?.timeStr
       ? lastLog.timeStr
