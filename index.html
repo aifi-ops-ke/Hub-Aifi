@@ -9420,6 +9420,25 @@ function renderWorkingNow(sessions, approved, date) {
 }
 
 // ── Live Shift Activity: session counts + full timeline per working operator ──
+// Single source of truth for an operator's case count on a given date.
+// Extension's 'submission' cases field is a running cumulative total per shift (confirmed
+// against raw data: values climb steadily, e.g. 1,2,4,6...114) — the most recent row holds
+// the true total so far. The manual hourly form's 'cases' field is an explicit per-hour
+// delta ("Cases Done This Hour"), so those are correctly summed instead.
+// Falls back to sess.totalCases only when there are no logs at all for this op/date —
+// covers the rare case where logs haven't loaded yet but a saved session total exists.
+function wfhOperatorCases(opId, opLogsForDate, sess) {
+  const canon = normalizeOpId;
+  const opLogs = opLogsForDate.filter(l => canon(l.opId || l.op_id) === opId)
+                               .sort((a,b) => (a.isoTime||'').localeCompare(b.isoTime||''));
+  const extensionLogs  = opLogs.filter(l => (l.type||l.log_type) === 'submission');
+  const hourlyFormLogs = opLogs.filter(l => (l.type||l.log_type) === 'hourly');
+  const lastCasesLog = extensionLogs[extensionLogs.length - 1];
+  const cumulativeCases = (+lastCasesLog?.cases) || 0;
+  const hourlyFormCases = hourlyFormLogs.reduce((s,l) => s + (+l.cases || 0), 0);
+  return (cumulativeCases + hourlyFormCases) || sess?.totalCases || 0;
+}
+
 function renderShiftActivity(sessions, approved, date) {
   const el = document.getElementById('shift-activity-table');
   if(!el) return;
@@ -9458,14 +9477,7 @@ function renderShiftActivity(sessions, approved, date) {
     const hourlyFormLogs = opLogs.filter(l => (l.type||l.log_type) === 'hourly');
     const sessionLogs = extensionLogs; // "Sessions" reflects real extension-tracked work sessions
     const sessionCount = sessionLogs.length + hourlyFormLogs.length;
-    // Extension's 'submission' cases field is a running cumulative total per shift (confirmed
-    // against raw data: values climb steadily, e.g. 1,2,4,6...114) — the most recent row holds
-    // the true total so far. The manual hourly form's 'cases' field is an explicit per-hour
-    // delta ("Cases Done This Hour"), so those are correctly summed instead.
-    const lastCasesLog = extensionLogs[extensionLogs.length - 1];
-    const cumulativeCases = (+lastCasesLog?.cases) || 0;
-    const hourlyFormCases = hourlyFormLogs.reduce((s,l) => s + (+l.cases || 0), 0);
-    const totalCases = (cumulativeCases + hourlyFormCases) || sess?.totalCases || 0;
+    const totalCases = wfhOperatorCases(opId, logs, sess);
     const lastLog   = opLogs[opLogs.length - 1];
     const lastTime  = lastLog?.timeStr
       ? lastLog.timeStr
@@ -9541,7 +9553,7 @@ async function renderWFHMonitor() {
   const offOps    = allOps.filter(id=>opStatus(id, sessions)==='offline');
 
   // KPIs
-  const totalCases  = allOps.reduce((s,id)=>s+(sessions[id].totalCases||0),0);
+  const totalCases  = allOps.reduce((s,id)=>s+wfhOperatorCases(id, logs, sessions[id]),0);
   const avgScore    = allOps.length ? Math.round(allOps.reduce((s,id)=>s+wfhComplianceScore(id,date),0)/allOps.length) : 0;
   const totalIssues = logs.filter(l=>l.tool&&l.tool!=='ok').length;
   const kpiEl = document.getElementById('wfh-kpi-row');
@@ -9583,7 +9595,7 @@ async function renderWFHMonitor() {
     gridEl.innerHTML = gridOps.map(id => {
       const sess   = sessions[id];
       const status = opStatus(id, sessions);
-      const cases  = sess.totalCases || 0;
+      const cases  = wfhOperatorCases(id, logs, sess);
       const score  = wfhComplianceScore(id, date);
       const opLogs = _logsCache.filter(l=>(l.opId||l.op_id)===id && l.date===date && (l.type||l.log_type)==='hourly');
       const logCount = opLogs.length;
@@ -9653,7 +9665,7 @@ async function renderWFHMonitor() {
       const opLogs= logs.filter(l=>l.opId===id);
       const hourly= opLogs.filter(l=>l.type==='hourly').length;
       const idleMin=wfhIdleMinutes(id,date);
-      const cases = sess.totalCases||0;
+      const cases = wfhOperatorCases(id, logs, sess);
       const proofs= opLogs.filter(l=>l.type==='hourly'&&l.proof&&l.proof.length>10).length;
       const lastH = opLogs.filter(l=>l.type==='hourly').slice(-1)[0];
       const netIco= !lastH ? '–' : lastH.net==='stable'?'✅':lastH.net==='slow'?'⚠️':'🔴';
@@ -9803,7 +9815,7 @@ function showOperatorTimeline(opId, date) {
       <div style="flex:1">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">${operatorLabel(opId)}</div>
         <div style="font-size:12px;color:var(--text3)">Check-in: ${wfhTimeStr(sess.checkIn)} · Check-out: ${wfhTimeStr(sess.checkOut)}</div>
-        <div style="font-size:12px;color:var(--text3)">Cases: ${(sess.totalCases||0).toLocaleString()} · Logs: ${logs.filter(l=>l.type==='hourly').length}</div>
+        <div style="font-size:12px;color:var(--text3)">Cases: ${wfhOperatorCases(opId, logs, sess).toLocaleString()} · Logs: ${logs.filter(l=>l.type==='hourly').length}</div>
         <div class="wfh-integrity-bar" style="margin-top:8px"><div class="wfh-integrity-fill" style="width:${score}%;background:${sc}"></div></div>
       </div>
     </div>
