@@ -13406,10 +13406,7 @@ function renderDailyPlanView() {
         <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">${fmtDate(date)}</div>
         <span class="badge" style="background:${plan.status==='Approved'?'rgba(0,212,160,0.18)':plan.status==='Rejected'?'rgba(255,94,110,0.18)':'rgba(255,170,68,0.18)'};color:${plan.status==='Approved'?'var(--green)':plan.status==='Rejected'?'var(--red)':'var(--amber)'}">${plan.status||'Pending'}</span>
         <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
-          ${(currentRole==='tl'||currentRole==='admin')&&plan.status!=='Approved'&&plan.status!=='Rejected'?`
-            <button class="btn btn-green btn-sm" onclick="approveDP(${plan.id})">✓ Approve</button>
-            <button class="btn btn-danger btn-sm" onclick="rejectDP(${plan.id})">✗ Reject</button>`:''}`+
-          `${(currentRole==='tl'||currentRole==='admin')?`<button class="btn btn-danger btn-sm" onclick="deleteDP(${plan.id})">✕ Delete</button>`:''}</span>
+          ${(currentRole==='tl'||currentRole==='admin')?`<button class="btn btn-danger btn-sm" onclick="deleteDP(${plan.id})">✕ Delete</button>`:''}</span>
       </div>
 
       <!-- Plan + Achieved side by side -->
@@ -14107,7 +14104,7 @@ function buildNotifCard(n, compact) {
   const TYPE_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report' };
   const sc = n.status==='Approved'?'var(--green)':n.status==='Rejected'?'var(--red)':'var(--amber)';
   const name = n.name || (n.person==='kings'?'Kingori':n.person==='swat'?'Rosemary Nyaleso':'Team Lead');
-  const isApprovable = n.type==='plan' || n.type==='report'; // call reports have no approval workflow
+  const isApprovable = n.type==='report'; // plans no longer require approval; call reports never had it
   return `
   <div class="notif-item ${n.read?'':'unread'}" onclick="openFromNotif('${n.type}','${n.person}','${n.date}',${n.entryId})">
     <div class="notif-icon">${TYPE_ICON[n.type]||'🔔'}</div>
