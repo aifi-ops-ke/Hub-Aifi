@@ -9421,18 +9421,28 @@ function renderWorkingNow(sessions, approved, date) {
 
 // ── Live Shift Activity: session counts + full timeline per working operator ──
 // Single source of truth for an operator's case count on a given date.
-// Extension's 'submission' cases field is a running cumulative total per shift (confirmed
+// Extension's case-bearing logs are a running cumulative total per shift (confirmed
 // against raw data: values climb steadily, e.g. 1,2,4,6...114) — the most recent row holds
 // the true total so far. The manual hourly form's 'cases' field is an explicit per-hour
-// delta ("Cases Done This Hour"), so those are correctly summed instead.
+// delta ("Cases Done This Hour"), so those are summed instead of taking the latest.
+// NOTE: we don't gate on type==='submission' alone — some extension writes land cases
+// on other log types (e.g. periodic pings), so any log with cases>0 that isn't one of the
+// known zero-case event types counts as a real case-bearing log. This mirrors the Task
+// Submit Tracker's isRealSubmit check, which has proven reliable for this exact ambiguity.
 // Falls back to sess.totalCases only when there are no logs at all for this op/date —
 // covers the rare case where logs haven't loaded yet but a saved session total exists.
+const WFH_NON_CASE_LOG_TYPES = ['break','resume','checkout','checkin','tab_switch','eod','idle','status_change','force_logout','cursor_return','not_on_hub','face_changed'];
 function wfhOperatorCases(opId, opLogsForDate, sess) {
   const canon = normalizeOpId;
   const opLogs = opLogsForDate.filter(l => canon(l.opId || l.op_id) === opId)
                                .sort((a,b) => (a.isoTime||'').localeCompare(b.isoTime||''));
-  const extensionLogs  = opLogs.filter(l => (l.type||l.log_type) === 'submission');
   const hourlyFormLogs = opLogs.filter(l => (l.type||l.log_type) === 'hourly');
+  const extensionLogs  = opLogs.filter(l => {
+    const lt = l.type || l.log_type || '';
+    if(lt === 'hourly') return false; // counted separately below
+    const lc = +(l.cases || 0);
+    return lt === 'submission' || (lc > 0 && !WFH_NON_CASE_LOG_TYPES.includes(lt));
+  });
   const lastCasesLog = extensionLogs[extensionLogs.length - 1];
   const cumulativeCases = (+lastCasesLog?.cases) || 0;
   const hourlyFormCases = hourlyFormLogs.reduce((s,l) => s + (+l.cases || 0), 0);
