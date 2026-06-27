@@ -14929,10 +14929,10 @@ window.dbInit().then(() => {
 }).catch(() => checkSession());
 
 // ════════════════════════════════════════════════════════════════
-// WFH MONITOR v2 — FULL CUTOVER + AUTO-CLOSE STALE SESSIONS
-// (data layer, render, write-side, resume-session-on-select, and
-// auto-closing sessions with no activity in 20+ minutes). All real
-// operator-facing buttons call these v2 functions. See wfh_schema_v2.sql.
+// WFH MONITOR v2 — FULL CUTOVER + AUTO-CLOSE + APPROVAL ERROR HANDLING
+// dbSetApprovedV2 now reports real success/failure instead of failing
+// silently — the approval modal shows an error toast if the save
+// genuinely fails instead of always claiming success.
 // ════════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════════
@@ -15167,10 +15167,24 @@ async function dbGetApprovedV2(date) {
 
 async function dbSetApprovedV2(opIds, date) {
   const d = date || nairobiDateStr();
-  await fetch(_SUPA_URL+'/rest/v1/wfh_approved_v2?date=eq.'+d, {method:'DELETE', headers:WFH2_HDR});
-  if(!opIds.length) return;
-  const rows = opIds.map(id=>({op_id:id})); // date defaults to nairobi_today() server-side
-  await fetch(_SUPA_URL+'/rest/v1/wfh_approved_v2', {method:'POST', headers:WFH2_HDR, body:JSON.stringify(rows)});
+  try {
+    const delRes = await fetch(_SUPA_URL+'/rest/v1/wfh_approved_v2?date=eq.'+d, {method:'DELETE', headers:WFH2_HDR});
+    if(!delRes.ok) {
+      console.error('dbSetApprovedV2 DELETE failed:', delRes.status, await delRes.text());
+      return false;
+    }
+    if(!opIds.length) return true;
+    const rows = opIds.map(id=>({op_id:id})); // date defaults to nairobi_today() server-side
+    const postRes = await fetch(_SUPA_URL+'/rest/v1/wfh_approved_v2', {method:'POST', headers:WFH2_HDR, body:JSON.stringify(rows)});
+    if(!postRes.ok) {
+      console.error('dbSetApprovedV2 POST failed:', postRes.status, await postRes.text());
+      return false;
+    }
+    return true;
+  } catch(e) {
+    console.error('dbSetApprovedV2 error:', e);
+    return false;
+  }
 }
 
 // ── Breaches ─────────────────────────────────────────────────────
@@ -16058,10 +16072,18 @@ function openWFHApprovalV2() {
     actionBtn.textContent='✅ Save Approvals (v2)';
     actionBtn.onclick = async () => {
       const sel = Array.from(document.querySelectorAll('#modal-body input[type=checkbox]:checked')).map(b=>b.value);
-      await dbSetApprovedV2(sel);
-      closeModal();
-      toast(`${sel.length} operator(s) approved for WFH (v2)`,'✅');
-      if(typeof renderWFHMonitorV2 === 'function') renderWFHMonitorV2();
+      actionBtn.disabled = true;
+      actionBtn.textContent = 'Saving...';
+      const ok = await dbSetApprovedV2(sel);
+      actionBtn.disabled = false;
+      if(ok) {
+        closeModal();
+        toast(`${sel.length} operator(s) approved for WFH (v2)`,'✅');
+        if(typeof renderWFHMonitorV2 === 'function') renderWFHMonitorV2();
+      } else {
+        actionBtn.textContent = '✅ Save Approvals (v2)';
+        toast('❌ Save failed — check your connection and try again','❌');
+      }
     };
   });
 }
