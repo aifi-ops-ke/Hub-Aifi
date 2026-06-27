@@ -14929,9 +14929,10 @@ window.dbInit().then(() => {
 }).catch(() => checkSession());
 
 // ════════════════════════════════════════════════════════════════
-// WFH MONITOR v2 — FULL CUTOVER (data layer, render, write-side,
-// resume-session-on-select). All real operator-facing buttons now
-// call these v2 functions. See wfh_schema_v2.sql for the schema.
+// WFH MONITOR v2 — FULL CUTOVER + AUTO-CLOSE STALE SESSIONS
+// (data layer, render, write-side, resume-session-on-select, and
+// auto-closing sessions with no activity in 20+ minutes). All real
+// operator-facing buttons call these v2 functions. See wfh_schema_v2.sql.
 // ════════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════════
@@ -15514,6 +15515,63 @@ function renderShiftActivityV2(sessions, approved, logs) {
 // Re-uses the existing toggleShiftTimeline(opId) function as-is — it's
 // purely DOM show/hide, no data dependency, nothing to change there.
 
+// ── Auto-close stale sessions ──────────────────────────────────────
+// Checks each currently-active v2 session's REAL last activity (the
+// most recent wfh_logs_v2 row for that operator) rather than the
+// last_heartbeat field, which doesn't update reliably without a true
+// heartbeat mechanism. Anyone with no log in the last 20 minutes gets
+// checked out automatically — this is the code equivalent of the
+// manual SQL cleanup JP was running by hand; now it happens on every
+// refresh instead of needing a person to remember to run it.
+// Converts the current moment (true UTC, from the browser's clock) into
+// the naive Nairobi-local timestamp STRING format the v2 schema expects
+// for client-sent timestamps like check_out. Simply stripping 'Z' from
+// a UTC ISO string would be wrong — it keeps UTC numbers with no offset
+// applied, silently reintroducing the exact timezone bug this rebuild
+// exists to eliminate. This actually shifts the clock by +3 hours first.
+function nowAsNairobiNaiveString() {
+  const utcMs = Date.now();
+  const nairobiMs = utcMs + (3*60*60*1000);
+  return new Date(nairobiMs).toISOString().replace('Z','');
+}
+
+const WFH_STALE_MINUTES_V2 = 20;
+
+async function autoCloseStaleSessionsV2(sessions, logs) {
+  const now = Date.now();
+  const staleOps = [];
+
+  for(const opId of Object.keys(sessions)) {
+    const sess = sessions[opId];
+    if(!sess.checkIn || sess.checkOut) continue; // not active, nothing to close
+
+    const opLogs = logs.filter(l => normalizeOpId(l.opId) === opId);
+    let lastActivity = parseNairobiTs(sess.checkIn);
+    opLogs.forEach(l => {
+      const t = parseNairobiTs(l.isoTime);
+      if(t > lastActivity) lastActivity = t;
+    });
+
+    const minutesSinceActivity = (now - lastActivity) / 60000;
+    if(minutesSinceActivity > WFH_STALE_MINUTES_V2) staleOps.push(opId);
+  }
+
+  if(!staleOps.length) return 0;
+
+  try {
+    for(const opId of staleOps) {
+      await fetch(_SUPA_URL+'/rest/v1/wfh_sessions_v2?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+nairobiDateStr(), {
+        method: 'PATCH', headers: WFH2_HDR,
+        body: JSON.stringify({ check_out: nowAsNairobiNaiveString(), status: 'offline' })
+      });
+    }
+    console.log(`[WFH v2] Auto-closed ${staleOps.length} stale session(s):`, staleOps);
+  } catch(e) {
+    console.error('autoCloseStaleSessionsV2 error:', e);
+  }
+  return staleOps.length;
+}
+
 // ── Operator timeline modal ───────────────────────────────────────
 // Ported from the real showOperatorTimeline(opId, date) — uses the
 // existing openModal() helper, confirmed against the live function
@@ -15597,11 +15655,23 @@ async function resetWFHFreshStartV2() {
 async function renderWFHMonitorV2() {
   const date = document.getElementById('wfh-filter-date')?.value || nairobiDateStr();
 
-  const [sessions, logs, approved] = await Promise.all([
+  let [sessions, logs, approved] = await Promise.all([
     dbGetSessionsV2(date),
     dbGetLogsV2(date),
     dbGetApprovedV2(date),
   ]);
+
+  // Auto-close anyone with no real activity in the last 20 minutes —
+  // only meaningful for today (closing stale sessions from a past date
+  // doesn't apply the same way), and only re-fetch if something actually
+  // changed, to avoid an extra round-trip on every normal refresh.
+  if(date === nairobiDateStr()) {
+    const closedCount = await autoCloseStaleSessionsV2(sessions, logs);
+    if(closedCount > 0) {
+      sessions = await dbGetSessionsV2(date); // reflect the cleanup immediately
+    }
+  }
+
   _sessionsCacheV2[date] = sessions;
   _logsCacheV2 = logs;
 
