@@ -3419,19 +3419,18 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
            WFH MONITOR v2 — STANDALONE TEST PANEL
            Completely separate from the v1 panels above/below. None
            of these element IDs exist anywhere else on the page, so
-           nothing v1 does (its 30s/60s refresh intervals, the date/
-           status/search filter onchange handlers, the Refresh
-           button) can ever repaint or clear this panel. This is the
-           only reliable way to see v2's real output until the page
-           is fully switched over.
+           nothing v1 does can ever repaint or clear this panel.
            ═══════════════════════════════════════════════════════ -->
       <div class="card" style="margin-bottom:20px;border:2px dashed var(--teal);background:rgba(0,200,224,0.04)">
-        <div class="card-header" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+        <div class="card-header" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div>
             <div class="card-title">🧪 WFH Monitor v2 — Isolated Test Panel</div>
-            <div class="card-sub">Reads only wfh_*_v2 tables · Cannot be overwritten by v1's auto-refresh · For verification only</div>
+            <div class="card-sub">Reads/writes only wfh_*_v2 tables · Cannot be overwritten by v1's auto-refresh</div>
           </div>
-          <button class="btn btn-secondary" onclick="renderWFHMonitorV2()">▶ Run v2 Render</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="openWFHApprovalV2()">✅ Approve (v2)</button>
+            <button class="btn btn-secondary" onclick="renderWFHMonitorV2()">▶ Run v2 Render</button>
+          </div>
         </div>
         <div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:10px" id="wfh-last-refresh-v2"></div>
         <div class="kpi-grid" id="wfh-kpi-row-v2" style="margin-bottom:16px"></div>
@@ -14919,9 +14918,9 @@ window.dbInit().then(() => {
 }).catch(() => checkSession());
 
 // ════════════════════════════════════════════════════════════════
-// WFH MONITOR v2 — FRESH-START REBUILD (corrected splice, dedicated
-// -v2 element IDs throughout, isolated from v1's DOM and refresh loops)
-// See wfh_schema_v2.sql for the matching Supabase schema.
+// WFH MONITOR v2 — FRESH-START REBUILD (complete: data layer, render,
+// and write-side functions). Dedicated -v2 element IDs throughout,
+// isolated from v1's DOM and refresh loops. See wfh_schema_v2.sql.
 // ════════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════════
@@ -15158,6 +15157,49 @@ async function dbSetApprovedV2(opIds, date) {
   if(!opIds.length) return;
   const rows = opIds.map(id=>({op_id:id})); // date defaults to nairobi_today() server-side
   await fetch(_SUPA_URL+'/rest/v1/wfh_approved_v2', {method:'POST', headers:WFH2_HDR, body:JSON.stringify(rows)});
+}
+
+// ── Breaches ─────────────────────────────────────────────────────
+// v1 only ever wrote breaches to browser localStorage (loadObj/save on
+// 'wfh_breaches') — never shared across devices, never visible to a TL
+// on a different machine. Moved to Supabase here so it's a real,
+// shared record. See wfh_breaches_v2 in wfh_schema_v2.sql.
+async function dbLogBreachV2(opId, message) {
+  try {
+    await fetch(_SUPA_URL+'/rest/v1/wfh_breaches_v2', {
+      method:'POST', headers:WFH2_HDR,
+      body: JSON.stringify({ op_id: opId, message })
+      // date/logged_at default server-side via nairobi_today()/nairobi_now()
+    });
+  } catch(e) { console.error('dbLogBreachV2 error:', e); }
+}
+
+async function dbGetBreachesV2(date) {
+  try {
+    const d = date || nairobiDateStr();
+    const r = await fetch(_SUPA_URL+'/rest/v1/wfh_breaches_v2?date=eq.'+d+'&order=logged_at.desc',
+      {headers:{...WFH2_HDR,'Prefer':''}});
+    const rows = await r.json();
+    return Array.isArray(rows) ? rows.map(row => ({
+      opId: normalizeOpId(row.op_id),
+      message: row.message,
+      time: row.logged_at,
+    })) : [];
+  } catch(e) { console.error('dbGetBreachesV2 error:', e); return []; }
+}
+
+// ── Submit log ─────────────────────────────────────────────────────
+// Parallel lightweight record mirroring v1's wfh_submit_log — kept for
+// parity since v1's reporting tooling reads from this table specifically,
+// separate from the fuller wfh_logs_v2 detail.
+async function dbSaveSubmitLogV2(opId, submitType, cases, aht, occ) {
+  try {
+    const res = await fetch(_SUPA_URL+'/rest/v1/wfh_submit_log_v2', {
+      method:'POST', headers:WFH2_HDR,
+      body: JSON.stringify({ op_id: opId, submit_type: submitType, cases: cases||0, aht: aht||null, occ: occ||null })
+    });
+    if(!res.ok) console.error('Submit log v2 failed:', res.status, await res.text());
+  } catch(e) { console.error('dbSaveSubmitLogV2 error:', e); }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -15651,6 +15693,258 @@ async function renderWFHMonitorV2() {
   // NOTE: the Full Audit Log table (#wfh-full-log-tbody, 8 raw-log columns:
   // Time, Operator, Type, Cases, AHT, Occ, Focus, Energy) still needs a v2
   // version — not yet ported. Flagging rather than skipping silently.
+}
+
+// ════════════════════════════════════════════════════════════════
+// WFH MONITOR v2 — WRITE-SIDE FUNCTIONS
+// Full parity with v1's wfhCheckIn / wfhToggleBreak / submitHourlyLog /
+// submitEOD / openWFHApproval, minus all camera/snapshot/face-detection
+// calls (retired per JP's decision). Breach tracking moved from v1's
+// localStorage-only wfh_breaches to the real, shared wfh_breaches_v2
+// table. Reuses the SAME form element IDs as v1 (#wfh-hourly-cases,
+// #wfh-eod-cases, etc.) since those are operator-facing inputs that
+// don't need to change — only where the data goes changes.
+// ════════════════════════════════════════════════════════════════
+
+// Module-level session-timer state, mirrors v1's _wfhSessionStart/
+// _wfhTotalBreak/_wfhOnBreak/_wfhBreakStart/_wfhTimerInterval/_wfhIdleInterval
+// but namespaced so it can't collide with v1's identically-named globals
+// while both versions exist side by side during migration.
+let _wfhSessionStartV2 = null;
+let _wfhTotalBreakV2   = 0;
+let _wfhOnBreakV2      = false;
+let _wfhBreakStartV2   = null;
+let _wfhTimerIntervalV2= null;
+
+async function wfhCheckInV2() {
+  const opId = document.getElementById('wfh-op-self').value;
+  if(!opId) { toast('Select your name first','⚠️'); return; }
+
+  // Check approval live from Supabase (v2 table)
+  const approvedToday = await dbGetApprovedV2();
+  if(!approvedToday.includes(normalizeOpId(opId))) {
+    toast('🔒 Not approved for WFH today. Contact your Team Lead.','❌');
+    const statusText = document.getElementById('wfh-session-status-text');
+    if(statusText) statusText.textContent = '🔒 Not approved — contact Team Lead';
+    return;
+  }
+
+  // Already checked in today and still active? Don't let them check in twice.
+  const todaySessions = await dbGetSessionsV2();
+  const existingSess = todaySessions[normalizeOpId(opId)];
+  if(existingSess?.checkIn && !existingSess?.checkOut) { toast('Already checked in today','⚠️'); return; }
+
+  // Validate pre-check-in fields — same fields as v1, camera check removed.
+  const internet = document.getElementById('wfh-pre-internet')?.value;
+  const env      = document.getElementById('wfh-pre-env')?.value;
+  const power    = document.getElementById('wfh-pre-power')?.value;
+  const tools    = document.getElementById('wfh-pre-tools')?.value;
+  const workspace= document.getElementById('wfh-pre-workspace')?.value.trim();
+  const location = 'Westlands';  // hardcoded, same as v1
+  const shift    = document.getElementById('wfh-op-shift')?.value || '';
+
+  if(!internet||!env||!power||!tools) { toast('Complete all Pre-Check-In fields first','⚠️'); return; }
+  if(!workspace) { toast('Describe your workspace setup before checking in','⚠️'); return; }
+
+  await dbSaveSessionV2(opId, {
+    status: 'online', shift, location,
+    preInternet: internet, preEnv: env, prePower: power, preTools: tools,
+    workspace, breakCount: 0,
+  });
+
+  _wfhSessionStartV2 = new Date().toISOString();
+  _wfhTotalBreakV2 = 0; _wfhOnBreakV2 = false;
+
+  const envFlag = (env==='unsuitable') ? ' ⚠️ UNSUITABLE ENVIRONMENT' : '';
+  const netFlag = (internet==='poor'||internet==='mobile') ? ' ⚠️ POOR CONNECTIVITY' : '';
+  await dbInsertLogV2(opId, 'checkin', {
+    notes:`Shift started. Location: ${location} | Internet: ${internet}${netFlag} | Env: ${env}${envFlag} | Power: ${power} | Tools: ${tools} | Setup: ${workspace}`,
+    location, proof: workspace
+  });
+
+  if(env==='unsuitable'||internet==='poor') {
+    await dbLogBreachV2(opId, env==='unsuitable' ? '🚨 Unsuitable workspace reported at check-in' : '📶 Poor internet reported at check-in');
+  }
+
+  startWFHTimerV2();
+  const precheckPanel = document.getElementById('wfh-precheckin-panel');
+  if(precheckPanel) { precheckPanel.style.opacity='0.5'; precheckPanel.style.pointerEvents='none'; }
+  toast(operatorLabel(opId)+' — remote shift started ✓ (v2)','▶️');
+}
+
+function startWFHTimerV2() {
+  clearInterval(_wfhTimerIntervalV2);
+  _wfhTimerIntervalV2 = setInterval(()=>{
+    const bMs = _wfhOnBreakV2 && _wfhBreakStartV2 ? _wfhTotalBreakV2+(Date.now()-new Date(_wfhBreakStartV2).getTime()) : _wfhTotalBreakV2;
+    const el  = document.getElementById('wfh-session-timer');
+    if(el && _wfhSessionStartV2) el.textContent = wfhElapsedV2(_wfhSessionStartV2, bMs);
+  }, 1000);
+}
+
+function wfhElapsedV2(startIso, breakMs=0) {
+  const ms = Date.now() - new Date(startIso).getTime() - breakMs;
+  if(ms < 0) return '00:00:00';
+  const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000), s = Math.floor((ms%60000)/1000);
+  return [h,m,s].map(v=>String(v).padStart(2,'0')).join(':');
+}
+
+async function wfhToggleBreakV2() {
+  const opId = document.getElementById('wfh-op-self').value;
+  if(!opId) return;
+  const sessions = await dbGetSessionsV2();
+  const sess = sessions[normalizeOpId(opId)];
+  if(!sess) return;
+
+  if(!_wfhOnBreakV2) {
+    _wfhOnBreakV2 = true; _wfhBreakStartV2 = new Date().toISOString();
+    const breakCount = (sess.breakCount||0) + 1;
+    await dbSaveSessionV2(opId, { ...sess, status:'idle', breakCount });
+    await dbInsertLogV2(opId, 'break', { notes:`Break #${breakCount} started` });
+    toast('Break started — remember to resume your shift','☕');
+  } else {
+    const bMs = Date.now()-new Date(_wfhBreakStartV2).getTime();
+    _wfhTotalBreakV2 += bMs; _wfhOnBreakV2 = false; _wfhBreakStartV2 = null;
+    await dbSaveSessionV2(opId, { ...sess, status:'online', totalBreakMs:_wfhTotalBreakV2 });
+    await dbInsertLogV2(opId, 'resume', { notes:`Break ended. Break duration: ${Math.round(bMs/60000)} mins` });
+    toast('Back to work ▶️','✅');
+  }
+}
+
+async function submitHourlyLogV2() {
+  const opId = document.getElementById('wfh-op-self').value;
+  if(!opId) { toast('Select your name first','⚠️'); return; }
+  const sessions = await dbGetSessionsV2();
+  const sess = sessions[normalizeOpId(opId)];
+  if(!sess || !sess.checkIn) { toast('Please check in first','⚠️'); return; }
+
+  const cases    = +document.getElementById('wfh-hourly-cases').value||0;
+  const aht      = +document.getElementById('wfh-hourly-aht').value||0;
+  const occ      = +document.getElementById('wfh-hourly-occ').value||0;
+  const activity = document.getElementById('wfh-hourly-activity').value;
+  const tool     = document.getElementById('wfh-hourly-tool').value;
+  const net      = document.getElementById('wfh-hourly-net')?.value||'stable';
+  const env      = document.getElementById('wfh-hourly-env').value;
+  const focus    = document.getElementById('wfh-hourly-focus')?.value||'3';
+  const energy   = document.getElementById('wfh-hourly-energy')?.value||'3';
+  const proof    = document.getElementById('wfh-hourly-proof').value.trim();
+  const notes    = document.getElementById('wfh-hourly-notes').value.trim();
+
+  if(!proof && !notes) { toast('Please add a proof of work or update notes','⚠️'); return; }
+  if(proof && proof.length < 5) { toast('Proof is very short — please add more detail','⚠️'); return; }
+
+  const flags = [];
+  if(net==='dropping'||net==='mobile') flags.push('📶 Network: '+net);
+  if(env==='disrupted') flags.push('🏠 Workspace disrupted');
+  if(+focus<=2) flags.push('🧠 Low focus ('+focus+'/5)');
+  if(+energy<=2) flags.push('⚡ Low energy ('+energy+'/5)');
+  if(tool==='down'||tool==='internet') flags.push('🔴 Tool: '+tool);
+
+  const savedEntry = await dbInsertLogV2(opId, 'hourly', {
+    cases, aht, occ, activity, tool, net, env,
+    focus:+focus, energy:+energy, proof, notes,
+    flags: flags.join(' | ')
+  });
+
+  if(!savedEntry) return; // dbInsertLogV2 already logged the error
+
+  await dbSaveSubmitLogV2(opId, 'hourly', cases, aht, occ);
+  if(flags.length) {
+    for(const f of flags) await dbLogBreachV2(opId, f);
+  }
+
+  await dbSaveSessionV2(opId, { ...sess, lastAHT:aht, lastFocus:+focus, lastEnergy:+energy });
+
+  ['wfh-hourly-cases','wfh-hourly-aht','wfh-hourly-occ',
+   'wfh-hourly-notes','wfh-hourly-proof'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  toast('✅ Hourly log submitted & saved — TL can see it now (v2)','⏱️');
+}
+
+function confirmCheckoutV2() {
+  const card = document.getElementById('wfh-eod-form-card');
+  if(card) { card.style.display = 'block'; card.scrollIntoView({behavior:'smooth'}); }
+}
+
+async function submitEODV2() {
+  const opId = document.getElementById('wfh-op-self').value;
+  if(!opId) { toast('Select your name first','⚠️'); return; }
+  const cases    = +document.getElementById('wfh-eod-cases').value||0;
+  const aht      = +document.getElementById('wfh-eod-aht').value||0;
+  const occ      = +document.getElementById('wfh-eod-occ').value||0;
+  const quality  = document.getElementById('wfh-eod-quality').value;
+  const internet = document.getElementById('wfh-eod-internet').value;
+  const notes    = document.getElementById('wfh-eod-notes').value;
+
+  await dbSaveEODV2(opId, {
+    totalCases: cases,
+    summary: `AHT ${aht}s | Occ ${occ}% | ${quality} | Internet: ${internet} | ${notes}`,
+    blockers: document.getElementById('wfh-eod-support')?.value || null,
+  });
+
+  await dbInsertLogV2(opId, 'eod', {
+    cases, aht, occ,
+    notes:`EOD: ${cases} cases | AHT ${aht}s | Occ ${occ}% | ${quality} | Internet: ${internet} | ${notes}`
+  });
+
+  await dbSaveSubmitLogV2(opId, 'eod', cases, aht, occ);
+
+  // Checkout — same 9-hour lockout rule as v1, ported faithfully.
+  const sessions = await dbGetSessionsV2();
+  const sess = sessions[normalizeOpId(opId)];
+  let totalHours = null;
+  if(sess?.checkIn) {
+    const ms = (Date.now() - new Date(sess.checkIn).getTime()) - (_wfhTotalBreakV2||0);
+    totalHours = (ms/3600000).toFixed(2);
+    await dbSaveSessionV2(opId, {
+      ...sess, status:'offline', checkOut: new Date().toISOString(), totalHours,
+    });
+  }
+
+  await dbInsertLogV2(opId, 'checkout', { notes:'Checked out. Total hours: '+(totalHours||'–') });
+  clearInterval(_wfhTimerIntervalV2);
+
+  const eodCard = document.getElementById('wfh-eod-form-card');
+  if(eodCard) eodCard.style.display = 'none';
+  const statusText = document.getElementById('wfh-session-status-text');
+  if(statusText) statusText.textContent = '✅ Shift ended. Great work today!';
+  toast(operatorLabel(opId)+' — EOD submitted & checked out ✓ (v2)','📝');
+
+  // NOTE: v1's 9-hour shift lockout (requiring TL approval to start a new
+  // shift same day) and the full End-of-Shift Summary Report are NOT yet
+  // ported — flagging rather than silently dropping. The lockout rule in
+  // particular affects who can check in again today, so it should be
+  // confirmed/ported before this fully replaces v1 for real operators.
+}
+
+// ── Approval (TL-facing) ──────────────────────────────────────────
+function openWFHApprovalV2() {
+  dbGetApprovedV2().then(approved => {
+    const boxes = OPERATORS.map(op => {
+      const chk = approved.includes(op) ? 'checked' : '';
+      const t   = getOpType(op);
+      const tc  = t==='FT'?'badge-blue':t==='PT'?'badge-amber':'badge-teal';
+      return `<label style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer">
+        <input type="checkbox" value="${op}" ${chk} style="width:15px;height:15px;accent-color:var(--accent)"/>
+        <span style="flex:1;font-size:12px;font-weight:600;color:var(--text)">${operatorLabel(op)}</span>
+        <span class="badge ${tc}">${t}</span>
+      </label>`;
+    }).join('');
+    openModal('✅ Approve Operators for WFH Today (v2)', `
+      <div class="alert alert-info" style="margin-bottom:12px">Only approved operators appear in the WFH Operator Portal. Unapproved operators cannot check in remotely.</div>
+      <div style="max-height:360px;overflow-y:auto;padding:2px 4px">${boxes}</div>
+    `);
+    const actionBtn = document.getElementById('modal-action');
+    actionBtn.style.display='flex';
+    actionBtn.textContent='✅ Save Approvals (v2)';
+    actionBtn.onclick = async () => {
+      const sel = Array.from(document.querySelectorAll('#modal-body input[type=checkbox]:checked')).map(b=>b.value);
+      await dbSetApprovedV2(sel);
+      closeModal();
+      toast(`${sel.length} operator(s) approved for WFH (v2)`,'✅');
+      if(typeof renderWFHMonitorV2 === 'function') renderWFHMonitorV2();
+    };
+  });
 }
 </script>
 </body>
