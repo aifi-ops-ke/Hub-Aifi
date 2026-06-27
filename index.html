@@ -15349,8 +15349,14 @@ function renderWorkingNowV2(sessions, approved, logs) {
   const counter = document.getElementById('working-now-count-v2');
   if(!grid) return;
 
+  // Per JP's decision (2026-06-28): show anyone with a REAL session today,
+  // approved or not — approval shouldn't gate visibility when people are
+  // demonstrably working. The combined set is every approved op_id PLUS
+  // every op_id that actually has a session row, deduplicated.
+  const allRelevantOps = [...new Set([...approved, ...Object.keys(sessions)])];
+
   const active = [], checkedOut = [], pending = [];
-  approved.forEach(opId => {
+  allRelevantOps.forEach(opId => {
     const sess = sessions[opId];
     const st   = opStatusV2(opId, sessions);
     if(!sess || !sess.checkIn) { pending.push(opId); return; }
@@ -15361,7 +15367,7 @@ function renderWorkingNowV2(sessions, approved, logs) {
   if(counter) {
     counter.textContent = active.length;
     counter.style.color = active.length === 0 ? 'var(--text3)' :
-                          active.length >= approved.length * 0.8 ? 'var(--green)' : 'var(--accent)';
+                          active.length >= allRelevantOps.length * 0.8 ? 'var(--green)' : 'var(--accent)';
   }
 
   if(!active.length) {
@@ -15418,7 +15424,7 @@ function renderWorkingNowV2(sessions, approved, logs) {
 
   if(!notGrid) return;
   if(!pending.length && !checkedOut.length) {
-    notGrid.innerHTML = '<div style="color:var(--green);font-size:11px;font-weight:600">✅ All approved operators are checked in!</div>';
+    notGrid.innerHTML = '<div style="color:var(--green);font-size:11px;font-weight:600">✅ Everyone tracked today is checked in!</div>';
   } else {
     let html = '';
     if(pending.length) {
@@ -15450,7 +15456,8 @@ function renderShiftActivityV2(sessions, approved, logs) {
   if(!el) return;
 
   const canon = normalizeOpId;
-  const working = [...new Set(approved.map(canon))].filter(opId => {
+  const allRelevantOps = [...new Set([...approved.map(canon), ...Object.keys(sessions)])];
+  const working = allRelevantOps.filter(opId => {
     const sess = sessions[opId];
     return sess?.checkIn && !sess?.checkOut && sess?.status !== 'offline';
   });
