@@ -14968,15 +14968,17 @@ async function dbGetSessionsV2(date) {
     const rows = await r.json();
     if(!Array.isArray(rows)) return {};
     const out = {};
-    const now = Date.now();
     rows.forEach(row => {
       const opId = normalizeOpId(row.op_id);
-      const hbMs   = row.last_heartbeat ? now - parseNairobiTs(row.last_heartbeat) : Infinity;
-      const hbMins = hbMs / 60000;
+      // Heartbeat-based staleness check intentionally DISABLED for now.
+      // v2 has no heartbeat source yet — that's the new Chrome extension's
+      // job, not yet built. Without it, last_heartbeat only updates on
+      // check-in (via the wfh_touch_heartbeat trigger) and never again,
+      // so treating staleness as "offline" was incorrectly marking every
+      // checked-in operator offline after ~40 minutes even though nobody
+      // checked out. Re-enable once the v2 extension sends real heartbeats.
       let effStatus = row.status || 'online';
-      if(row.check_out)        effStatus = 'offline';
-      else if(hbMins > 40)      effStatus = 'offline';
-      else if(hbMins > 20)      effStatus = 'idle';
+      if(row.check_out) effStatus = 'offline';
 
       out[opId] = {
         status:        effStatus,
