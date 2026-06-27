@@ -3383,7 +3383,7 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
           <p>Full remote oversight — real-time status, mandatory check points, proof of work, device fingerprint, idle detection & breach tracking.</p>
         </div>
         <div style="display:flex;gap:8px;padding-top:4px;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="openWFHApproval()">✅ Approve for WFH</button>
+          <button class="btn btn-primary" onclick="openWFHApprovalV2()">✅ Approve for WFH</button>
           <button class="btn" style="background:var(--grad-swat);color:#fff;padding:7px 15px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:700" onclick="openWFHFlagModal()">🚩 Flag Operator</button>
           <button class="btn btn-secondary" onclick="renderWFHMonitor()">↺ Refresh</button>
           <button class="btn" style="background:linear-gradient(135deg,#00c896,#00b4d8);color:#fff;padding:7px 15px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:700" onclick="openDailyExportModal()">📥 Export Daily Report</button>
@@ -3687,7 +3687,7 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
         <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
           <div class="form-group" style="margin:0;flex:2;min-width:200px">
             <label>Your Name</label>
-            <select id="wfh-op-self" onchange="onWFHOperatorSelect()" style="width:100%"></select>
+            <select id="wfh-op-self" onchange="onWFHOperatorSelectV2()" style="width:100%"></select>
           </div>
           <div class="form-group" style="margin:0;flex:1;min-width:110px">
             <label>Date</label>
@@ -3803,9 +3803,9 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
 
         <!-- Action buttons -->
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:16px">
-          <button class="btn btn-green" id="wfh-checkin-btn" onclick="wfhCheckIn()" style="font-size:14px;padding:11px 36px">▶ Check In — Start Shift</button>
-          <button class="btn btn-danger" id="wfh-checkout-btn" onclick="confirmCheckout()" style="font-size:14px;padding:11px 36px;display:none">⏹ End Shift & Submit EOD</button>
-          <button class="btn btn-secondary" id="wfh-break-btn" onclick="wfhToggleBreak()" style="display:none">☕ Take Break</button>
+          <button class="btn btn-green" id="wfh-checkin-btn" onclick="wfhCheckInV2()" style="font-size:14px;padding:11px 36px">▶ Check In — Start Shift</button>
+          <button class="btn btn-danger" id="wfh-checkout-btn" onclick="confirmCheckoutV2()" style="font-size:14px;padding:11px 36px;display:none">⏹ End Shift & Submit EOD</button>
+          <button class="btn btn-secondary" id="wfh-break-btn" onclick="wfhToggleBreakV2()" style="display:none">☕ Take Break</button>
           <button class="btn btn-secondary" id="wfh-join-meet-btn" onclick="openJoinMeetingFromPortal()" style="display:none;background:linear-gradient(135deg,#00b4d8,#0096c7);color:#fff;border:none">📹 Join Meeting</button>
         </div>
 
@@ -4001,7 +4001,7 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
           <label>Update for Team Lead</label>
           <textarea id="wfh-hourly-notes" placeholder="What did you accomplish? Any escalations, challenges, or wins your TL needs to know about right now..." style="min-height:50px"></textarea>
         </div>
-        <button class="btn btn-primary" onclick="submitHourlyLog()" style="width:100%;padding:13px;margin-top:14px;font-size:14px;font-weight:800">📤 Submit Hourly Log</button>
+        <button class="btn btn-primary" onclick="submitHourlyLogV2()" style="width:100%;padding:13px;margin-top:14px;font-size:14px;font-weight:800">📤 Submit Hourly Log</button>
       </div>
 
       <!-- EOD Form -->
@@ -4097,7 +4097,7 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
           </div>
         </div>
 
-        <button class="btn btn-primary" style="width:100%;padding:13px;margin-top:14px;font-size:14px;font-weight:800" onclick="submitEOD()">✅ Submit EOD & Check Out</button>
+        <button class="btn btn-primary" style="width:100%;padding:13px;margin-top:14px;font-size:14px;font-weight:800" onclick="submitEODV2()">✅ Submit EOD & Check Out</button>
       </div>
 
       <!-- My logs -->
@@ -9264,6 +9264,16 @@ async function initWFH() {
   }, 30000);
   clearInterval(_camGridInterval);
   _camGridInterval = setInterval(renderCamGrid, 60000);
+
+  // ── v2: auto-init alongside v1, writes only into its own -v2 DOM
+  // elements so the two systems can never collide. Now that real
+  // buttons write to v2, this keeps the v2 panel live without
+  // requiring a manual "Run v2 Render" click every time.
+  if(typeof renderWFHMonitorV2 === 'function') {
+    renderWFHMonitorV2();
+    clearInterval(_wfhRefreshIntervalV2);
+    _wfhRefreshIntervalV2 = setInterval(() => renderWFHMonitorV2(), 30000);
+  }
 }
 
 // ── Render "Who's Working Now" panel ─────────────────────────────
@@ -14918,9 +14928,9 @@ window.dbInit().then(() => {
 }).catch(() => checkSession());
 
 // ════════════════════════════════════════════════════════════════
-// WFH MONITOR v2 — FRESH-START REBUILD (complete: data layer, render,
-// and write-side functions). Dedicated -v2 element IDs throughout,
-// isolated from v1's DOM and refresh loops. See wfh_schema_v2.sql.
+// WFH MONITOR v2 — FULL CUTOVER (data layer, render, write-side,
+// resume-session-on-select). All real operator-facing buttons now
+// call these v2 functions. See wfh_schema_v2.sql for the schema.
 // ════════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════════
@@ -15549,17 +15559,20 @@ let _logsCacheV2 = [];
 async function resetWFHFreshStartV2() {
   const confirmed = confirm(
     'This will permanently delete ALL rows in wfh_sessions_v2, wfh_logs_v2, ' +
-    'wfh_eod_v2, and wfh_approved_v2 — every operator, every date. ' +
-    'Use this only for the one-time fresh-start reset. Continue?'
+    'wfh_eod_v2, wfh_approved_v2, wfh_breaches_v2, and wfh_submit_log_v2 — ' +
+    'every operator, every date. Use this only for the one-time fresh-start ' +
+    'reset. Continue?'
   );
   if(!confirmed) return;
 
   try {
     await Promise.all([
-      fetch(_SUPA_URL+'/rest/v1/wfh_sessions_v2?id=gt.0', {method:'DELETE', headers:WFH2_HDR}),
-      fetch(_SUPA_URL+'/rest/v1/wfh_logs_v2?id=gt.0',     {method:'DELETE', headers:WFH2_HDR}),
-      fetch(_SUPA_URL+'/rest/v1/wfh_eod_v2?id=gt.0',      {method:'DELETE', headers:WFH2_HDR}),
-      fetch(_SUPA_URL+'/rest/v1/wfh_approved_v2?id=gt.0', {method:'DELETE', headers:WFH2_HDR}),
+      fetch(_SUPA_URL+'/rest/v1/wfh_sessions_v2?id=gt.0',   {method:'DELETE', headers:WFH2_HDR}),
+      fetch(_SUPA_URL+'/rest/v1/wfh_logs_v2?id=gt.0',       {method:'DELETE', headers:WFH2_HDR}),
+      fetch(_SUPA_URL+'/rest/v1/wfh_eod_v2?id=gt.0',        {method:'DELETE', headers:WFH2_HDR}),
+      fetch(_SUPA_URL+'/rest/v1/wfh_approved_v2?id=gt.0',   {method:'DELETE', headers:WFH2_HDR}),
+      fetch(_SUPA_URL+'/rest/v1/wfh_breaches_v2?id=gt.0',   {method:'DELETE', headers:WFH2_HDR}),
+      fetch(_SUPA_URL+'/rest/v1/wfh_submit_log_v2?id=gt.0', {method:'DELETE', headers:WFH2_HDR}),
     ]);
     _sessionsCacheV2 = {};
     _logsCacheV2 = [];
@@ -15715,6 +15728,7 @@ let _wfhTotalBreakV2   = 0;
 let _wfhOnBreakV2      = false;
 let _wfhBreakStartV2   = null;
 let _wfhTimerIntervalV2= null;
+let _wfhRefreshIntervalV2 = null;
 
 async function wfhCheckInV2() {
   const opId = document.getElementById('wfh-op-self').value;
@@ -15945,6 +15959,57 @@ function openWFHApprovalV2() {
       if(typeof renderWFHMonitorV2 === 'function') renderWFHMonitorV2();
     };
   });
+}
+
+// ── Resume session on operator-name select (v2) ───────────────────
+// Ported from v1's onWFHOperatorSelect — fires when an operator picks
+// their name from the dropdown. Checks whether they already have an
+// active v2 session today (e.g. they reloaded the page) and resumes
+// the in-progress UI instead of showing the check-in button again.
+async function onWFHOperatorSelectV2() {
+  const opId = document.getElementById('wfh-op-self').value;
+  if(!opId) return;
+  const sessions = await dbGetSessionsV2();
+  const sess = sessions[normalizeOpId(opId)] || null;
+  if(sess && sess.checkIn && sess.status !== 'offline') {
+    _wfhSessionStartV2 = sess.checkIn;
+    _wfhTotalBreakV2   = sess.totalBreakMs || 0;
+    _wfhOnBreakV2      = sess.status === 'idle'; // v2 uses 'idle' for on-break, see wfhToggleBreakV2
+    startWFHTimerV2();
+    showSessionUIV2(opId, sess);
+  } else {
+    showCheckinUIV2();
+  }
+}
+
+function showCheckinUIV2() {
+  const checkinBtn = document.getElementById('wfh-checkin-btn');
+  const checkoutBtn = document.getElementById('wfh-checkout-btn');
+  const breakBtn = document.getElementById('wfh-break-btn');
+  const sessInfo = document.getElementById('wfh-session-info');
+  const timer = document.getElementById('wfh-session-timer');
+  const statusText = document.getElementById('wfh-session-status-text');
+  if(checkinBtn)  checkinBtn.style.display  = 'inline-flex';
+  if(checkoutBtn) checkoutBtn.style.display = 'none';
+  if(breakBtn)    breakBtn.style.display    = 'none';
+  if(sessInfo)    sessInfo.style.display    = 'none';
+  if(timer)       timer.textContent = '00:00:00';
+  if(statusText)  statusText.textContent = 'Not checked in yet — select your name and click Check In';
+}
+
+function showSessionUIV2(opId, sess) {
+  const checkinBtn = document.getElementById('wfh-checkin-btn');
+  const checkoutBtn = document.getElementById('wfh-checkout-btn');
+  const breakBtn = document.getElementById('wfh-break-btn');
+  const sessInfo = document.getElementById('wfh-session-info');
+  const statusText = document.getElementById('wfh-session-status-text');
+  const precheckPanel = document.getElementById('wfh-precheckin-panel');
+  if(checkinBtn)  checkinBtn.style.display  = 'none';
+  if(checkoutBtn) checkoutBtn.style.display = 'inline-flex';
+  if(breakBtn)    breakBtn.style.display    = 'inline-flex';
+  if(sessInfo)    sessInfo.style.display    = 'block';
+  if(statusText)  statusText.textContent = sess.status === 'idle' ? 'On break' : `Checked in since ${nairobiTimestampToTimeStr(sess.checkIn)}`;
+  if(precheckPanel) { precheckPanel.style.opacity='0.5'; precheckPanel.style.pointerEvents='none'; }
 }
 </script>
 </body>
