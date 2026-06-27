@@ -15748,6 +15748,31 @@ async function wfhCheckInV2() {
   const existingSess = todaySessions[normalizeOpId(opId)];
   if(existingSess?.checkIn && !existingSess?.checkOut) { toast('Already checked in today','⚠️'); return; }
 
+  // Safety net for the v1→v2 cutover: if this operator still has an OPEN
+  // session in the old v1 table (checked in before the cutover, never
+  // checked out there), warn before letting them check in fresh under v2 —
+  // otherwise they'd silently end up "checked in" in two places at once,
+  // with no single source of truth for their hours today.
+  try {
+    const v1Date = new Date().toISOString().split('T')[0];
+    const v1r = await fetch(
+      _SUPA_URL+'/rest/v1/wfh_sessions?date=eq.'+v1Date+'&op_id=eq.'+encodeURIComponent(opId)+'&select=check_in,check_out',
+      { headers: { 'apikey': _SUPA_KEY, 'Authorization': 'Bearer '+_SUPA_KEY } }
+    );
+    const v1Rows = v1r.ok ? await v1r.json() : [];
+    const v1Open = v1Rows.find(r => r.check_in && !r.check_out);
+    if(v1Open) {
+      const proceed = confirm(
+        `${operatorLabel(opId)} still shows an OPEN session on the old system ` +
+        `(checked in at ${new Date(v1Open.check_in).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}, never checked out there).\n\n` +
+        `Checking in here now will NOT close that old session — ask your Team Lead ` +
+        `to close it in Supabase first, or your hours may be split across two systems.\n\n` +
+        `Check in anyway?`
+      );
+      if(!proceed) return;
+    }
+  } catch(e) { console.warn('v1 open-session check failed (non-blocking):', e); }
+
   // Validate pre-check-in fields — same fields as v1, camera check removed.
   const internet = document.getElementById('wfh-pre-internet')?.value;
   const env      = document.getElementById('wfh-pre-env')?.value;
