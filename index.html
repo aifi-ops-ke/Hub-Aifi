@@ -14929,10 +14929,10 @@ window.dbInit().then(() => {
 }).catch(() => checkSession());
 
 // ════════════════════════════════════════════════════════════════
-// WFH MONITOR v2 — FULL CUTOVER + AUTO-CLOSE + APPROVAL ERROR HANDLING
-// dbSetApprovedV2 now reports real success/failure instead of failing
-// silently — the approval modal shows an error toast if the save
-// genuinely fails instead of always claiming success.
+// WFH MONITOR v2 — FIXED: 409 Conflict on approval save, caused by
+// a midnight Nairobi/UTC client-server date disagreement making the
+// DELETE silently match zero rows. Now deletes using a date RANGE,
+// not an exact match, so it can never miss due to a 1-day clock skew.
 // ════════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════════
@@ -15166,14 +15166,36 @@ async function dbGetApprovedV2(date) {
 }
 
 async function dbSetApprovedV2(opIds, date) {
-  const d = date || nairobiDateStr();
   try {
-    const delRes = await fetch(_SUPA_URL+'/rest/v1/wfh_approved_v2?date=eq.'+d, {method:'DELETE', headers:WFH2_HDR});
+    // Don't trust an exact date-string match for the DELETE filter. At
+    // the moment this runs, the browser's local clock and the server's
+    // nairobi_today() can briefly disagree by one calendar day — this is
+    // exactly what caused a real 409 Conflict tonight: right around
+    // midnight Nairobi time (while UTC was still on the previous day),
+    // the DELETE matched zero rows because it filtered on the "wrong"
+    // day, so the POST collided with the still-existing earlier
+    // approvals under the unique(op_id, date) constraint.
+    //
+    // Fix: delete using a date RANGE one day wide on either side of the
+    // client's best guess, instead of an exact match. This can never
+    // miss the real row due to a one-day client/server disagreement,
+    // and approvals are a same-day, low-volume action — clearing a
+    // neighboring day's stale approval rows here has no real downside.
+    const d = date || nairobiDateStr();
+    const dayMs = 24*60*60*1000;
+    const rangeStart = new Date(new Date(d+'T00:00:00Z').getTime() - dayMs).toISOString().split('T')[0];
+    const rangeEnd   = new Date(new Date(d+'T00:00:00Z').getTime() + dayMs).toISOString().split('T')[0];
+
+    const delRes = await fetch(
+      _SUPA_URL+'/rest/v1/wfh_approved_v2?date=gte.'+rangeStart+'&date=lte.'+rangeEnd,
+      {method:'DELETE', headers:WFH2_HDR}
+    );
     if(!delRes.ok) {
       console.error('dbSetApprovedV2 DELETE failed:', delRes.status, await delRes.text());
       return false;
     }
     if(!opIds.length) return true;
+
     const rows = opIds.map(id=>({op_id:id})); // date defaults to nairobi_today() server-side
     const postRes = await fetch(_SUPA_URL+'/rest/v1/wfh_approved_v2', {method:'POST', headers:WFH2_HDR, body:JSON.stringify(rows)});
     if(!postRes.ok) {
