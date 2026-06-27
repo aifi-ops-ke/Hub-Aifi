@@ -3415,6 +3415,57 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
       <div class="kpi-grid" id="wfh-kpi-row" style="margin-bottom:20px"></div>
       <div id="wfh-breach-strip" style="margin-bottom:16px"></div>
 
+      <!-- ════════════════════════════════════════════════════════
+           WFH MONITOR v2 — STANDALONE TEST PANEL
+           Completely separate from the v1 panels above/below. None
+           of these element IDs exist anywhere else on the page, so
+           nothing v1 does (its 30s/60s refresh intervals, the date/
+           status/search filter onchange handlers, the Refresh
+           button) can ever repaint or clear this panel. This is the
+           only reliable way to see v2's real output until the page
+           is fully switched over.
+           ═══════════════════════════════════════════════════════ -->
+      <div class="card" style="margin-bottom:20px;border:2px dashed var(--teal);background:rgba(0,200,224,0.04)">
+        <div class="card-header" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="card-title">🧪 WFH Monitor v2 — Isolated Test Panel</div>
+            <div class="card-sub">Reads only wfh_*_v2 tables · Cannot be overwritten by v1's auto-refresh · For verification only</div>
+          </div>
+          <button class="btn btn-secondary" onclick="renderWFHMonitorV2()">▶ Run v2 Render</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:10px" id="wfh-last-refresh-v2"></div>
+        <div class="kpi-grid" id="wfh-kpi-row-v2" style="margin-bottom:16px"></div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Who's Working Now (v2) — <span id="working-now-count-v2">0</span> online</div>
+          <div id="working-now-grid-v2" style="display:flex;flex-wrap:wrap;gap:8px;min-height:30px;align-items:flex-start;margin-bottom:8px"></div>
+          <div id="not-working-grid-v2" style="display:flex;flex-wrap:wrap;gap:6px;min-height:20px;align-items:flex-start"></div>
+        </div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Live Shift Activity (v2)</div>
+          <div id="shift-activity-table-v2"></div>
+        </div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Live Operator Board (v2)</div>
+          <div class="wfh-status-grid" id="wfh-status-grid-v2"></div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Compliance Scorecard (v2)</div>
+          <div class="table-wrap">
+            <table style="font-size:11px">
+              <thead><tr>
+                <th>Operator</th><th>Ext. Compliance</th><th>Submissions</th>
+                <th>Idle</th><th>Cases</th><th>Proofs</th>
+                <th>Net</th><th>Focus</th><th>Status</th>
+              </tr></thead>
+              <tbody id="wfh-compliance-tbody-v2">
+                <tr><td colspan="9" style="text-align:center;color:var(--text3)">Click "Run v2 Render" above.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <!-- ══════════════ END v2 TEST PANEL ══════════════ -->
+
       <!-- ── WHO'S WORKING NOW ─────────────────────────────────── -->
       <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.25);background:linear-gradient(145deg,var(--surface),rgba(0,212,160,0.03))">
         <div class="card-header" style="margin-bottom:14px">
@@ -14868,11 +14919,9 @@ window.dbInit().then(() => {
 }).catch(() => checkSession());
 
 // ════════════════════════════════════════════════════════════════
-// WFH MONITOR v2 — FRESH-START REBUILD (spliced in 2026-06-27)
-// See wfh_schema_v2.sql for the matching Supabase schema. v1 functions
-// (dbGetSessions, renderWFHMonitor, etc.) are left untouched above —
-// nothing currently on screen is affected until the page is switched
-// over to call the V2 functions instead.
+// WFH MONITOR v2 — FRESH-START REBUILD (corrected splice, dedicated
+// -v2 element IDs throughout, isolated from v1's DOM and refresh loops)
+// See wfh_schema_v2.sql for the matching Supabase schema.
 // ════════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════════
@@ -15240,9 +15289,9 @@ function opStatusV2(id, sessionsMap) {
 }
 
 function renderWorkingNowV2(sessions, approved, logs) {
-  const grid    = document.getElementById('working-now-grid');
-  const notGrid = document.getElementById('not-working-grid');
-  const counter = document.getElementById('working-now-count');
+  const grid    = document.getElementById('working-now-grid-v2');
+  const notGrid = document.getElementById('not-working-grid-v2');
+  const counter = document.getElementById('working-now-count-v2');
   if(!grid) return;
 
   const active = [], checkedOut = [], pending = [];
@@ -15342,7 +15391,7 @@ function renderWorkingNowV2(sessions, approved, logs) {
 // Matches the real DOM structure: a CSS-grid container (#shift-activity-table),
 // not a <table>/<tbody> — confirmed against the live markup before writing this.
 function renderShiftActivityV2(sessions, approved, logs) {
-  const el = document.getElementById('shift-activity-table');
+  const el = document.getElementById('shift-activity-table-v2');
   if(!el) return;
 
   const canon = normalizeOpId;
@@ -15494,7 +15543,7 @@ async function renderWFHMonitorV2() {
   renderWorkingNowV2(sessions, approved, logs);
   renderShiftActivityV2(sessions, approved, logs);
 
-  const lrEl = document.getElementById('wfh-last-refresh');
+  const lrEl = document.getElementById('wfh-last-refresh-v2');
   if(lrEl) lrEl.textContent = '↺ ' + nairobiTimestampToTimeStr(new Date().toISOString());
 
   const allOps    = Object.keys(sessions);
@@ -15506,7 +15555,7 @@ async function renderWFHMonitorV2() {
   const totalCases = allOps.reduce((s,id) => s + wfhOperatorCasesV2(id, logs), 0);
   const avgScore   = allOps.length ? Math.round(allOps.reduce((s,id) => s + wfhComplianceScoreV2(id, logs, sessions[id]), 0) / allOps.length) : 0;
 
-  const kpiEl = document.getElementById('wfh-kpi-row');
+  const kpiEl = document.getElementById('wfh-kpi-row-v2');
   if(kpiEl) kpiEl.innerHTML = `
     <div class="kpi-card green"><div class="kpi-label">Online</div><div class="kpi-value">${onlineOps.length}</div><div class="kpi-sub">Active now</div></div>
     <div class="kpi-card amber"><div class="kpi-label">On Break</div><div class="kpi-value">${breakOps.length}</div></div>
@@ -15517,7 +15566,7 @@ async function renderWFHMonitorV2() {
   `;
 
   // Status grid (Live Operator Board)
-  const gridEl = document.getElementById('wfh-status-grid');
+  const gridEl = document.getElementById('wfh-status-grid-v2');
   if(gridEl) {
     let gridOps = allOps.filter(id => ['online','break','idle'].includes(opStatusV2(id, sessions)));
     const statusLabel = {online:'🟢 Online', break:'☕ On Break', idle:'🔴 Idle', offline:'⚫ Offline'};
@@ -15560,7 +15609,7 @@ async function renderWFHMonitorV2() {
   // remain tied to the manual hourly form — a separate, still-valid signal,
   // not something the extension produces, so left as-is rather than forced
   // to mean something they don't.
-  const compTbody = document.getElementById('wfh-compliance-tbody');
+  const compTbody = document.getElementById('wfh-compliance-tbody-v2');
   if(compTbody) {
     if(!allOps.length) {
       compTbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text3)">No data.</td></tr>';
