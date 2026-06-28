@@ -3434,6 +3434,10 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
           </div>
         </div>
         <div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:10px" id="wfh-last-refresh-v2"></div>
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">✅ Approved Today — <span id="approved-today-count-v2">0</span></div>
+          <div id="approved-today-list-v2" style="display:flex;flex-wrap:wrap;gap:6px;min-height:20px;align-items:flex-start"></div>
+        </div>
         <div class="kpi-grid" id="wfh-kpi-row-v2" style="margin-bottom:16px"></div>
         <div style="margin-bottom:10px">
           <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Who's Working Now (v2) — <span id="working-now-count-v2">0</span> online</div>
@@ -15527,6 +15531,42 @@ async function resetWFHFreshStartV2() {
   }
 }
 
+// ── Approved Today list ──────────────────────────────────────────
+// Per JP's request (2026-06-28): a persistent, always-visible list of
+// everyone approved today — unlike the "Approved but not yet checked
+// in" list elsewhere, this shows EVERYONE approved regardless of
+// check-in status, so approvals are visible immediately after saving,
+// not just until the person checks in.
+function renderApprovedTodayV2(sessions, approved) {
+  const listEl  = document.getElementById('approved-today-list-v2');
+  const countEl = document.getElementById('approved-today-count-v2');
+  if(!listEl) return;
+
+  if(countEl) countEl.textContent = approved.length;
+
+  if(!approved.length) {
+    listEl.innerHTML = '<div style="color:var(--text3);font-size:11px;font-style:italic">No one approved yet today — click "Approve (v2)" above.</div>';
+    return;
+  }
+
+  listEl.innerHTML = approved.map(opId => {
+    const sess = sessions[opId];
+    const checkedIn = sess && sess.checkIn && !sess.checkOut;
+    const dotColor = checkedIn ? 'var(--green)' : 'var(--border2)';
+    const team     = getOpTeam(opId);
+    const teamCol  = team==='kings' ? 'var(--accent)' : 'var(--orange)';
+    return `<div style="
+      display:flex;align-items:center;gap:6px;
+      padding:4px 10px;border-radius:14px;
+      background:var(--surface2);border:1px solid ${checkedIn?'rgba(0,212,160,0.3)':'var(--border2)'};
+    " title="${checkedIn ? 'Checked in' : 'Approved, not checked in yet'}">
+      <div style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></div>
+      <div style="font-size:11px;font-weight:600;color:var(--text)">${operatorLabel(opId)}</div>
+      <div style="font-size:8px;font-weight:700;color:${teamCol};text-transform:uppercase">${team}</div>
+    </div>`;
+  }).join('');
+}
+
 async function renderWFHMonitorV2() {
   const date = document.getElementById('wfh-filter-date')?.value || nairobiDateStr();
 
@@ -15552,6 +15592,7 @@ async function renderWFHMonitorV2() {
 
   renderWorkingNowV2(sessions, approved, logs);
   renderShiftActivityV2(sessions, approved, logs);
+  renderApprovedTodayV2(sessions, approved);
 
   const lrEl = document.getElementById('wfh-last-refresh-v2');
   if(lrEl) lrEl.textContent = '↺ ' + nairobiTimestampToTimeStr(new Date().toISOString());
