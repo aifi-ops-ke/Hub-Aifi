@@ -15336,12 +15336,10 @@ function qaIdleMinutesV2(opId, logsForDate, sess) {
 // point here instead. Both can coexist during testing.
 // ════════════════════════════════════════════════════════════════
 
-// Idle-warning threshold: 3 missed submission cycles at the current
-// 1-minute extension cadence (changed from 5min→1min on 2026-06-28,
-// proportionally lowered from 15min→5min to match). Defined once here
-// so the status grid, "Who's Working Now", and compliance scorecard
-// can't drift out of sync with each other again.
-const WFH_IDLE_THRESHOLD_MIN_V2 = 5;
+// Idle-warning threshold: reverted to 15 minutes (2026-06-28) per JP's
+// decision — kept at the original value even though submission cadence
+// dropped from 5min to 1min, rather than scaling proportionally.
+const WFH_IDLE_THRESHOLD_MIN_V2 = 15;
 
 function opStatusV2(id, sessionsMap) {
   const s = sessionsMap[id];
