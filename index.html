@@ -15214,7 +15214,7 @@ function wfhOperatorSessionCountV2(opId, logsForDate) {
 // "Expected submissions" = floor(minutes checked in / 5), minimum 1
 // once checked in, so a 2-minute-old check-in isn't unfairly scored
 // 0% for "missing" submissions that haven't had time to happen yet.
-const WFH_SUBMISSION_INTERVAL_MIN = 5;
+const WFH_SUBMISSION_INTERVAL_MIN = 1; // changed from 5 to 1 (2026-06-28) per JP — 5min wasn't real-time enough
 
 function wfhExpectedSubmissions(checkInTs, checkOutTs) {
   if(!checkInTs) return 0;
@@ -15336,6 +15336,13 @@ function qaIdleMinutesV2(opId, logsForDate, sess) {
 // point here instead. Both can coexist during testing.
 // ════════════════════════════════════════════════════════════════
 
+// Idle-warning threshold: 3 missed submission cycles at the current
+// 1-minute extension cadence (changed from 5min→1min on 2026-06-28,
+// proportionally lowered from 15min→5min to match). Defined once here
+// so the status grid, "Who's Working Now", and compliance scorecard
+// can't drift out of sync with each other again.
+const WFH_IDLE_THRESHOLD_MIN_V2 = 5;
+
 function opStatusV2(id, sessionsMap) {
   const s = sessionsMap[id];
   if(!s) return 'offline';
@@ -15384,7 +15391,7 @@ function renderWorkingNowV2(sessions, approved, logs) {
       const cases    = wfhOperatorCasesV2(opId, logs);
       const submissionCount = logs.filter(l => normalizeOpId(l.opId)===opId && l.type==='submission').length;
       const idleMin  = wfhIdleMinutesV2(opId, logs, sess);
-      const trulyIdle= sess.status === 'idle' || idleMin > 15; // no extension submission in 15+ min (3 missed 5-min cycles) while checked in
+      const trulyIdle= sess.status === 'idle' || idleMin > WFH_IDLE_THRESHOLD_MIN_V2; // no extension submission in threshold window while checked in
       const team     = getOpTeam(opId);
       const teamCol  = team==='kings' ? 'var(--accent)' : 'var(--orange)';
       const checkInT = nairobiTimestampToTimeStr(sess.checkIn);
@@ -15696,7 +15703,7 @@ async function renderQATrackingV2() {
       const checkedIn = sess && sess.checkIn && !sess.checkOut;
       const auditCount = qaAuditCountV2(opId, qaLogs);
       const idleMin = checkedIn ? qaIdleMinutesV2(opId, qaLogs, sess) : 0;
-      const trulyIdle = checkedIn && idleMin > 15;
+      const trulyIdle = checkedIn && idleMin > WFH_IDLE_THRESHOLD_MIN_V2;
       const statusLabel = !sess ? 'Not checked in' : checkedIn ? (trulyIdle ? 'Idle' : 'Online') : 'Checked out';
       const dotColor = !checkedIn ? 'var(--text3)' : trulyIdle ? 'var(--red)' : 'var(--green)';
 
@@ -15768,7 +15775,7 @@ async function renderWFHMonitorV2() {
   if(kpiEl) kpiEl.innerHTML = `
     <div class="kpi-card green"><div class="kpi-label">Online</div><div class="kpi-value">${onlineOps.length}</div><div class="kpi-sub">Active now</div></div>
     <div class="kpi-card amber"><div class="kpi-label">On Break</div><div class="kpi-value">${breakOps.length}</div></div>
-    <div class="kpi-card red"><div class="kpi-label">Idle ⚠️</div><div class="kpi-value">${idleOps.length}</div><div class="kpi-sub">No submission in 15+ min</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Idle ⚠️</div><div class="kpi-value">${idleOps.length}</div><div class="kpi-sub">No submission in ${WFH_IDLE_THRESHOLD_MIN_V2}+ min</div></div>
     <div class="kpi-card teal"><div class="kpi-label">Remote Cases</div><div class="kpi-value">${totalCases.toLocaleString()}</div></div>
     <div class="kpi-card purple"><div class="kpi-label">Extension Compliance</div><div class="kpi-value">${avgScore}%</div></div>
   `;
@@ -15791,7 +15798,7 @@ async function renderWFHMonitorV2() {
         const initials = operatorLabel(id).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
         const empType  = getOpType(id);
         return `<div class="wfh-card ${status}" onclick="openOperatorTimelineV2('${id}','${date}')" style="cursor:pointer">
-          ${status==='idle' ? `<div class="wfh-idle-warn">⏰ NO SUBMISSION 15m+</div>` : ''}
+          ${status==='idle' ? `<div class="wfh-idle-warn">⏰ NO SUBMISSION ${WFH_IDLE_THRESHOLD_MIN_V2}m+</div>` : ''}
           <div class="wfh-card-top">
             <div class="wfh-avatar ${status}">${initials}</div>
             <div style="flex:1;min-width:0">
@@ -15840,7 +15847,7 @@ async function renderWFHMonitorV2() {
           </td>
           <td style="text-align:center;font-weight:800;color:${sc}">${score}%</td>
           <td style="text-align:center;font-weight:700;color:${submissionCount>=1?'var(--green)':'var(--red)'}">${submissionCount}</td>
-          <td style="text-align:center;color:${idleMin>15?'var(--red)':'var(--text3)'};font-weight:${idleMin>15?'800':'400'}">${idleMin>15?`⏰ ${idleMin}m`:'✅'}</td>
+          <td style="text-align:center;color:${idleMin>WFH_IDLE_THRESHOLD_MIN_V2?'var(--red)':'var(--text3)'};font-weight:${idleMin>WFH_IDLE_THRESHOLD_MIN_V2?'800':'400'}">${idleMin>WFH_IDLE_THRESHOLD_MIN_V2?`⏰ ${idleMin}m`:'✅'}</td>
           <td style="color:var(--green);font-weight:700">${cases.toLocaleString()}</td>
           <td><span class="badge ${status==='online'?'badge-green':status==='break'?'badge-amber':status==='idle'?'badge-red':''}">${status}</span></td>
         </tr>`;
