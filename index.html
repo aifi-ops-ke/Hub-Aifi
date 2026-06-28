@@ -13474,13 +13474,13 @@ function mgmtShiftWeek(dir) {
 }
 
 function loadMgmtShifts(weekKey) {
-  const all = load('mgmt_shifts') || {};
+  const all = loadObj('mgmt_shifts') || {};
   return all[weekKey] || null;
 }
 
 function saveMgmtShifts() {
   const weekKey = mgmtWeekKey(_mgmtWeekOffset);
-  const all     = load('mgmt_shifts') || {};
+  const all     = loadObj('mgmt_shifts') || {};
   const plan    = {};
   MGMT_TEAM.forEach(p => {
     plan[p.id] = {};
