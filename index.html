@@ -7868,7 +7868,8 @@ function applyRoleRestrictions(role) {
   // Pages Rosemary (swat) can access
   const swatPages   = ['dashboard','team-dash-swat','daily-report','daily-plan',
     'attendance','attendance-full','production','errors','leave','schedule',
-    'call-reports','team-dash','team-perf-kings','team-perf-swat'];
+    'call-reports','team-dash','team-perf-kings','team-perf-swat',
+    'wfh','wfh-operator'];
 
   const allowedPages = role==='kings' ? kingsPages : swatPages;
 
@@ -7885,17 +7886,10 @@ function applyRoleRestrictions(role) {
     }
   });
 
-  // WFH: only Kingori has access — hide for Rosemary
-  if(role === 'swat') {
-    document.querySelectorAll('.nav-item').forEach(item => {
-      const onclick = item.getAttribute('onclick') || '';
-      if(onclick.includes("'wfh'") || onclick.includes("'wfh-operator'")) {
-        item.style.opacity = '0.3';
-        item.style.pointerEvents = 'none';
-        item.title = 'Kings QA access only';
-      }
-    });
-  }
+  // WFH access: per JP's explicit decision (2026-06-28), Rosemary (swat)
+  // now has the same WFH Monitor access as Kingori, so she can approve
+  // operators when JP isn't available. Previously restricted to Kings
+  // QA only — that lockout block has been removed.
 }
 
 function confirmLogout() {
@@ -13316,6 +13310,11 @@ function saveDailyAchieved() {
   if(idx>=0) all[idx]=entry; else all.push(entry);
   save('daily_plans', all);
   toast('Achieved data saved for '+fmtDate(date),'✅');
+  // Notify TL + Admin — this was the actual gap: the form/save logic
+  // already existed and worked, but never told anyone a submission
+  // happened (saveDailyPlan/saveCallReport both call pushNotif right
+  // after saving; this one never did). Fixed 2026-06-28.
+  pushNotif({ ...entry, type: 'achieved' });
   document.getElementById('dp-achieved-person').value = '';
   document.getElementById('dp-achieved-date').value = '';
   document.getElementById('dp-achieved-internal').value = '';
@@ -14011,8 +14010,9 @@ function pushNotif(data) {
   updateNavBadges();
   renderNotifDropdown();
   updateBellCount();
-  const icon = data.type === 'plan' ? '📅' : '📝';
-  toast(`${data.name} submitted a ${data.type === 'plan' ? 'Daily Plan' : 'Daily Report'} for ${fmtDate(data.date)}`, icon);
+  const TOAST_ICON  = { plan:'📅', report:'📝', call_report:'📞', achieved:'✅' };
+  const TOAST_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report', achieved:'Completed Audits update' };
+  toast(`${data.name} submitted ${TOAST_LABEL[data.type] || 'an update'} for ${fmtDate(data.date)}`, TOAST_ICON[data.type] || '🔔');
 }
 
 // Who should see a given notification, based on the CURRENT viewer's role —
@@ -14058,8 +14058,8 @@ function renderNotifDropdown() {
 
 function buildNotifCard(n, compact) {
   const TEAM_COLOR = { kings:'var(--accent)', swat:'var(--violet)', tl:'var(--green)' };
-  const TYPE_ICON  = { plan:'📅', report:'📝', call_report:'📞' };
-  const TYPE_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report' };
+  const TYPE_ICON  = { plan:'📅', report:'📝', call_report:'📞', achieved:'✅' };
+  const TYPE_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report', achieved:'Completed Audits' };
   const sc = n.status==='Approved'?'var(--green)':n.status==='Rejected'?'var(--red)':'var(--amber)';
   const name = n.name || (n.person==='kings'?'Kingori':n.person==='swat'?'Rosemary Nyaleso':'Team Lead');
   const isApprovable = n.type==='report'; // plans no longer require approval; call reports never had it
@@ -14107,7 +14107,7 @@ function openFromNotif(type, person, date, entryId) {
   const notifs = getNotifs().map(n => n.entryId===entryId ? {...n,read:true} : n);
   saveNotifs(notifs); renderNotifs(); updateNavBadges(); updateBellCount();
   // Navigate and auto-filter
-  const PAGE_MAP = { plan:'daily-plan', report:'daily-report', call_report:'call-reports' };
+  const PAGE_MAP = { plan:'daily-plan', achieved:'daily-plan', report:'daily-report', call_report:'call-reports' };
   nav(PAGE_MAP[type] || 'daily-report');
   if(type === 'call_report') {
     setTimeout(() => {
@@ -14118,11 +14118,12 @@ function openFromNotif(type, person, date, entryId) {
     return;
   }
   setTimeout(() => {
-    const pEl = document.getElementById(type==='plan'?'dp-filter-person':'dr-view-person');
-    const dEl = document.getElementById(type==='plan'?'dp-filter-date':'dr-view-date');
+    const isPlanPage = type==='plan' || type==='achieved';
+    const pEl = document.getElementById(isPlanPage?'dp-filter-person':'dr-view-person');
+    const dEl = document.getElementById(isPlanPage?'dp-filter-date':'dr-view-date');
     if(pEl) pEl.value = person;
     if(dEl) dEl.value = date;
-    if(type==='plan') renderDailyPlanView(); else renderDRView();
+    if(isPlanPage) renderDailyPlanView(); else renderDRView();
   }, 300);
 }
 
