@@ -3469,6 +3469,23 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
       </div>
       <!-- ══════════════ END v2 TEST PANEL ══════════════ -->
 
+      <!-- ════════════════════════════════════════════════════════
+           QA TRACKING PANEL (added 2026-06-28)
+           Live check-in status + combined audit count for Kingori
+           and Rosemary. Internal/Global split happens at end of day
+           via the existing Daily Plan "Achieved" form.
+           ═══════════════════════════════════════════════════════ -->
+      <div class="card" style="margin-bottom:20px;border:2px dashed var(--violet);background:rgba(160,100,255,0.04)">
+        <div class="card-header" style="margin-bottom:14px">
+          <div>
+            <div class="card-title">🛡️ QA Tracking — Kingori & Rosemary</div>
+            <div class="card-sub">Live audit tracking, same extension as operators · Internal/Global split happens at end of day</div>
+          </div>
+        </div>
+        <div id="qa-tracking-grid-v2" style="display:flex;flex-wrap:wrap;gap:14px"></div>
+      </div>
+      <!-- ══════════════ END QA TRACKING PANEL ══════════════ -->
+
       <!-- v1 Who's Working Now / Live Shift Activity / Task Submit Tracker
            removed (2026-06-28) — superseded entirely by the v2 test panel
            above; no data has flowed into these v1 panels since the cutover. -->
@@ -15220,6 +15237,81 @@ function wfhIdleMinutesV2(opId, logsForDate, sess) {
 }
 
 // ════════════════════════════════════════════════════════════════
+// QA TRACKING (added 2026-06-28) — mirrors operator v2 data layer
+// above, but for qa_sessions_v2 / qa_audit_logs_v2. Kingori ('kings')
+// and Rosemary ('swat') use the SAME extension, same dat.aifi.com
+// domain, just a different identity in the popup dropdown.
+// ════════════════════════════════════════════════════════════════
+
+async function dbGetQASessionsV2(date) {
+  try {
+    const d = date || nairobiDateStr();
+    const r = await fetch(_SUPA_URL+'/rest/v1/qa_sessions_v2?date=eq.'+d,
+      {headers:{...WFH2_HDR,'Prefer':''}});
+    const rows = await r.json();
+    if(!Array.isArray(rows)) return {};
+    const out = {};
+    rows.forEach(row => {
+      const opId = row.op_id; // 'kings' / 'swat' — already canonical, no normalization needed
+      let effStatus = row.status || 'online';
+      if(row.check_out) effStatus = 'offline';
+      out[opId] = {
+        status:        effStatus,
+        checkIn:       row.check_in,
+        checkOut:      row.check_out,
+        lastHeartbeat: row.last_heartbeat,
+        device:        row.device,
+        updatedAt:     row.updated_at,
+      };
+    });
+    return out;
+  } catch(e) { console.error('dbGetQASessionsV2 error:', e); return {}; }
+}
+
+async function dbGetQAAuditLogsV2(date) {
+  try {
+    const d = date || nairobiDateStr();
+    const r = await fetch(_SUPA_URL+'/rest/v1/qa_audit_logs_v2?date=eq.'+d+'&order=logged_at.desc&limit=5000',
+      {headers:{...WFH2_HDR,'Prefer':''}});
+    const rows = await r.json();
+    if(!Array.isArray(rows)) return [];
+    return rows.map(row => ({
+      id:       row.id,
+      date:     row.date,
+      opId:     row.op_id,
+      isoTime:  row.logged_at,  // naive Nairobi-local string, same contract as wfh_logs_v2
+      type:     row.log_type,
+      cumulativeCount: row.cumulative_count || 0,
+      notes:    row.notes,
+    }));
+  } catch(e) { console.error('dbGetQAAuditLogsV2 error:', e); return []; }
+}
+
+// Single source of truth for a QA's audit count on a given date —
+// mirrors wfhOperatorCasesV2 but reads cumulative_count from the
+// combined (not split) audit log.
+function qaAuditCountV2(opId, logsForDate) {
+  const opLogs = logsForDate
+    .filter(l => l.opId === opId && l.type === 'audit_submission')
+    .sort((a,b) => (a.isoTime||'').localeCompare(b.isoTime||''));
+  const last = opLogs[opLogs.length - 1];
+  return (+last?.cumulativeCount) || 0;
+}
+
+// Mirrors wfhIdleMinutesV2 — minutes since last audit submission or
+// check-in, whichever is more recent.
+function qaIdleMinutesV2(opId, logsForDate, sess) {
+  const relevant = logsForDate.filter(l => l.opId === opId && l.type === 'audit_submission');
+  let lastTs = sess?.checkIn ? parseNairobiTs(sess.checkIn) : null;
+  relevant.forEach(l => {
+    const t = parseNairobiTs(l.isoTime);
+    if(!lastTs || t > lastTs) lastTs = t;
+  });
+  if(!lastTs) return 0;
+  return Math.floor((Date.now() - lastTs) / 60000);
+}
+
+// ════════════════════════════════════════════════════════════════
 // WFH MONITOR v2 — RENDER FUNCTIONS
 // Drop-in replacements for renderWorkingNow / renderShiftActivity /
 // renderWFHMonitor — same DOM element IDs, same CSS classes, only the
@@ -15568,6 +15660,53 @@ function renderApprovedTodayV2(sessions, approved) {
   }).join('');
 }
 
+// ── QA Tracking panel ──────────────────────────────────────────────
+// Mirrors the operator panels but for Kingori/Rosemary, reading from
+// qa_sessions_v2 / qa_audit_logs_v2. Shows live check-in status and a
+// combined audit count (Internal/Global split happens manually at EOD
+// via the existing Daily Plan "Achieved" form — auto-detection can't
+// reliably tell them apart on dat.aifi.com, per JP's 2026-06-28 decision).
+async function renderQATrackingV2() {
+  const date = document.getElementById('wfh-filter-date')?.value || nairobiDateStr();
+  const [qaSessions, qaLogs] = await Promise.all([
+    dbGetQASessionsV2(date),
+    dbGetQAAuditLogsV2(date),
+  ]);
+
+  const QA_NAMES = { kings: 'Kingori — Kings QA', swat: 'Rosemary Nyaleso — SWAT QA' };
+  const QA_IDS = ['kings', 'swat'];
+
+  const gridEl = document.getElementById('qa-tracking-grid-v2');
+  if(gridEl) {
+    gridEl.innerHTML = QA_IDS.map(opId => {
+      const sess = qaSessions[opId];
+      const checkedIn = sess && sess.checkIn && !sess.checkOut;
+      const auditCount = qaAuditCountV2(opId, qaLogs);
+      const idleMin = checkedIn ? qaIdleMinutesV2(opId, qaLogs, sess) : 0;
+      const trulyIdle = checkedIn && idleMin > 15;
+      const statusLabel = !sess ? 'Not checked in' : checkedIn ? (trulyIdle ? 'Idle' : 'Online') : 'Checked out';
+      const dotColor = !checkedIn ? 'var(--text3)' : trulyIdle ? 'var(--red)' : 'var(--green)';
+
+      return `<div style="
+        padding:14px;border-radius:10px;background:var(--surface2);
+        border:1.5px solid ${checkedIn ? (trulyIdle?'rgba(255,94,110,0.3)':'rgba(0,212,160,0.3)') : 'var(--border2)'};
+        min-width:220px;
+      ">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="width:9px;height:9px;border-radius:50%;background:${dotColor}"></div>
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${QA_NAMES[opId]}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">${statusLabel}${checkedIn ? ' · since '+nairobiTimestampToTimeStr(sess.checkIn) : ''}</div>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <div style="font-size:24px;font-weight:800;color:var(--teal)">${auditCount}</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase">audits today</div>
+        </div>
+        ${trulyIdle ? `<div style="font-size:9px;background:rgba(255,94,110,0.15);color:var(--red);padding:2px 7px;border-radius:10px;font-weight:700;margin-top:6px;display:inline-block">⏰ No audit in ${idleMin}m</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+}
+
 async function renderWFHMonitorV2() {
   const date = document.getElementById('wfh-filter-date')?.value || nairobiDateStr();
 
@@ -15594,6 +15733,7 @@ async function renderWFHMonitorV2() {
   renderWorkingNowV2(sessions, approved, logs);
   renderShiftActivityV2(sessions, approved, logs);
   renderApprovedTodayV2(sessions, approved);
+  renderQATrackingV2();
 
   const lrEl = document.getElementById('wfh-last-refresh-v2');
   if(lrEl) lrEl.textContent = '↺ ' + nairobiTimestampToTimeStr(new Date().toISOString());
