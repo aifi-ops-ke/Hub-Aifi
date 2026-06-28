@@ -1163,7 +1163,7 @@ function _dbRefreshPage(key) {
     'daily-report':['dr_entries'], 'daily-plan':['daily_plans'],
     'call-reports':['call_reports'], 'team-dash':['team_data'],
     'team-perf-kings':['op_perf'], 'team-perf-swat':['op_perf'],
-    dashboard:['dash_daily']
+    dashboard:['dash_daily'], 'mgmt-shifts':['mgmt_shifts']
   };
   if(!(MAP[page]||[]).includes(key)) return;
   setTimeout(() => {
@@ -1183,6 +1183,7 @@ function _dbRefreshPage(key) {
       else if(page==='team-dash')       renderTeamDashboard();
       else if(page==='team-perf-kings') renderTeamPerf('kings');
       else if(page==='team-perf-swat')  renderTeamPerf('swat');
+      else if(page==='mgmt-shifts')     renderMgmtShiftCalendar();
       // Check for new submissions and notify TL+Admin
       checkForNewSubmissions();
       // Also refresh notif panel if the 'notifs' key changed (another device approved/rejected)
@@ -5571,6 +5572,14 @@ function nav(page) {
   hubActivityLeavePage();
   // ── Record entering new page ──────────────────────────────────
   hubActivityEnterPage(page);
+  // ── Stop WFH Monitor background timers if leaving that page ───
+  // (these previously kept firing forever after navigating away,
+  // throwing "Cannot set properties of null" on every tick)
+  if (page !== 'wfh') {
+    clearInterval(_wfhRefreshInterval);
+    clearInterval(_wfhRefreshIntervalV2);
+    clearInterval(_camGridInterval);
+  }
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -5602,6 +5611,7 @@ function nav(page) {
   if(page==='wfh-operator') { initWFHOperator(); }
   if(page==='meeting') { initMeetingPage(); }
   if(page==='hub-activity') { initHubActivityPage(); }
+  if(page==='mgmt-shifts') { renderMgmtShiftCalendar(); }
 }
 
 function switchTab(el, show, ...hide) {
@@ -13623,7 +13633,7 @@ function renderMgmtShiftCalendar() {
 }
 
 function initMgmtShifts() {
-  const all = load('mgmt_shifts') || {};
+  const all = loadObj('mgmt_shifts') || {};
   // Only seed the default if this week has no saved data yet
   const weekKey = '2026-06-01';
   if(!all[weekKey] || Object.keys(all[weekKey]).length === 0) {
