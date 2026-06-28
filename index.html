@@ -15383,18 +15383,20 @@ function renderWorkingNowV2(sessions, approved, logs) {
   const counter = document.getElementById('working-now-count-v2');
   if(!grid) return;
 
-  // Per JP's decision (2026-06-28): show anyone with a REAL session today,
-  // approved or not — approval shouldn't gate visibility when people are
-  // demonstrably working. The combined set is every approved op_id PLUS
-  // every op_id that actually has a session row, deduplicated.
-  const allRelevantOps = [...new Set([...approved, ...Object.keys(sessions)])];
+  // Per JP's decision (2026-06-28): anyone checked out — for ANY reason,
+  // EOD submission or auto-close from inactivity — disappears from the
+  // Hub entirely. They only reappear once re-approved. So "relevant ops"
+  // excludes anyone with check_out set, full stop; there is no more
+  // "Checked Out" list to show.
+  const allRelevantOps = [...new Set([...approved, ...Object.keys(sessions)])]
+    .filter(opId => !(sessions[opId] && sessions[opId].checkOut));
 
-  const active = [], checkedOut = [], pending = [];
+  const active = [], pending = [];
   allRelevantOps.forEach(opId => {
     const sess = sessions[opId];
     const st   = opStatusV2(opId, sessions);
     if(!sess || !sess.checkIn) { pending.push(opId); return; }
-    if(sess.checkOut || st === 'offline') { checkedOut.push(opId); return; }
+    if(st === 'offline') { return; } // shouldn't happen given the filter above, but stay consistent if it ever does
     active.push(opId);
   });
 
@@ -15442,45 +15444,25 @@ function renderWorkingNowV2(sessions, approved, logs) {
     }).join('');
   }
 
-  const checkedOutHtml = checkedOut.map(opId => {
-    const sess = sessions[opId];
-    const outT = sess.checkOut ? nairobiTimestampToTimeStr(sess.checkOut) : '–';
-    return `<div style="
-      display:flex;align-items:center;gap:6px;
-      padding:5px 10px;border-radius:16px;
-      background:var(--surface2);border:1px solid var(--border2);opacity:0.85
-    " title="Checked out at ${outT}">
-      <div style="width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0"></div>
-      <div style="font-size:11px;font-weight:600;color:var(--text2)">${operatorLabel(opId)}</div>
-      <div style="font-size:9px;color:var(--text3)">out ${outT}</div>
-    </div>`;
-  }).join('');
-
   if(!notGrid) return;
-  if(!pending.length && !checkedOut.length) {
+  if(!pending.length) {
     notGrid.innerHTML = '<div style="color:var(--green);font-size:11px;font-weight:600">✅ Everyone tracked today is checked in!</div>';
   } else {
-    let html = '';
-    if(pending.length) {
-      html += pending.map(opId => {
-        const team    = getOpTeam(opId);
-        const teamCol = team==='kings' ? 'rgba(0,212,160,0.4)' : 'rgba(255,133,52,0.4)';
-        return `<div style="
-          display:flex;align-items:center;gap:6px;
-          padding:5px 10px;border-radius:16px;
-          background:var(--surface2);border:1px dashed ${teamCol};
-        ">
-          <div style="width:6px;height:6px;border-radius:50%;background:var(--border2);flex-shrink:0"></div>
-          <div style="font-size:11px;font-weight:600;color:var(--text3)">${operatorLabel(opId)}</div>
-        </div>`;
-      }).join('');
-    }
-    if(checkedOut.length) {
-      html += `<div style="width:100%;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px">⬛ Checked Out (${checkedOut.length})</div>` + checkedOutHtml;
-    }
-    notGrid.innerHTML = html;
+    notGrid.innerHTML = pending.map(opId => {
+      const team    = getOpTeam(opId);
+      const teamCol = team==='kings' ? 'rgba(0,212,160,0.4)' : 'rgba(255,133,52,0.4)';
+      return `<div style="
+        display:flex;align-items:center;gap:6px;
+        padding:5px 10px;border-radius:16px;
+        background:var(--surface2);border:1px dashed ${teamCol};
+      ">
+        <div style="width:6px;height:6px;border-radius:50%;background:var(--border2);flex-shrink:0"></div>
+        <div style="font-size:11px;font-weight:600;color:var(--text3)">${operatorLabel(opId)}</div>
+      </div>`;
+    }).join('');
   }
 }
+
 
 // ── Live Shift Activity table ─────────────────────────────────────
 // Matches the real DOM structure: a CSS-grid container (#shift-activity-table),
@@ -15714,11 +15696,15 @@ async function renderWFHMonitorV2() {
   const lrEl = document.getElementById('wfh-last-refresh-v2');
   if(lrEl) lrEl.textContent = '↺ ' + nairobiTimestampToTimeStr(new Date().toISOString());
 
-  const allOps    = Object.keys(sessions);
+  // Per JP's decision (2026-06-28): anyone checked out disappears from the
+  // Hub entirely — not shown anywhere, not even as a "Checked Out" count.
+  // allOps therefore excludes anyone with check_out set, which flows
+  // through to the status grid, compliance scorecard, and KPI totals
+  // below automatically.
+  const allOps    = Object.keys(sessions).filter(id => !sessions[id].checkOut);
   const onlineOps = allOps.filter(id => opStatusV2(id, sessions)==='online');
   const breakOps  = allOps.filter(id => opStatusV2(id, sessions)==='break');
   const idleOps   = allOps.filter(id => opStatusV2(id, sessions)==='idle');
-  const offOps    = allOps.filter(id => opStatusV2(id, sessions)==='offline');
 
   const totalCases = allOps.reduce((s,id) => s + wfhOperatorCasesV2(id, logs), 0);
   const avgScore   = allOps.length ? Math.round(allOps.reduce((s,id) => s + wfhComplianceScoreV2(id, logs, sessions[id]), 0) / allOps.length) : 0;
@@ -15728,10 +15714,10 @@ async function renderWFHMonitorV2() {
     <div class="kpi-card green"><div class="kpi-label">Online</div><div class="kpi-value">${onlineOps.length}</div><div class="kpi-sub">Active now</div></div>
     <div class="kpi-card amber"><div class="kpi-label">On Break</div><div class="kpi-value">${breakOps.length}</div></div>
     <div class="kpi-card red"><div class="kpi-label">Idle ⚠️</div><div class="kpi-value">${idleOps.length}</div><div class="kpi-sub">No submission in 15+ min</div></div>
-    <div class="kpi-card"><div class="kpi-label">Checked Out</div><div class="kpi-value">${offOps.length}</div></div>
     <div class="kpi-card teal"><div class="kpi-label">Remote Cases</div><div class="kpi-value">${totalCases.toLocaleString()}</div></div>
     <div class="kpi-card purple"><div class="kpi-label">Extension Compliance</div><div class="kpi-value">${avgScore}%</div></div>
   `;
+
 
   // Status grid (Live Operator Board)
   const gridEl = document.getElementById('wfh-status-grid-v2');
