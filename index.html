@@ -3532,87 +3532,10 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
         </div>
       </div>
 
-      <!-- ── STATUS BOARD ─────────────────────────────────────── -->
-      <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.18)">
-        <div class="card-header">
-          <div>
-            <div class="card-title">📍 Operator Status Board</div>
-            <div class="card-sub">Live status set by each operator · Updates the instant they change it · Auto-refreshes every 30s</div>
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="renderStatusBoard()">↺ Refresh</button>
-        </div>
+      <!-- v1 Status Board / Operator Board / End-of-Shift Reports / Presence
+           Monitor removed (2026-06-28) — all superseded by the v2 test panel
+           above, and webcam/face tracking was already retired. -->
 
-        <!-- Status summary pills -->
-        <div id="status-summary" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"></div>
-
-        <!-- Status grid -->
-        <div class="status-board-grid" id="status-board-grid">
-          <div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:16px">No operators checked in yet.</div>
-        </div>
-      </div>
-
-      <!-- Live board -->
-      <div class="card" style="margin-bottom:20px;border-color:rgba(0,200,150,0.18)">
-        <div class="card-header">
-          <div><div class="card-title">🟢 Live Operator Board</div><div class="card-sub">Auto-refreshes every 30s · Border colour = compliance health · Click card for drill-down</div></div>
-          <div id="wfh-online-count" style="font-size:24px;font-weight:800;color:var(--accent);font-family:'DM Mono',monospace"></div>
-        </div>
-        <div class="wfh-status-grid" id="wfh-status-grid">
-          <div style="color:var(--text3);font-size:12px;grid-column:span 4">No approved operators. Use "Approve for WFH" to authorise operators.</div>
-        </div>
-      </div>
-
-      <!-- ── END-OF-SHIFT REPORTS ──────────────────────────────── -->
-      <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.18)">
-        <div class="card-header">
-          <div>
-            <div class="card-title">📋 End-of-Shift Reports</div>
-            <div class="card-sub">One card per operator who has checked out today · Click to expand</div>
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="renderEODReports()">↺ Refresh</button>
-        </div>
-        <div id="eod-reports-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
-          <div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:16px">No operators have checked out yet today.</div>
-        </div>
-      </div>
-
-      <!-- ── WEBCAM SNAPSHOT GRID ─────────────────────────────── -->
-      <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.18)">
-        <div class="card-header">
-          <div>
-            <div class="card-title">📸 Presence Monitor</div>
-            <div class="card-sub">Checks if operator is at camera every 5 min · No images are saved, only presence/away status · Red border = operator away from camera</div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <div id="cam-face-away-count" style="font-size:11px;font-weight:700;color:var(--red);display:none"></div>
-            <button class="btn btn-secondary btn-sm" onclick="tlRequestSpotCheck()">📷 Request Spot Check</button>
-            <button class="btn btn-secondary btn-sm" onclick="renderCamGrid()">↺ Refresh</button>
-          </div>
-        </div>
-
-        <!-- Face-away alert banner -->
-        <div id="cam-alert-banner" style="display:none;padding:10px 14px;margin-bottom:14px;
-          background:rgba(255,40,60,0.1);border:1px solid rgba(255,40,60,0.35);border-radius:8px;
-          color:var(--red);font-size:13px;font-weight:700">
-          🚨 <span id="cam-alert-text"></span>
-        </div>
-
-        <div class="cam-grid" id="wfh-cam-grid">
-          <div style="color:var(--text3);font-size:12px;grid-column:span 6;text-align:center;padding:30px 0">
-            No webcam data yet. Operators must enable their camera when checking in.
-          </div>
-        </div>
-
-        <!-- Face-away event log -->
-        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
-          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">
-            🕐 Face-Away Event Log
-          </div>
-          <div id="cam-event-log" style="max-height:180px;overflow-y:auto;font-size:11px">
-            <div style="color:var(--text3)">No face-away events today.</div>
-          </div>
-        </div>
-      </div>
 
       <!-- Three column detail section -->
       <div style="display:grid;grid-template-columns:1.1fr 1.4fr 1fr;gap:16px;margin-bottom:20px">
