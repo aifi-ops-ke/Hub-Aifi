@@ -3454,11 +3454,10 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
             <table style="font-size:11px">
               <thead><tr>
                 <th>Operator</th><th>Ext. Compliance</th><th>Submissions</th>
-                <th>Idle</th><th>Cases</th><th>Proofs</th>
-                <th>Net</th><th>Focus</th><th>Status</th>
+                <th>Idle</th><th>Cases</th><th>Status</th>
               </tr></thead>
               <tbody id="wfh-compliance-tbody-v2">
-                <tr><td colspan="9" style="text-align:center;color:var(--text3)">Click "Run v2 Render" above.</td></tr>
+                <tr><td colspan="6" style="text-align:center;color:var(--text3)">Click "Run v2 Render" above.</td></tr>
               </tbody>
             </table>
           </div>
@@ -3466,71 +3465,9 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
       </div>
       <!-- ══════════════ END v2 TEST PANEL ══════════════ -->
 
-      <!-- ── WHO'S WORKING NOW ─────────────────────────────────── -->
-      <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.25);background:linear-gradient(145deg,var(--surface),rgba(0,212,160,0.03))">
-        <div class="card-header" style="margin-bottom:14px">
-          <div>
-            <div class="card-title" style="font-size:16px">👥 Who's Working Now</div>
-            <div class="card-sub">All operators currently checked in to WFH · Updates every 30 seconds</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div id="working-now-count" style="font-size:28px;font-weight:900;color:var(--accent);font-family:'DM Mono',monospace">0</div>
-            <div style="font-size:11px;color:var(--text3);line-height:1.4">operators<br/>online</div>
-          </div>
-        </div>
-
-        <!-- Active operator name pills -->
-        <div id="working-now-grid" style="display:flex;flex-wrap:wrap;gap:8px;min-height:44px;align-items:flex-start">
-          <div style="color:var(--text3);font-size:12px;font-style:italic">No operators checked in yet.</div>
-        </div>
-
-        <!-- Divider -->
-        <div style="margin:16px 0 14px;border-top:1px solid var(--border)"></div>
-
-        <!-- Not checked in section -->
-        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">
-          ⬜ Approved but Not Yet Checked In
-        </div>
-        <div id="not-working-grid" style="display:flex;flex-wrap:wrap;gap:6px;min-height:30px;align-items:flex-start">
-          <div style="color:var(--text3);font-size:12px;font-style:italic">All operators have checked in.</div>
-        </div>
-      </div>
-
-      <!-- ── LIVE SHIFT ACTIVITY ─────────────────────────────────── -->
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header">
-          <div>
-            <div class="card-title">📋 Live Shift Activity</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px">One row per working operator · session count since shift start · click a row for full timeline</div>
-          </div>
-        </div>
-        <div id="shift-activity-table" style="margin-top:10px">
-          <div style="color:var(--text3);font-size:12px;font-style:italic">Loading…</div>
-        </div>
-      </div>
-
-
-      <!-- ── SUBMIT TRACKER ───────────────────────────────────── -->
-      <div class="card" style="margin-bottom:20px;border-color:rgba(255,133,52,0.18)">
-        <div class="card-header">
-          <div>
-            <div class="card-title">📤 Task Submit Tracker</div>
-            <div class="card-sub">Every hourly log submit is recorded with cases, AHT, and timestamp · EOD submits tracked separately</div>
-          </div>
-          <div id="total-submits-badge" style="font-size:22px;font-weight:800;color:var(--orange);font-family:'DM Mono',monospace"></div>
-        </div>
-        <div class="table-wrap">
-          <table style="font-size:11px">
-            <thead><tr>
-              <th>Operator</th><th>Submits Today</th><th>Last Submit</th>
-              <th>Total Cases</th><th>Avg AHT</th><th>EOD Done</th><th>Tab Breaches</th>
-            </tr></thead>
-            <tbody id="submit-tracker-tbody">
-              <tr><td colspan="7" style="text-align:center;color:var(--text3)">No submits yet.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <!-- v1 Who's Working Now / Live Shift Activity / Task Submit Tracker
+           removed (2026-06-28) — superseded entirely by the v2 test panel
+           above; no data has flowed into these v1 panels since the cutover. -->
 
       <!-- v1 Status Board / Operator Board / End-of-Shift Reports / Presence
            Monitor removed (2026-06-28) — all superseded by the v2 test panel
@@ -15689,7 +15626,7 @@ async function renderWFHMonitorV2() {
   const compTbody = document.getElementById('wfh-compliance-tbody-v2');
   if(compTbody) {
     if(!allOps.length) {
-      compTbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text3)">No data.</td></tr>';
+      compTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">No data.</td></tr>';
     } else {
       compTbody.innerHTML = allOps.map(id => {
         const sess   = sessions[id];
@@ -15698,14 +15635,8 @@ async function renderWFHMonitorV2() {
         const sc     = scoreColorV2(score);
         const opLogs = logs.filter(l => normalizeOpId(l.opId) === id);
         const submissionCount = opLogs.filter(l => l.type === 'submission').length;
-        const hourlyCount     = opLogs.filter(l => l.type === 'hourly').length;
         const idleMin= wfhIdleMinutesV2(id, logs, sess);
         const cases  = wfhOperatorCasesV2(id, logs);
-        const proofs = opLogs.filter(l => l.type==='hourly' && l.proof && l.proof.length>10).length;
-        const lastH  = opLogs.filter(l => l.type==='hourly').slice(-1)[0];
-        const netIco = !lastH ? '–' : lastH.net==='stable'?'✅':lastH.net==='slow'?'⚠️':'🔴';
-        const focusN = sess.lastFocus || '–';
-        const focusC = focusN<=2 ? 'var(--red)' : focusN>=4 ? 'var(--green)' : 'var(--amber)';
         const rowBg  = score<60?'rgba(255,107,122,0.04)':score<80?'rgba(255,159,67,0.04)':'';
         return `<tr style="background:${rowBg}">
           <td style="font-weight:700;white-space:nowrap">
@@ -15716,9 +15647,6 @@ async function renderWFHMonitorV2() {
           <td style="text-align:center;font-weight:700;color:${submissionCount>=1?'var(--green)':'var(--red)'}">${submissionCount}</td>
           <td style="text-align:center;color:${idleMin>15?'var(--red)':'var(--text3)'};font-weight:${idleMin>15?'800':'400'}">${idleMin>15?`⏰ ${idleMin}m`:'✅'}</td>
           <td style="color:var(--green);font-weight:700">${cases.toLocaleString()}</td>
-          <td style="text-align:center;color:${proofs===hourlyCount&&hourlyCount>0?'var(--green)':proofs>0?'var(--amber)':'var(--red)'};font-weight:700">${proofs}/${hourlyCount}</td>
-          <td style="text-align:center">${netIco}</td>
-          <td style="text-align:center;color:${focusC};font-weight:700">${focusN!=='–'?focusN+'/5':focusN}</td>
           <td><span class="badge ${status==='online'?'badge-green':status==='break'?'badge-amber':status==='idle'?'badge-red':''}">${status}</span></td>
         </tr>`;
       }).join('');
