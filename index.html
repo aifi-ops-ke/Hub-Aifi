@@ -15224,8 +15224,16 @@ function wfhExpectedSubmissions(checkInTs, checkOutTs) {
   return Math.max(1, Math.floor(minutesElapsed / WFH_SUBMISSION_INTERVAL_MIN));
 }
 
+const WFH_COMPLIANCE_WARMUP_MIN = 3; // per JP's decision (2026-06-28): below this many real minutes
+// checked in, expected-submissions rounds down to ~1, making the percentage swing wildly on pure
+// timing noise (two people checked in a second apart could show 37% vs 88% with zero real
+// performance difference). Returns null during warm-up; callers must render that as a neutral
+// placeholder ("—"), never as 0% or 100%.
+
 function wfhComplianceScoreV2(opId, logsForDate, sess) {
   if(!sess || !sess.checkIn) return 100; // not checked in yet — nothing to score
+  const minutesCheckedIn = Math.max(0, (Date.now() - parseNairobiTs(sess.checkIn)) / 60000);
+  if(minutesCheckedIn < WFH_COMPLIANCE_WARMUP_MIN) return null; // not enough elapsed time for the % to mean anything yet
   const expected = wfhExpectedSubmissions(sess.checkIn, sess.checkOut);
   if(expected === 0) return 100;
   const actual = logsForDate.filter(l => normalizeOpId(l.opId) === opId && l.type === 'submission').length;
@@ -15233,6 +15241,7 @@ function wfhComplianceScoreV2(opId, logsForDate, sess) {
 }
 
 function scoreColorV2(score) {
+  if(score === null) return 'var(--text3)';
   return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--amber)' : 'var(--red)';
 }
 
@@ -15592,12 +15601,12 @@ function showOperatorTimelineV2(opId, date, logsForDate, sess) {
 
   openModal(`📋 ${operatorLabel(opId)} — Full Timeline`, `
     <div style="display:flex;gap:16px;margin-bottom:16px;align-items:center">
-      <div class="wfh-score-ring" style="color:${sc};border-color:${sc}">${score}%</div>
+      <div class="wfh-score-ring" style="color:${sc};border-color:${sc}">${score===null?'—':score+'%'}</div>
       <div style="flex:1">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">${operatorLabel(opId)}</div>
         <div style="font-size:12px;color:var(--text3)">Check-in: ${nairobiTimestampToTimeStr(sess.checkIn)} · Check-out: ${sess.checkOut?nairobiTimestampToTimeStr(sess.checkOut):'–'}</div>
         <div style="font-size:12px;color:var(--text3)">Cases: ${wfhOperatorCasesV2(opId, logsForDate).toLocaleString()} · Submissions: ${opLogs.filter(l=>l.type==='submission').length} · Hourly logs: ${opLogs.filter(l=>l.type==='hourly').length}</div>
-        <div class="wfh-integrity-bar" style="margin-top:8px"><div class="wfh-integrity-fill" style="width:${score}%;background:${sc}"></div></div>
+        <div class="wfh-integrity-bar" style="margin-top:8px"><div class="wfh-integrity-fill" style="width:${score===null?0:score}%;background:${sc}"></div></div>
       </div>
     </div>
     ${timeline}
@@ -15767,7 +15776,8 @@ async function renderWFHMonitorV2() {
   const idleOps   = allOps.filter(id => opStatusV2(id, sessions)==='idle');
 
   const totalCases = allOps.reduce((s,id) => s + wfhOperatorCasesV2(id, logs), 0);
-  const avgScore   = allOps.length ? Math.round(allOps.reduce((s,id) => s + wfhComplianceScoreV2(id, logs, sessions[id]), 0) / allOps.length) : 0;
+  const scoredOps  = allOps.map(id => wfhComplianceScoreV2(id, logs, sessions[id])).filter(s => s !== null);
+  const avgScore   = scoredOps.length ? Math.round(scoredOps.reduce((s,v) => s + v, 0) / scoredOps.length) : 0;
 
   const kpiEl = document.getElementById('wfh-kpi-row-v2');
   if(kpiEl) kpiEl.innerHTML = `
@@ -15807,9 +15817,9 @@ async function renderWFHMonitorV2() {
           </div>
           <div class="wfh-metrics">
             <div class="wfh-metric"><div class="wfh-metric-val">${cases.toLocaleString()}</div><div class="wfh-metric-lbl">Cases</div></div>
-            <div class="wfh-metric"><div class="wfh-metric-val" style="color:${sColor}">${score}%</div><div class="wfh-metric-lbl">Ext. Compliance</div></div>
+            <div class="wfh-metric"><div class="wfh-metric-val" style="color:${sColor}">${score===null?'—':score+'%'}</div><div class="wfh-metric-lbl">Ext. Compliance</div></div>
           </div>
-          <div class="wfh-integrity-bar"><div class="wfh-integrity-fill" style="width:${score}%;background:${sColor}"></div></div>
+          <div class="wfh-integrity-bar"><div class="wfh-integrity-fill" style="width:${score===null?0:score}%;background:${sColor}"></div></div>
           <div class="wfh-card-status ${status}" style="margin-top:8px">${statusLabel[status]}</div>
           <div class="wfh-card-time">In: ${nairobiTimestampToTimeStr(sess.checkIn)}${sess.checkOut?' · Out: '+nairobiTimestampToTimeStr(sess.checkOut):''}</div>
         </div>`;
@@ -15837,13 +15847,13 @@ async function renderWFHMonitorV2() {
         const submissionCount = opLogs.filter(l => l.type === 'submission').length;
         const idleMin= wfhIdleMinutesV2(id, logs, sess);
         const cases  = wfhOperatorCasesV2(id, logs);
-        const rowBg  = score<60?'rgba(255,107,122,0.04)':score<80?'rgba(255,159,67,0.04)':'';
+        const rowBg  = score===null?'':score<60?'rgba(255,107,122,0.04)':score<80?'rgba(255,159,67,0.04)':'';
         return `<tr style="background:${rowBg}">
           <td style="font-weight:700;white-space:nowrap">
             ${operatorLabel(id)}
             ${sess.location?`<div style="font-size:9px;color:var(--text3)">📍 ${sess.location}</div>`:''}
           </td>
-          <td style="text-align:center;font-weight:800;color:${sc}">${score}%</td>
+          <td style="text-align:center;font-weight:800;color:${sc}">${score===null?'—':score+'%'}</td>
           <td style="text-align:center;font-weight:700;color:${submissionCount>=1?'var(--green)':'var(--red)'}">${submissionCount}</td>
           <td style="text-align:center;color:${idleMin>WFH_IDLE_THRESHOLD_MIN_V2?'var(--red)':'var(--text3)'};font-weight:${idleMin>WFH_IDLE_THRESHOLD_MIN_V2?'800':'400'}">${idleMin>WFH_IDLE_THRESHOLD_MIN_V2?`⏰ ${idleMin}m`:'✅'}</td>
           <td style="color:var(--green);font-weight:700">${cases.toLocaleString()}</td>
