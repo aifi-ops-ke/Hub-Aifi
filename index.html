@@ -7892,13 +7892,13 @@ function applyRoleRestrictions(role) {
   const kingsPages  = ['dashboard','team-dash-kings','daily-report','daily-plan',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator'];
+    'wfh','wfh-operator','meeting'];
 
   // Pages Rosemary (swat) can access
   const swatPages   = ['dashboard','team-dash-swat','daily-report','daily-plan',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator'];
+    'wfh','wfh-operator','meeting'];
 
   const allowedPages = role==='kings' ? kingsPages : swatPages;
 
@@ -16182,9 +16182,11 @@ function showCheckinUIV2() {
   const sessInfo = document.getElementById('wfh-session-info');
   const timer = document.getElementById('wfh-session-timer');
   const statusText = document.getElementById('wfh-session-status-text');
+  const jmBtn = document.getElementById('wfh-join-meet-btn');
   if(checkinBtn)  checkinBtn.style.display  = 'inline-flex';
   if(checkoutBtn) checkoutBtn.style.display = 'none';
   if(breakBtn)    breakBtn.style.display    = 'none';
+  if(jmBtn)       jmBtn.style.display       = 'none';
   if(sessInfo)    sessInfo.style.display    = 'none';
   if(timer)       timer.textContent = '00:00:00';
   if(statusText)  statusText.textContent = 'Not checked in yet — select your name and click Check In';
@@ -16197,9 +16199,11 @@ function showSessionUIV2(opId, sess) {
   const sessInfo = document.getElementById('wfh-session-info');
   const statusText = document.getElementById('wfh-session-status-text');
   const precheckPanel = document.getElementById('wfh-precheckin-panel');
+  const jmBtn = document.getElementById('wfh-join-meet-btn');
   if(checkinBtn)  checkinBtn.style.display  = 'none';
   if(checkoutBtn) checkoutBtn.style.display = 'inline-flex';
   if(breakBtn)    breakBtn.style.display    = 'inline-flex';
+  if(jmBtn)       jmBtn.style.display       = 'inline-flex'; // was missing — got dropped during v1→v2 cutover
   if(sessInfo)    sessInfo.style.display    = 'block';
   if(statusText)  statusText.textContent = sess.status === 'idle' ? 'On break' : `Checked in since ${nairobiTimestampToTimeStr(sess.checkIn)}`;
   if(precheckPanel) { precheckPanel.style.opacity='0.5'; precheckPanel.style.pointerEvents='none'; }
