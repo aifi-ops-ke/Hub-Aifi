@@ -13025,6 +13025,23 @@ function renderDRView() {
     const rb = ROLE_BADGE[e.submittedBy] || ROLE_BADGE[e.section==='kings'?'kings':e.section==='swat'?'swat':'tl'];
     const roleBadge = rb ? `<span style="font-size:9px;font-weight:800;padding:2px 8px;border-radius:8px;background:${rb.bg};border:1px solid ${rb.border};color:${rb.color}">${rb.text}</span>` : '';
 
+    // Admin comment section — only admin can write, everyone can read
+    const adminCommentSection = (() => {
+      const hasComment = e.adminComment && e.adminComment.trim();
+      const canComment = currentRole === 'admin';
+      if(!canComment && !hasComment) return '';
+      return `
+        <div style="margin-top:12px;padding:12px 14px;background:rgba(0,180,216,0.06);border:1px solid rgba(0,180,216,0.25);border-radius:10px">
+          <div style="font-size:10px;font-weight:800;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">💬 Admin Comment${e.adminCommentAt ? ` · <span style="font-weight:400;color:var(--text3)">${new Date(e.adminCommentAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>` : ''}</div>
+          ${hasComment ? `<div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;margin-bottom:${canComment?'10px':'0'}">${e.adminComment.replace(/</g,'&lt;')}</div>` : ''}
+          ${canComment ? `
+            <textarea id="admin-comment-${e.id}" placeholder="Add your comment on this report..." rows="3"
+              style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:10px 12px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;resize:vertical">${hasComment ? e.adminComment.replace(/</g,'&lt;') : ''}</textarea>
+            <button class="btn btn-secondary btn-sm" onclick="saveAdminComment(${e.id})" style="margin-top:8px;font-weight:700">💾 Save Comment</button>
+          ` : ''}
+        </div>`;
+    })();
+
     return `<div class="card" style="margin-bottom:14px;border-color:${cfg.border}">
       <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:4px">
         <div style="flex:1">
@@ -13039,6 +13056,7 @@ function renderDRView() {
       </div>
       ${stats}
       <div style="background:var(--surface2);border-radius:10px;padding:14px;border:1px solid var(--border2)">${narrative}</div>
+      ${adminCommentSection}
     </div>`;
   }).join('');
 }
@@ -13047,6 +13065,38 @@ function deleteDR(id) {
   save('dr_entries', load('dr_entries').filter(e=>e.id!==id));
   renderDRView();
   toast('Entry deleted','🗑️');
+}
+
+async function saveAdminComment(id) {
+  if(currentRole !== 'admin') { toast('Only Admin can add comments','⚠️'); return; }
+  const input = document.getElementById('admin-comment-' + id);
+  if(!input) return;
+  const comment = input.value.trim();
+  const all = load('dr_entries');
+  const entry = all.find(e => e.id === id);
+  if(!entry) return;
+  entry.adminComment = comment;
+  entry.adminCommentAt = comment ? new Date().toISOString() : null;
+  const ok = await saveAndVerify('dr_entries', all);
+  if(!ok) { toast('❌ Failed to save comment — please retry','❌'); return; }
+  toast(comment ? '💬 Comment saved' : '🗑️ Comment cleared', comment ? '✅' : '🗑️');
+  renderDRView();
+}
+
+async function saveAdminCommentPlan(id) {
+  if(currentRole !== 'admin') { toast('Only Admin can add comments','⚠️'); return; }
+  const input = document.getElementById('admin-comment-plan-' + id);
+  if(!input) return;
+  const comment = input.value.trim();
+  const all = load('daily_plans');
+  const entry = all.find(e => e.id === id);
+  if(!entry) return;
+  entry.adminComment = comment;
+  entry.adminCommentAt = comment ? new Date().toISOString() : null;
+  const ok = await saveAndVerify('daily_plans', all);
+  if(!ok) { toast('❌ Failed to save comment — please retry','❌'); return; }
+  toast(comment ? '💬 Comment saved' : '🗑️ Comment cleared', comment ? '✅' : '🗑️');
+  renderDailyPlanView();
 }
 
 function approveDR(id) {
@@ -13435,6 +13485,22 @@ function renderDailyPlanView() {
           ` : `<div style="color:var(--text3);font-size:12px;font-style:italic;padding:8px 0">Not filled in yet — update at end of shift.</div>`}
         </div>
       </div>
+
+      ${(() => {
+        const hasComment = plan.adminComment && plan.adminComment.trim();
+        const canComment = currentRole === 'admin';
+        if(!canComment && !hasComment) return '';
+        return `
+        <div style="margin-top:12px;padding:12px 14px;background:rgba(0,180,216,0.06);border:1px solid rgba(0,180,216,0.25);border-radius:10px">
+          <div style="font-size:10px;font-weight:800;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">💬 Admin Comment${plan.adminCommentAt ? ` · <span style="font-weight:400;color:var(--text3)">${new Date(plan.adminCommentAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>` : ''}</div>
+          ${hasComment ? `<div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;margin-bottom:${canComment?'10px':'0'}">${plan.adminComment.replace(/</g,'&lt;')}</div>` : ''}
+          ${canComment ? `
+            <textarea id="admin-comment-plan-${plan.id}" placeholder="Add your comment on this plan..." rows="3"
+              style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:10px 12px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;resize:vertical">${hasComment ? plan.adminComment.replace(/</g,'&lt;') : ''}</textarea>
+            <button class="btn btn-secondary btn-sm" onclick="saveAdminCommentPlan(${plan.id})" style="margin-top:8px;font-weight:700">💾 Save Comment</button>
+          ` : ''}
+        </div>`;
+      })()}
     </div>`;
   }).join('');
 }
