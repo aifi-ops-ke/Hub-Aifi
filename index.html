@@ -14736,21 +14736,28 @@ function saveNotifs(n) {
 }
 
 function pushNotif(data) {
-  // The submitter ALWAYS records the notification — who SEES it is decided later,
-  // at render time, based on the viewer's own role. Gating creation on the
-  // submitter's currentRole was the bug: Kingori/Rosemary's own browser would
-  // check "am I TL or Admin?", say no, and silently skip writing anything —
-  // so TL/Admin never got notified unless their own browser happened to be
-  // the one running this code (which it never is for someone else's submission).
+  // The submitter ALWAYS records the notification — who SEES it is decided
+  // at render time based on the viewer's role.
 
   const notifs = getNotifs();
-  // Avoid duplicates by entry id
-  if(notifs.find(n => n.entryId === data.id && n.notifType !== 'feedback')) return;
+
+  // Deduplicate by person + date + type (covers daily reports, daily plans,
+  // call reports, achieved — all types). Previously deduped only by entryId
+  // which changes every re-save (it's Date.now()), causing multiple alerts
+  // for the same report. Now: re-saving UPDATES the existing notification
+  // (marks it unread again, moves it to top) instead of adding a duplicate.
+  const existingIdx = notifs.findIndex(n =>
+    n.person === (data.person || data.section) &&
+    n.date   === data.date &&
+    n.type   === data.type &&
+    n.notifType !== 'feedback'
+  );
+
   const entry = {
     id:      Date.now() + Math.random(),
     entryId: data.id,
-    type:    data.type,       // 'plan' or 'report'
-    person:  data.person,     // 'kings' or 'swat' or 'tl'
+    type:    data.type,
+    person:  data.person || data.section || '',
     name:    data.name || '',
     date:    data.date,
     cases:   data.cases || 0,
@@ -14760,8 +14767,19 @@ function pushNotif(data) {
     isoTime: nowNairobi(),
     read:    false,
   };
-  notifs.unshift(entry);
-  saveNotifs(notifs.slice(0, 50));
+
+  if(existingIdx >= 0) {
+    // Refresh existing notification — update entryId and mark unread, move to top
+    const updated = { ...notifs[existingIdx], ...entry, id: notifs[existingIdx].id };
+    notifs.splice(existingIdx, 1);
+    notifs.unshift(updated);
+  } else {
+    notifs.unshift(entry);
+  }
+
+  // Keep only 20 most recent — actual data is always saved in
+  // Daily Reports/Plans for reference, notifications are alerts only
+  saveNotifs(notifs.slice(0, 20));
   renderNotifs();
   updateNavBadges();
   renderNotifDropdown();
@@ -14859,8 +14877,14 @@ function updateBellCount() {
 function openFromNotif(type, person, date, entryId) {
   _notifDropOpen = false;
   const dd = document.getElementById('notif-dropdown'); if(dd) dd.style.display='none';
-  // Mark as read
-  const notifs = getNotifs().map(n => n.entryId===entryId ? {...n,read:true} : n);
+  // Mark as read — match by entryId OR by person+date+type so that opening
+  // a report clears all related notifications even if entryId was refreshed
+  // by a re-save. Covers daily reports, daily plans, call reports, achieved.
+  const notifs = getNotifs().map(n =>
+    (n.entryId === entryId || (n.person === person && n.date === date && n.type === type))
+      ? {...n, read:true}
+      : n
+  );
   saveNotifs(notifs); renderNotifs(); updateNavBadges(); updateBellCount();
   // Navigate and auto-filter
   const PAGE_MAP = { plan:'daily-plan', achieved:'daily-plan', report:'daily-report', call_report:'call-reports' };
