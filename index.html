@@ -15962,8 +15962,12 @@ function nairobiTimestampToTimeStr(ts) {
 // default value in the UI before any data has loaded — never sent as
 // the authoritative date for a write (the DB stamps that itself).
 function nairobiDateStr(d) {
+  // Must be timezone-independent — using getTimezoneOffset() causes double-
+  // offsetting on machines already in EAT (UTC+3), returning tomorrow's date
+  // and causing all Supabase queries to fetch zero rows. Always work from UTC
+  // by adding exactly 3 hours (Nairobi = UTC+3), no local offset involved.
   const dt = d ? new Date(d) : new Date();
-  const nairobiMs = dt.getTime() + (3*60*60*1000) + (dt.getTimezoneOffset()*60*1000);
+  const nairobiMs = dt.getTime() + (3*60*60*1000);
   return new Date(nairobiMs).toISOString().split('T')[0];
 }
 
