@@ -3456,98 +3456,62 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
     <div class="page" id="page-wfh">
       <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
-          <h1>🏠 WFH Command Centre</h1>
-          <p>Full remote oversight — real-time status, mandatory check points, proof of work, device fingerprint, idle detection & breach tracking.</p>
+          <h1>🏠 WFH Monitor</h1>
+          <p>Live remote oversight — real-time status, submissions, cases, idle detection and compliance.</p>
         </div>
         <div style="display:flex;gap:8px;padding-top:4px;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="openWFHApprovalV2()">✅ Approve for WFH</button>
-          <button class="btn" style="background:var(--grad-swat);color:#fff;padding:7px 15px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:700" onclick="openWFHFlagModal()">🚩 Flag Operator</button>
-          <button class="btn btn-secondary" onclick="renderWFHMonitor()">↺ Refresh</button>
-          <button class="btn" style="background:linear-gradient(135deg,#00c896,#00b4d8);color:#fff;padding:7px 15px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:700" onclick="openDailyExportModal()">📥 Export Daily Report</button>
+          <button class="btn btn-secondary" onclick="renderWFHMonitorV2()">↺ Refresh</button>
+          <button class="btn" style="background:linear-gradient(135deg,#00c896,#00b4d8);color:#fff;padding:7px 15px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:700" onclick="openDailyExportModal()">📥 Export</button>
         </div>
       </div>
 
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-        <div class="form-group" style="margin:0;flex-shrink:0">
-          <label>Date</label>
-          <input type="date" id="wfh-filter-date" onchange="renderWFHMonitor()" style="width:155px"/>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Status</label>
-          <select id="wfh-filter-status" onchange="renderWFHMonitor()" style="width:130px">
-            <option value="">All</option>
-            <option value="online">🟢 Active</option>
-            <option value="break">🟡 On Break</option>
-            <option value="idle">🔴 Idle</option>
-            <option value="offline">⚫ Offline</option>
-          </select>
-        </div>
-        <div class="form-group" style="margin:0;flex:1;min-width:150px">
-          <label>Search</label>
-          <input type="text" id="wfh-filter-search" placeholder="Search name..." oninput="renderWFHMonitor()" style="width:100%"/>
-        </div>
-        <div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;padding-top:18px" id="wfh-last-refresh"></div>
+      <!-- ── KPI row ── -->
+      <div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:10px" id="wfh-last-refresh-v2"></div>
+
+      <!-- Approved Today -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">✅ Approved Today — <span id="approved-today-count-v2">0</span></div>
+        <div id="approved-today-list-v2" style="display:flex;flex-wrap:wrap;gap:6px;min-height:20px;align-items:flex-start"></div>
       </div>
 
-      <!-- v1 KPI row removed — v2 panel below shows accurate, real-time data.
-           v1's KPIs relied on stale/incorrect logic now superseded by v2. -->
-      <div id="wfh-breach-strip" style="margin-bottom:16px"></div>
+      <div class="kpi-grid" id="wfh-kpi-row-v2" style="margin-bottom:16px"></div>
 
-      <!-- ════════════════════════════════════════════════════════
-           WFH MONITOR v2 — STANDALONE TEST PANEL
-           Completely separate from the v1 panels above/below. None
-           of these element IDs exist anywhere else on the page, so
-           nothing v1 does can ever repaint or clear this panel.
-           ═══════════════════════════════════════════════════════ -->
-      <div class="card" style="margin-bottom:20px;border:2px dashed var(--teal);background:rgba(0,200,224,0.04)">
-        <div class="card-header" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <div>
-            <div class="card-title">🧪 WFH Monitor v2 — Isolated Test Panel</div>
-            <div class="card-sub">Reads/writes only wfh_*_v2 tables · Cannot be overwritten by v1's auto-refresh</div>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="openWFHApprovalV2()">✅ Approve (v2)</button>
-            <button class="btn btn-secondary" onclick="renderWFHMonitorV2()">▶ Run v2 Render</button>
-          </div>
+      <!-- Who's Working Now -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header" style="margin-bottom:10px">
+          <div class="card-title">👥 Who's Working Now — <span id="working-now-count-v2">0</span> online</div>
         </div>
-        <div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:10px" id="wfh-last-refresh-v2"></div>
-        <div style="margin-bottom:14px">
-          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">✅ Approved Today — <span id="approved-today-count-v2">0</span></div>
-          <div id="approved-today-list-v2" style="display:flex;flex-wrap:wrap;gap:6px;min-height:20px;align-items:flex-start"></div>
-        </div>
-        <div class="kpi-grid" id="wfh-kpi-row-v2" style="margin-bottom:16px"></div>
-        <div style="margin-bottom:10px">
-          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Who's Working Now (v2) — <span id="working-now-count-v2">0</span> online</div>
-          <div id="working-now-grid-v2" style="display:flex;flex-wrap:wrap;gap:8px;min-height:30px;align-items:flex-start;margin-bottom:8px"></div>
-          <div id="not-working-grid-v2" style="display:flex;flex-wrap:wrap;gap:6px;min-height:20px;align-items:flex-start"></div>
-        </div>
-        <div style="margin-bottom:10px">
-          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Live Shift Activity (v2)</div>
-          <div id="shift-activity-table-v2"></div>
-        </div>
-        <div style="margin-bottom:10px">
-          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Live Operator Board (v2)</div>
-          <div class="wfh-status-grid" id="wfh-status-grid-v2"></div>
-        </div>
+        <div id="working-now-grid-v2" style="display:flex;flex-wrap:wrap;gap:8px;min-height:30px;align-items:flex-start;margin-bottom:8px"></div>
+        <div id="not-working-grid-v2" style="display:flex;flex-wrap:wrap;gap:6px;min-height:20px;align-items:flex-start"></div>
       </div>
-      <!-- ══════════════ END v2 TEST PANEL ══════════════ -->
 
-      <!-- ════════════════════════════════════════════════════════
-           QA TRACKING PANEL (added 2026-06-28)
-           Live check-in status + combined audit count for Kingori
-           and Rosemary. Internal/Global split happens at end of day
-           via the existing Daily Plan "Achieved" form.
-           ═══════════════════════════════════════════════════════ -->
+      <!-- Live Shift Activity -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header" style="margin-bottom:10px">
+          <div class="card-title">📊 Live Shift Activity</div>
+        </div>
+        <div id="shift-activity-table-v2"></div>
+      </div>
+
+      <!-- Live Operator Board -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header" style="margin-bottom:10px">
+          <div class="card-title">🖥️ Live Operator Board</div>
+        </div>
+        <div class="wfh-status-grid" id="wfh-status-grid-v2"></div>
+      </div>
+
+      <!-- QA Tracking -->
       <div class="card" style="margin-bottom:20px;border:2px dashed var(--violet);background:rgba(160,100,255,0.04)">
         <div class="card-header" style="margin-bottom:14px">
           <div>
             <div class="card-title">🛡️ QA Tracking — Kingori & Rosemary</div>
-            <div class="card-sub">Live audit tracking, same extension as operators · Internal/Global split happens at end of day</div>
+            <div class="card-sub">Live audit tracking · Internal/Global split happens at end of day</div>
           </div>
         </div>
         <div id="qa-tracking-grid-v2" style="display:flex;flex-wrap:wrap;gap:14px"></div>
       </div>
-      <!-- ══════════════ END QA TRACKING PANEL ══════════════ -->
 
       <!-- v1 Who's Working Now / Live Shift Activity / Task Submit Tracker
            removed (2026-06-28) — superseded entirely by the v2 test panel
