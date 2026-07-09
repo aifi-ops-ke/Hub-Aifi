@@ -9851,7 +9851,10 @@ async function initWFHOperator() {
   if(knownOpId && opEl.querySelector('option[value="'+knownOpId+'"]')) {
     opEl.value = knownOpId;
   }
-  onWFHOperatorSelect();
+  // Use v2 — previously called onWFHOperatorSelect() (v1) which read from
+  // wfh_sessions (v1 table). Since the cutover, all check-ins write to
+  // wfh_sessions_v2, so the session check must also read from there.
+  onWFHOperatorSelectV2();
 }
 
 async function onWFHOperatorSelect() {
