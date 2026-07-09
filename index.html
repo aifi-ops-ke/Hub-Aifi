@@ -3454,6 +3454,7 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
          PAGE: WFH MONITOR (Team Lead / Manager View)
     ════════════════════════════════════════════════════════ -->
     <div class="page" id="page-wfh">
+      <input type="date" id="wfh-filter-date" style="display:none"/>
       <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
           <h1>🏠 WFH Monitor</h1>
@@ -3465,7 +3466,6 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
           <button class="btn" style="background:linear-gradient(135deg,#00c896,#00b4d8);color:#fff;padding:7px 15px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:700" onclick="openDailyExportModal()">📥 Export</button>
         </div>
       </div>
-
       <!-- ── KPI row ── -->
       <div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:10px" id="wfh-last-refresh-v2"></div>
 
@@ -9764,33 +9764,13 @@ let _lastRenderedWFHDate = null;
 async function initWFH() {
   const dateEl = document.getElementById('wfh-filter-date');
   if(dateEl && !dateEl.value) dateEl.value = today();
-  // Load all WFH data from Supabase into cache
-  const date = dateEl?.value || today();
-  await refreshWFHCache(date);
-  renderWFHMonitor();
-  renderCamGrid();
-  renderStatusBoard();  // load status board immediately
-  renderEODReports();   // load end-of-shift reports
-  clearInterval(_wfhRefreshInterval);
-  _wfhRefreshInterval = setInterval(async ()=>{
-    const d = document.getElementById('wfh-filter-date')?.value || today();
-    await refreshWFHCache(d);
-    renderWFHMonitor();
-    renderStatusBoard();
-    renderEODReports();
-  }, 30000);
-  clearInterval(_camGridInterval);
-  _camGridInterval = setInterval(renderCamGrid, 60000);
 
-  // ── v2: auto-init alongside v1, writes only into its own -v2 DOM
-  // elements so the two systems can never collide. Now that real
-  // buttons write to v2, this keeps the v2 panel live without
-  // requiring a manual "Run v2 Render" click every time.
-  if(typeof renderWFHMonitorV2 === 'function') {
-    renderWFHMonitorV2();
-    clearInterval(_wfhRefreshIntervalV2);
-    _wfhRefreshIntervalV2 = setInterval(() => renderWFHMonitorV2(), 30000);
-  }
+  // v2 only — v1 (refreshWFHCache, renderWFHMonitor, renderCamGrid,
+  // renderStatusBoard, renderEODReports) completely removed.
+  // All data now reads from wfh_*_v2 tables via renderWFHMonitorV2.
+  renderWFHMonitorV2();
+  clearInterval(_wfhRefreshIntervalV2);
+  _wfhRefreshIntervalV2 = setInterval(() => renderWFHMonitorV2(), 30000);
 }
 
 // ── Render "Who's Working Now" panel ─────────────────────────────
