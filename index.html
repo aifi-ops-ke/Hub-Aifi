@@ -13058,6 +13058,9 @@ function renderDRView() {
     const adminCommentSection = (() => {
       const hasComment = e.adminComment && e.adminComment.trim();
       const canComment = currentRole === 'admin';
+      const canReply   = hasComment && (currentRole === 'tl' || currentRole === 'kings' || currentRole === 'swat');
+      const hasReply   = e.adminCommentReply && e.adminCommentReply.trim();
+      const REPLY_NAMES = { tl:'John Paul Kimongo (TL)', kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
       if(!canComment && !hasComment) return '';
       return `
         <div style="margin-top:12px;padding:12px 14px;background:rgba(0,180,216,0.06);border:1px solid rgba(0,180,216,0.25);border-radius:10px">
@@ -13068,6 +13071,16 @@ function renderDRView() {
               style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:10px 12px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;resize:vertical">${hasComment ? e.adminComment.replace(/</g,'&lt;') : ''}</textarea>
             <button class="btn btn-secondary btn-sm" onclick="saveAdminComment(${e.id})" style="margin-top:8px;font-weight:700">💾 Save Comment</button>
           ` : ''}
+          ${hasComment ? `
+          <div style="margin-top:10px;padding:10px 12px;background:rgba(0,212,160,0.06);border:1px solid rgba(0,212,160,0.2);border-radius:8px">
+            <div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">↩️ Reply${e.adminCommentReplyBy ? ` · <span style="font-weight:600;color:var(--text2)">${REPLY_NAMES[e.adminCommentReplyBy]||e.adminCommentReplyBy}</span>` : ''}${e.adminCommentReplyAt ? ` · <span style="font-weight:400;color:var(--text3)">${nairobiTimestampToDateTimeStr(e.adminCommentReplyAt)}</span>` : ''}</div>
+            ${hasReply ? `<div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;margin-bottom:${canReply?'8px':'0'}">${e.adminCommentReply.replace(/</g,'&lt;')}</div>` : ''}
+            ${canReply ? `
+              <textarea id="admin-reply-${e.id}" placeholder="Reply to Gidraph's comment..." rows="2"
+                style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:8px 12px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:12px;outline:none;resize:vertical">${hasReply ? e.adminCommentReply.replace(/</g,'&lt;') : ''}</textarea>
+              <button class="btn btn-secondary btn-sm" onclick="saveAdminReply('dr_entries',${e.id},'admin-reply-${e.id}')" style="margin-top:6px;font-weight:700">↩️ Send Reply</button>
+            ` : (!hasReply ? '<div style="font-size:11px;color:var(--text3);font-style:italic">No reply yet.</div>' : '')}
+          </div>` : ''}
         </div>`;
     })();
 
@@ -13518,6 +13531,9 @@ function renderDailyPlanView() {
       ${(() => {
         const hasComment = plan.adminComment && plan.adminComment.trim();
         const canComment = currentRole === 'admin';
+        const canReply   = hasComment && (currentRole === 'tl' || currentRole === 'kings' || currentRole === 'swat');
+        const hasReply   = plan.adminCommentReply && plan.adminCommentReply.trim();
+        const REPLY_NAMES = { tl:'John Paul Kimongo (TL)', kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
         if(!canComment && !hasComment) return '';
         return `
         <div style="margin-top:12px;padding:12px 14px;background:rgba(0,180,216,0.06);border:1px solid rgba(0,180,216,0.25);border-radius:10px">
@@ -13528,6 +13544,16 @@ function renderDailyPlanView() {
               style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:10px 12px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;resize:vertical">${hasComment ? plan.adminComment.replace(/</g,'&lt;') : ''}</textarea>
             <button class="btn btn-secondary btn-sm" onclick="saveAdminCommentPlan(${plan.id})" style="margin-top:8px;font-weight:700">💾 Save Comment</button>
           ` : ''}
+          ${hasComment ? `
+          <div style="margin-top:10px;padding:10px 12px;background:rgba(0,212,160,0.06);border:1px solid rgba(0,212,160,0.2);border-radius:8px">
+            <div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">↩️ Reply${plan.adminCommentReplyBy ? ` · <span style="font-weight:600;color:var(--text2)">${REPLY_NAMES[plan.adminCommentReplyBy]||plan.adminCommentReplyBy}</span>` : ''}${plan.adminCommentReplyAt ? ` · <span style="font-weight:400;color:var(--text3)">${nairobiTimestampToDateTimeStr(plan.adminCommentReplyAt)}</span>` : ''}</div>
+            ${hasReply ? `<div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;margin-bottom:${canReply?'8px':'0'}">${plan.adminCommentReply.replace(/</g,'&lt;')}</div>` : ''}
+            ${canReply ? `
+              <textarea id="admin-reply-plan-${plan.id}" placeholder="Reply to Gidraph's comment..." rows="2"
+                style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:8px 12px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:12px;outline:none;resize:vertical">${hasReply ? plan.adminCommentReply.replace(/</g,'&lt;') : ''}</textarea>
+              <button class="btn btn-secondary btn-sm" onclick="saveAdminReply('daily_plans',${plan.id},'admin-reply-plan-${plan.id}')" style="margin-top:6px;font-weight:700">↩️ Send Reply</button>
+            ` : (!hasReply ? '<div style="font-size:11px;color:var(--text3);font-style:italic">No reply yet.</div>' : '')}
+          </div>` : ''}
         </div>`;
       })()}
     </div>`;
@@ -13535,8 +13561,31 @@ function renderDailyPlanView() {
 }
 
 
-// ════════════════════════════════════════════════════════════════
-//  MANAGEMENT SHIFT PLAN
+async function saveAdminReply(storeKey, id, inputElementId) {
+  // TL, Kings QA, and SWAT QA can all reply to an admin comment.
+  // The reply is stored on the entry alongside the admin's original comment.
+  if(currentRole === 'admin') { toast('Admin replies via the Comment field above','⚠️'); return; }
+  if(currentRole !== 'tl' && currentRole !== 'kings' && currentRole !== 'swat') {
+    toast('Only TL and QAs can reply to admin comments','⚠️'); return;
+  }
+  const input = document.getElementById(inputElementId);
+  if(!input) return;
+  const reply = input.value.trim();
+  const all   = load(storeKey);
+  const entry = all.find(e => e.id === id);
+  if(!entry) return;
+  entry.adminCommentReply   = reply;
+  entry.adminCommentReplyBy = reply ? currentRole : null;
+  entry.adminCommentReplyAt = reply ? nowNairobi() : null;
+  const ok = await saveAndVerify(storeKey, all);
+  if(!ok) { toast('❌ Failed to save reply — please retry','❌'); return; }
+  toast(reply ? '↩️ Reply sent' : '🗑️ Reply cleared', reply ? '✅' : '🗑️');
+  // Re-render whichever view is active
+  if(storeKey === 'dr_entries') renderDRView();
+  else if(storeKey === 'daily_plans') renderDailyPlanView();
+}
+
+
 // ════════════════════════════════════════════════════════════════
 
 const MGMT_TEAM = [
