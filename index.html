@@ -5099,6 +5099,12 @@ function doOpHubLogin() {
   localStorage.setItem('ophub_op_id', opId);
   closeOpHubLogin();
   openOpHubMenu(opId);
+
+  // Check if this operator has set their own password — prompt if not
+  const changed = loadObj('pw_changed');
+  if(!changed['op:'+opId]) {
+    setTimeout(() => showForcePasswordModalForOp(opId), 600);
+  }
 }
 
 function openOpHubMenu(opId) {
@@ -8264,6 +8270,9 @@ function startSession(role, cred) {
   // Auto-navigate QA to their team dashboard
   if(role === 'kings') setTimeout(() => nav('team-dash-kings'), 400);
   if(role === 'swat')  setTimeout(() => nav('team-dash-swat'),  400);
+
+  // Check if this user has set their own password — if not, prompt them immediately
+  checkMustSetPassword(role, cred);
   // Show team-specific dashboard nav item
   const kNav = document.getElementById('nav-team-dash-kings');
   const sNav = document.getElementById('nav-team-dash-swat');
@@ -8275,6 +8284,147 @@ function startSession(role, cred) {
   setTimeout(updateAlertsBadge, 500); // update alerts badge after login
   init();
 }
+
+// ── First-login password prompt ──────────────────────────────────
+// Fires every time someone logs in with a DEFAULT (unchanged) password.
+// They must set their own before they can use the Hub. Tracked via
+// the 'pw_changed' key in aifi_store — one flag per role/user.
+async function checkMustSetPassword(role, cred) {
+  const changed = loadObj('pw_changed');
+  if(changed[role]) return; // already set their own password — skip
+
+  // Show a non-dismissable prompt requiring a new password
+  setTimeout(() => {
+    showForcePasswordModal(role, cred.name);
+  }, 600); // slight delay so welcome toast shows first
+}
+
+function showForcePasswordModal(role, userName) {
+  // Build modal HTML directly since we can't use openModal (user must not be able to dismiss)
+  const overlay = document.createElement('div');
+  overlay.id = 'force-pw-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:16px;padding:28px 28px 24px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+      <div style="font-size:28px;text-align:center;margin-bottom:12px">🔐</div>
+      <div style="font-size:17px;font-weight:800;color:var(--text);text-align:center;margin-bottom:6px">Set Your Password</div>
+      <div style="font-size:13px;color:var(--text3);text-align:center;margin-bottom:20px;line-height:1.6">
+        Welcome, <strong style="color:var(--accent)">${userName}</strong>!<br>
+        You're using a default password. Please set your own personal password before continuing.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:5px">New Password</label>
+          <input type="password" id="force-pw-new" placeholder="Choose a strong password" autocomplete="new-password"
+            style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:11px 14px;color:var(--text);font-size:14px;font-family:inherit;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:5px">Confirm Password</label>
+          <input type="password" id="force-pw-confirm" placeholder="Repeat your password" autocomplete="new-password"
+            style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:11px 14px;color:var(--text);font-size:14px;font-family:inherit;outline:none;box-sizing:border-box"/>
+        </div>
+      </div>
+      <div id="force-pw-error" style="display:none;color:var(--red);font-size:12px;margin-bottom:12px;text-align:center"></div>
+      <button onclick="saveForcePassword('${role}')"
+        style="width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#04261c;font-size:14px;font-weight:800;cursor:pointer">
+        ✅ Set My Password & Continue
+      </button>
+      <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:12px">Minimum 6 characters. You can change it anytime from the sidebar.</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('force-pw-new')?.focus(), 100);
+
+  // Allow Enter key to submit
+  overlay.addEventListener('keydown', e => { if(e.key === 'Enter') saveForcePassword(role); });
+}
+
+async function saveForcePassword(role) {
+  const pw  = document.getElementById('force-pw-new')?.value?.trim();
+  const pw2 = document.getElementById('force-pw-confirm')?.value?.trim();
+  const errEl = document.getElementById('force-pw-error');
+
+  if(!pw)          { errEl.textContent='Please enter a password.';           errEl.style.display='block'; return; }
+  if(pw.length < 6){ errEl.textContent='Password must be at least 6 characters.'; errEl.style.display='block'; return; }
+  if(pw !== pw2)   { errEl.textContent='Passwords don\'t match — try again.'; errEl.style.display='block'; return; }
+
+  errEl.style.display='none';
+
+  // Save the new password
+  const creds = loadObj('creds');
+  creds[role] = btoa(pw);
+  save('creds', creds);
+
+  // Mark this role as having set their own password
+  const changed = loadObj('pw_changed');
+  changed[role] = nowNairobi();
+  save('pw_changed', changed);
+
+  // Remove the overlay
+  document.getElementById('force-pw-overlay')?.remove();
+  toast(`Password set successfully! You're all set, ${currentUserName} ✓`, '🔐');
+}
+
+// Operator version of the force password modal
+function showForcePasswordModalForOp(opId) {
+  const overlay = document.createElement('div');
+  overlay.id = 'force-pw-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:16px;padding:28px 28px 24px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+      <div style="font-size:28px;text-align:center;margin-bottom:12px">🔐</div>
+      <div style="font-size:17px;font-weight:800;color:var(--text);text-align:center;margin-bottom:6px">Set Your Password</div>
+      <div style="font-size:13px;color:var(--text3);text-align:center;margin-bottom:20px;line-height:1.6">
+        Welcome, <strong style="color:var(--accent)">${operatorLabel(opId)}</strong>!<br>
+        Please set your own personal password before continuing.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:5px">New Password</label>
+          <input type="password" id="force-pw-new" placeholder="Choose a strong password" autocomplete="new-password"
+            style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:11px 14px;color:var(--text);font-size:14px;font-family:inherit;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:5px">Confirm Password</label>
+          <input type="password" id="force-pw-confirm" placeholder="Repeat your password" autocomplete="new-password"
+            style="width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:9px;padding:11px 14px;color:var(--text);font-size:14px;font-family:inherit;outline:none;box-sizing:border-box"/>
+        </div>
+      </div>
+      <div id="force-pw-error" style="display:none;color:var(--red);font-size:12px;margin-bottom:12px;text-align:center"></div>
+      <button onclick="saveForcePasswordForOp('${opId}')"
+        style="width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#04261c;font-size:14px;font-weight:800;cursor:pointer">
+        ✅ Set My Password & Continue
+      </button>
+      <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:12px">Minimum 6 characters. You can change it anytime from the Operator Hub.</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('force-pw-new')?.focus(), 100);
+  overlay.addEventListener('keydown', e => { if(e.key === 'Enter') saveForcePasswordForOp(opId); });
+}
+
+async function saveForcePasswordForOp(opId) {
+  const pw  = document.getElementById('force-pw-new')?.value?.trim();
+  const pw2 = document.getElementById('force-pw-confirm')?.value?.trim();
+  const errEl = document.getElementById('force-pw-error');
+
+  if(!pw)          { errEl.textContent='Please enter a password.';           errEl.style.display='block'; return; }
+  if(pw.length < 6){ errEl.textContent='Password must be at least 6 characters.'; errEl.style.display='block'; return; }
+  if(pw !== pw2)   { errEl.textContent='Passwords don\'t match — try again.'; errEl.style.display='block'; return; }
+
+  errEl.style.display='none';
+
+  const opCreds = loadObj('op_creds');
+  opCreds[opId] = pw;
+  save('op_creds', opCreds);
+
+  const changed = loadObj('pw_changed');
+  changed['op:'+opId] = nowNairobi();
+  save('pw_changed', changed);
+
+  document.getElementById('force-pw-overlay')?.remove();
+  toast(`Password set! Welcome, ${operatorLabel(opId)} ✓`, '🔐');
+}
+
+
 
 function applyRoleRestrictions(role) {
   if(role === 'tl' || role === 'admin') return; // TL and Admin see everything
