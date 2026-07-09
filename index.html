@@ -1097,7 +1097,7 @@ window._dbSet = async function(key, val) {
       const patchR = await fetch(_SUPA_URL+'/rest/v1/aifi_store?key=eq.'+encodeURIComponent(key), {
         method: 'PATCH',
         headers: {..._SUPA_HDR, 'Content-Type':'application/json', 'Prefer':'return=minimal'},
-        body: JSON.stringify({val, updated_at: new Date().toISOString()})
+        body: JSON.stringify({val, updated_at: nowNairobi()})
       });
       if(!patchR.ok) console.warn('DB PATCH fallback also failed ['+key+']:', patchR.status, await patchR.text());
     } catch(e2) { console.warn('DB PATCH fallback error ['+key+']:', e2.message); }
@@ -4682,8 +4682,8 @@ async function submitWFHLeave() {
       date: start,
       status: 'Pending',
       msg: '🏖️ ' + entry.name + ' applied for ' + days + ' day(s) ' + type + ' leave (' + fmtDate(start) + ' → ' + fmtDate(end) + ')',
-      time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-      isoTime: new Date().toISOString(),
+      time: nowNairobiTime(),
+      isoTime: nowNairobi(),
       read: false,
     });
     saveNotifs(notifs.slice(0, 50));
@@ -4880,8 +4880,8 @@ async function submitLeavePortalApplication() {
       date: start,
       status: 'Pending',
       msg: '🏖️ ' + entry.name + ' applied for ' + days + ' day(s) ' + type + ' leave (' + fmtDate(start) + ' → ' + fmtDate(end) + ')',
-      time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-      isoTime: new Date().toISOString(),
+      time: nowNairobiTime(),
+      isoTime: nowNairobi(),
       read: false,
     });
     saveNotifs(notifs.slice(0, 50));
@@ -5211,7 +5211,7 @@ async function doWFHLogin() {
   // ✅ Password correct — now check approval from Supabase (live, not cache)
   errEl.textContent = '⏳ Checking approval...';
   errEl.style.display = 'block';
-  const today_str = new Date().toISOString().split('T')[0];
+  const today_str = today();
   try {
     const ar = await fetch(
       _SUPA_URL+'/rest/v1/wfh_approved?date=eq.'+today_str+'&op_id=eq.'+encodeURIComponent(opId)+'&select=op_id',
@@ -5270,7 +5270,7 @@ async function doWFHLogin() {
   fetch(_SUPA_URL + '/rest/v1/wfh_operator_creds?op_id=eq.' + opId, {
     method: 'PATCH',
     headers: { ..._SUPA_HDR, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ last_login: new Date().toISOString() })
+    body: JSON.stringify({ last_login: nowNairobi() })
   }).catch(() => {});
 }
 
@@ -5692,8 +5692,8 @@ function populateSelects() {
 }
 
 function yesterday() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
+  const d = new Date(Date.now() + 3*60*60*1000);
+  d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().split('T')[0];
 }
 
@@ -6050,7 +6050,41 @@ function renderDashProdKPIs() {
       delta:pctDelta(operators, prevOps), deltaGoodUp:true, spark:opsSeries, sparkColor:'var(--teal)'});
 }
 
-function today() { return new Date().toISOString().split('T')[0]; }
+function today() {
+  // Must use Nairobi time (UTC+3), not UTC — between midnight UTC and 03:00 Nairobi,
+  // nowNairobi() returns the previous date, causing sessions, approvals,
+  // and logs to be stamped with the wrong day.
+  const d = new Date(Date.now() + 3*60*60*1000);
+  return d.toISOString().split('T')[0];
+}
+
+// Nairobi-aware current timestamp as a naive local string (no Z, no offset)
+// matching the format Supabase stores via nairobi_now() on the server side.
+// Use this everywhere a "now" timestamp is stored or displayed — NOT nowNairobi()
+// which returns UTC and will show the wrong time in Nairobi between 00:00–03:00 UTC.
+function nowNairobi() {
+  return new Date(Date.now() + 3*60*60*1000).toISOString().replace('Z','');
+}
+
+// Nairobi-aware current time string for display (HH:MM)
+function nowNairobiTime() {
+  const d = new Date(Date.now() + 3*60*60*1000);
+  return d.toISOString().split('T')[1].substring(0,5);
+}
+
+// Display a stored Nairobi-naive timestamp as "DD Mon, HH:MM"
+// Used for chat/notification timestamps that need both date and time.
+function nairobiTimestampToDateTimeStr(ts) {
+  if(!ts) return '–';
+  const ms = parseNairobiTs(ts);
+  if(!ms) return '–';
+  const d = new Date(ms + 3*60*60*1000); // shift back to Nairobi wall-clock for display
+  const day   = String(d.getUTCDate()).padStart(2,'0');
+  const month = d.toLocaleString('en-GB',{month:'short',timeZone:'UTC'});
+  const h     = String(d.getUTCHours()).padStart(2,'0');
+  const m     = String(d.getUTCMinutes()).padStart(2,'0');
+  return `${day} ${month}, ${h}:${m}`;
+}
 function fmtDate(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '–'; }
 function daysBetween(a,b) { return Math.round((new Date(b)-new Date(a))/(1000*60*60*24))+1; }
 
@@ -6099,7 +6133,7 @@ function chatPeopleDirectory() {
 }
 
 function chatBubbleHTML(msg, isMine) {
-  const time = new Date(msg.at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  const time = nairobiTimestampToDateTimeStr(msg.at);
   const roleTag = msg.role ? `<span style="font-size:9px;color:var(--text3);margin-left:6px">${msg.role}</span>` : '';
   const editedTag = msg.editedAt ? `<span style="font-size:9px;color:var(--text3);font-style:italic"> (edited)</span>` : '';
   const canEdit = isMine;
@@ -6271,7 +6305,7 @@ async function sendChatMessage(containerId) {
     name: _myChatName,
     role: _myChatRole,
     text,
-    at: new Date().toISOString(),
+    at: nowNairobi(),
     editedAt: null,
   });
   await saveAndVerify(chatStoreKey(_activeConvoId), msgs);
@@ -6300,7 +6334,7 @@ async function saveEditMessage(msgId) {
   const msg = msgs.find(m => m.id === msgId);
   if(!msg) return;
   msg.text = newText;
-  msg.editedAt = new Date().toISOString();
+  msg.editedAt = nowNairobi();
   await saveAndVerify(chatStoreKey(_activeConvoId), msgs);
   refreshChatMessages(_activeChatContainerId);
 }
@@ -6373,7 +6407,7 @@ async function submitCriticalReport() {
     severity, category, description,
     status: 'open',
     reportedBy: (typeof currentUserName !== 'undefined' && currentUserName) || 'TL',
-    createdAt: new Date().toISOString(),
+    createdAt: nowNairobi(),
     resolvedAt: null,
   };
   reports.push(entry);
@@ -6394,7 +6428,7 @@ async function resolveCriticalReport(id) {
   const entry = reports.find(r => r.id === id);
   if(!entry) return;
   entry.status = entry.status === 'resolved' ? 'open' : 'resolved';
-  entry.resolvedAt = entry.status === 'resolved' ? new Date().toISOString() : null;
+  entry.resolvedAt = entry.status === 'resolved' ? nowNairobi() : null;
   await saveAndVerify('critical_reports', reports);
   renderCriticalReports();
   updateNavBadges();
@@ -6419,7 +6453,7 @@ function renderCriticalReports() {
   el.innerHTML = reports.map(r => {
     const sev = CRIT_SEVERITY_CFG[r.severity] || CRIT_SEVERITY_CFG.medium;
     const isResolved = r.status === 'resolved';
-    const when = new Date(r.createdAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    const when = nairobiTimestampToDateTimeStr(r.createdAt);
     return `
     <div style="background:var(--surface2);border:1px solid ${isResolved?'var(--border)':sev.color+'40'};border-radius:10px;
                 padding:14px;margin-bottom:10px;${isResolved?'opacity:0.6':''}">
@@ -7635,7 +7669,7 @@ function exportData() {
     production: load('prod'),
     attendance: loadObj('att'),
     leaves: load('leaves'),
-    exportedAt: new Date().toISOString(),
+    exportedAt: nowNairobi(),
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
@@ -7775,7 +7809,7 @@ function doOperatorLogin() {
   fetch(_SUPA_URL + '/rest/v1/wfh_operator_creds?op_id=eq.' + opId, {
     method:'PATCH',
     headers:{ ..._SUPA_HDR, 'Content-Type':'application/json', 'Prefer':'return=minimal' },
-    body: JSON.stringify({ last_login: new Date().toISOString() })
+    body: JSON.stringify({ last_login: nowNairobi() })
   }).catch(()=>{});
 }
 
@@ -8016,9 +8050,15 @@ function init() {
   dateFields.forEach(id => { const el=document.getElementById(id); if(el && el.type==='date') el.value=d; });
   
   const dateEl = document.getElementById('topbar-date');
-  if(dateEl) dateEl.textContent = new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  if(dateEl) {
+    const nairobiNow = new Date(Date.now() + 3*60*60*1000);
+    dateEl.textContent = nairobiNow.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}) + ' · EAT';
+  }
   const dashDate = document.getElementById('dash-date');
-  if(dashDate) dashDate.textContent = new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  if(dashDate) {
+    const nairobiNow = new Date(Date.now() + 3*60*60*1000);
+    dashDate.textContent = nairobiNow.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}) + ' · EAT';
+  }
 
   populateSelects();
   renderSparkline();
@@ -8759,7 +8799,7 @@ async function dbSaveSession(opId, data, date) {
     workspace:      data.workspace||null,
     anydesk_id:     data.anydesk||null,
     total_hours:    data.totalHours||null,
-    updated_at:     new Date().toISOString()
+    updated_at:     nowNairobi()
   };
   try {
     const r = await fetch(_SUPA_URL+'/rest/v1/wfh_sessions',{
@@ -8798,7 +8838,7 @@ async function dbGetLogs(date) {
       date:     row.date,
       opId:     opId,
       name:     operatorLabel(opId),
-      timeStr:  new Date(row.logged_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+      timeStr:  nairobiTimestampToTimeStr(row.logged_at),
       isoTime:  row.logged_at,
       type:     row.log_type,
       cases:    row.cases||0,
@@ -8851,8 +8891,8 @@ async function dbInsertLog(opId, type, data={}) {
     } else {
       // Append to local cache
       const entry = {...row, id:Date.now(), name:operatorLabel(opId),
-        timeStr:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-        isoTime:new Date().toISOString(), opId};
+        timeStr:nowNairobiTime(),
+        isoTime:nowNairobi(), opId};
       _logsCache.push(entry);
       return entry;
     }
@@ -8877,7 +8917,7 @@ async function dbGetEODs(date) {
   } catch(e) { return loadObj(WFH_EOD_KEY)[date||today()]||{}; }
 }
 async function dbSaveEOD(opId, data) {
-  const row = { op_id:opId, date:today(), ...data, submitted_at:new Date().toISOString() };
+  const row = { op_id:opId, date:today(), ...data, submitted_at:nowNairobi() };
   try {
     const r = await fetch(_SUPA_URL+'/rest/v1/wfh_eod',{
       method:'POST',
@@ -9012,7 +9052,7 @@ function isOpTrulyIdle(opId, date) {
   return sess?.status === 'idle';
 }
 function wfhTimeStr(iso) {
-  return iso ? new Date(iso).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+  return iso ? nairobiTimestampToTimeStr(iso) : '–';
 }
 function wfhElapsed(startIso, breakMs=0) {
   const ms = Date.now() - new Date(startIso).getTime() - breakMs;
@@ -9182,9 +9222,9 @@ async function renderEODReports() {
     const team   = getOpTeam(opId).toUpperCase();
     const teamC  = getOpTeam(opId)==='kings'?'var(--accent)':'var(--orange)';
     const hrs    = sess.totalHours ? parseFloat(sess.totalHours).toFixed(1) : '–';
-    const inT    = sess.checkIn  ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
-    const outT   = sess.checkOut ? new Date(sess.checkOut).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
-                 : e.submitted_at ? new Date(e.submitted_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+    const inT    = sess.checkIn  ? nairobiTimestampToTimeStr(sess.checkIn) : '–';
+    const outT   = sess.checkOut ? nairobiTimestampToTimeStr(sess.checkOut)
+                 : e.submitted_at ? nairobiTimestampToTimeStr(e.submitted_at) : '–';
     const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
 
     return `<div style="background:var(--surface);border:1.5px solid rgba(0,212,160,0.2);border-radius:12px;padding:16px">
@@ -9283,7 +9323,7 @@ function renderWorkingNow(sessions, approved, date) {
       // log tracking removed — operators check in once and check out once
       const team     = getOpTeam(opId);
       const teamCol  = team==='kings' ? 'var(--accent)' : 'var(--orange)';
-      const checkInT  = sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+      const checkInT  = sess?.checkIn ? nairobiTimestampToTimeStr(sess.checkIn) : '–';
       const anydeskId = sess?.anydesk || '';
       const dotColor = trulyIdle ? 'var(--red)' : 'var(--green)';
       const borderOp = trulyIdle ? '0.2' : '0.35';
@@ -9313,7 +9353,7 @@ function renderWorkingNow(sessions, approved, date) {
   // ── Checked-out ───────────────────────────────────────────────
   const checkedOutHtml = checkedOut.map(opId => {
     const sess = sessions[opId];
-    const outT = sess?.checkOut ? new Date(sess.checkOut).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+    const outT = sess?.checkOut ? nairobiTimestampToTimeStr(sess.checkOut) : '–';
     const isLocked = sess?.lockedOut && !sess?.reloginApproved;
     return `<div style="
       display:flex;align-items:center;gap:6px;
@@ -9427,11 +9467,11 @@ function renderShiftActivity(sessions, approved, date) {
     const lastTime  = lastLog?.timeStr
       ? lastLog.timeStr
       : (sess?.effectiveLastSeen
-          ? new Date(sess.effectiveLastSeen).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
-          : (sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–'));
+          ? nairobiTimestampToTimeStr(sess.effectiveLastSeen)
+          : (sess?.checkIn ? nairobiTimestampToTimeStr(sess.checkIn) : '–'));
     const hbAge     = minsAgo(sess?.lastHeartbeat);
     const team      = getOpTeam(opId);
-    const checkInT  = sess?.checkIn ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+    const checkInT  = sess?.checkIn ? nairobiTimestampToTimeStr(sess.checkIn) : '–';
 
     return { opId, team, sessionCount, totalCases, lastTime, hbAge, checkInT, opLogs };
   }).sort((a,b) => b.sessionCount - a.sessionCount);
@@ -9488,7 +9528,7 @@ async function renderWFHMonitor() {
   renderShiftActivity(sessions, approved, date);
 
   const lrEl = document.getElementById('wfh-last-refresh');
-  if(lrEl) lrEl.textContent = '↺ '+new Date().toLocaleTimeString('en-GB');
+  if(lrEl) lrEl.textContent = '↺ '+nowNairobiTime();
 
   const allOps    = Object.keys(sessions);
   const onlineOps = allOps.filter(id=>opStatus(id, sessions)==='online');
@@ -9718,7 +9758,7 @@ async function renderWFHMonitor() {
           .sort((a,b) => b[1].cases - a[1].cases || b[1].submits - a[1].submits)
           .map(([id,d]) => {
             const avg = d.ahts.length ? +(d.ahts.reduce((s,v)=>s+v,0)/d.ahts.length).toFixed(1) : '–';
-            const lt  = d.lastTime ? new Date(d.lastTime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+            const lt  = d.lastTime ? nairobiTimestampToTimeStr(d.lastTime) : '–';
             const ec  = d.eodDone ? 'var(--green)' : 'var(--red)';
             const tc  = d.tabBreaches > 3 ? 'var(--red)' : d.tabBreaches > 0 ? 'var(--amber)' : 'var(--text3)';
             return '<tr>' +
@@ -9918,7 +9958,7 @@ async function wfhCheckIn() {
   if(!opId) { toast('Select your name first','⚠️'); return; }
 
   // Check approval live from Supabase
-  const today_ci = new Date().toISOString().split('T')[0];
+  const today_ci = today();
   try {
     const ar = await fetch(
       _SUPA_URL+'/rest/v1/wfh_approved?date=eq.'+today_ci+'&op_id=eq.'+encodeURIComponent(opId)+'&select=op_id',
@@ -9958,7 +9998,7 @@ async function wfhCheckIn() {
     toast('📷 Checking in without camera. Snapshots will not be captured.','ℹ️');
   }
 
-  const now  = new Date().toISOString();
+  const now  = nowNairobi();
   const sess = { status:'online', checkIn:now, checkOut:null, totalCases:0, totalBreakMs:0,
                  shift, location, preInternet:internet, preEnv:env, prePower:power,
                  preTools:tools, workspace, breakCount:0, noCam };
@@ -10036,7 +10076,7 @@ function wfhToggleBreak() {
   if(!opId) return;
   const sess = getSession(today(), opId); if(!sess) return;
   if(!_wfhOnBreak) {
-    _wfhOnBreak=true; _wfhBreakStart=new Date().toISOString();
+    _wfhOnBreak=true; _wfhBreakStart=nowNairobi();
     sess.status='break'; sess.breakStart=_wfhBreakStart;
     sess.breakCount = (sess.breakCount||0) + 1;
     saveSession(today(),opId,sess);
@@ -10174,7 +10214,7 @@ async function submitEOD() {
   if(sess) {
     const ms=(Date.now()-new Date(sess.checkIn).getTime())-(_wfhTotalBreak||0);
     const hoursWorked = ms/3600000;
-    sess.status='offline'; sess.checkOut=new Date().toISOString(); sess.totalHours=hoursWorked.toFixed(2);
+    sess.status='offline'; sess.checkOut=nowNairobi(); sess.totalHours=hoursWorked.toFixed(2);
     // A full shift (9+ hours) completed and checked out requires TL approval before
     // starting a new shift the same day. Shorter/accidental checkouts do not.
     if(hoursWorked >= 9) sess.lockedOut = true;
@@ -10184,8 +10224,8 @@ async function submitEOD() {
   clearInterval(_wfhTimerInterval); clearInterval(_wfhIdleInterval);
   stopHeartbeat();
   // Lock out: remove from approved, clear session heartbeat, clear status
-  const today_co = new Date().toISOString().split('T')[0];
-  const coTime   = new Date().toISOString();
+  const today_co = today();
+  const coTime   = nowNairobi();
   const coHdr    = {'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'};
   Promise.all([
     fetch(_SUPA_URL+'/rest/v1/wfh_approved?op_id=eq.'+encodeURIComponent(opId)+'&date=eq.'+today_co,
@@ -10214,8 +10254,8 @@ async function showShiftSummary(opId, sess, eod) {
   const name      = operatorLabel(opId);
   const team      = getOpTeam(opId).toUpperCase();
   const date      = today();
-  const checkIn   = sess?.checkIn  ? new Date(sess.checkIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
-  const checkOut  = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const checkIn   = sess?.checkIn  ? nairobiTimestampToTimeStr(sess.checkIn) : '–';
+  const checkOut  = nowNairobiTime();
   const totalHrs  = sess?.totalHours ? parseFloat(sess.totalHours).toFixed(1) : '–';
   const breakMins = sess?.totalBreakMs ? Math.round(sess.totalBreakMs/60000) : 0;
 
@@ -10590,7 +10630,7 @@ async function opCheckFace() {
     if(statusT){ statusT.textContent='🚫 Camera blocked — TL alerted with screenshot'; statusT.style.color='var(--red)'; }
     if(b64) await saveSnapshot(opId, b64, false, 'cam_blocked');
     await saveFaceEvent(opId, 'cam_off', null, b64);
-    logWFHBreach(opId, `🚫 Camera BLOCKED at ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} — screenshot taken`);
+    logWFHBreach(opId, `🚫 Camera BLOCKED at ${nowNairobiTime()} — screenshot taken`);
     logWFHEntry(opId, 'cam_blocked', { notes:'Camera appears covered or blocked — screenshot saved' });
     toast('🚫 Camera blocked — TL notified with screenshot','🚫');
     return;
@@ -10599,7 +10639,7 @@ async function opCheckFace() {
   // ── FACE CHANGED (different person appeared) ─────────────────
   if(present && changed && _fpSampleCount >= 3) {
     if(b64) await saveSnapshot(opId, b64, true, 'face_changed');
-    logWFHBreach(opId, `👤 Different face detected at ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} — screenshot saved`);
+    logWFHBreach(opId, `👤 Different face detected at ${nowNairobiTime()} — screenshot saved`);
     logWFHEntry(opId, 'face_changed', { notes:'Camera shows a different face — screenshot saved to TL' });
     _fpSampleCount = 0; _faceFingerprint = null; // reset so we don't spam
     if(pill)   { pill.textContent='⚠️ FACE CHANGED'; pill.className='op-cam-status-pill away'; }
@@ -10619,7 +10659,7 @@ async function opCheckFace() {
     if(el) el.textContent = _opAwayCount;
     if(b64) await saveSnapshot(opId, b64, false, 'face_away');
     await saveFaceEvent(opId, 'face_away', null, b64);
-    logWFHBreach(opId, `📷 Face away at ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} — screenshot saved`);
+    logWFHBreach(opId, `📷 Face away at ${nowNairobiTime()} — screenshot saved`);
     logWFHEntry(opId, 'face_away', { notes:'Face not detected — screenshot saved to TL' });
     toast('⚠️ Face not detected — TL notified with screenshot','📷');
 
@@ -10719,7 +10759,7 @@ async function renderCamGrid() {
         tileClass='cam-off'; statusLbl='📷 No Cam Data'; statusCls='camoff';
       }
 
-      const timeStr = snap ? new Date(snap.captured_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '–';
+      const timeStr = snap ? nairobiTimestampToTimeStr(snap.captured_at) : '–';
       const initials = operatorLabel(opId).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
       const snapCount = snapshots.filter(s=>s.op_id===opId).length;
       const awayEvents= events.filter(e=>e.op_id===opId && e.event_type==='face_away').length;
@@ -10778,7 +10818,7 @@ async function tlViewOperatorCam(opId) {
   const snapHtml = snapshots.length
     ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;max-height:340px;overflow-y:auto">
         ${snapshots.map(s=>{
-          const t = new Date(s.captured_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+          const t = nairobiTimestampToTimeStr(s.captured_at);
           const present = s.face_detected!==false;
           const borderC = present ? 'rgba(0,212,160,0.4)' : 'rgba(255,94,110,0.6)';
           return `<div style="position:relative;border-radius:8px;overflow:hidden;border:2px solid ${borderC};background:var(--surface2);min-height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px">
@@ -10832,7 +10872,7 @@ function tlRequestSpotCheck() {
       // Store a spot-check request in Supabase store
       const req = loadObj('wfh_spot_requests');
       if(!req[today()]) req[today()] = {};
-      req[today()][opId] = { requestedAt: new Date().toISOString(), fulfilled: false };
+      req[today()][opId] = { requestedAt: nowNairobi(), fulfilled: false };
       save('wfh_spot_requests', req);
     });
     closeModal();
@@ -10916,7 +10956,7 @@ function analyseJiggler() {
     const video=document.getElementById('op-cam-video');
     if(_opCamActive&&video){const snap=captureSnapshot(video);if(snap) saveSnapshot(opId,snap,detectFacePresent(video),'jiggler_detected');}
     const detail=[s1?'fixed interval':null,s2?'fixed distance':null,s3?'back-and-forth':null,s4?'straight line':null].filter(Boolean).join(', ');
-    logWFHBreach(opId,`🤖 Mouse jiggler suspected at ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} — Indicators: ${detail}`);
+    logWFHBreach(opId,`🤖 Mouse jiggler suspected at ${nowNairobiTime()} — Indicators: ${detail}`);
     logWFHEntry(opId,'jiggler_detected',{notes:`Suspicious cursor pattern score ${score}/4: ${detail}`});
     const warn=document.getElementById('wfh-idle-warning');
     if(warn){warn.style.display='block';warn.innerHTML='<div class="alert" style="background:rgba(255,40,60,0.12);border:1px solid rgba(255,40,60,0.5);color:var(--red)">🤖 <strong>Unusual cursor pattern detected</strong> — flagged to your Team Lead with screenshot.</div>';}
@@ -10943,9 +10983,9 @@ function startFaceAwayLogoutWatch() {
     if(awayMs>=FACE_LOGOUT_MS){
       const video=document.getElementById('op-cam-video');
       if(_opCamActive&&video){const snap=captureSnapshot(video);if(snap) saveSnapshot(opId,snap,false,'force_logout_face');}
-      logWFHBreach(opId,`🚨 FORCE LOGOUT: No face for 30+ min at ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`);
+      logWFHBreach(opId,`🚨 FORCE LOGOUT: No face for 30+ min at ${nowNairobiTime()}`);
       logWFHEntry(opId,'force_logout',{notes:'Auto logged out — no face for 30 continuous minutes'});
-      sess.checkOut=new Date().toISOString();sess.status='offline';
+      sess.checkOut=nowNairobi();sess.status='offline';
       sess.totalHours=((Date.now()-new Date(sess.checkIn).getTime())/3600000).toFixed(2);
       saveSession(today(),opId,sess);
       if(_camStream) _camStream.getTracks().forEach(t=>t.stop());
@@ -11172,8 +11212,8 @@ function startCursorIdleTracking() {
 
       sess.status = 'idle';
       saveSession(today(), opId, sess);
-      logWFHEntry(opId,'idle',{notes:`No movement on hub for 30s at ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`});
-      logWFHBreach(opId,`🖱️ No activity on hub for 30s at ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`);
+      logWFHEntry(opId,'idle',{notes:`No movement on hub for 30s at ${nowNairobiTime()}`});
+      logWFHBreach(opId,`🖱️ No activity on hub for 30s at ${nowNairobiTime()}`);
 
       const timer=document.getElementById('wfh-session-timer');
       if(timer) timer.classList.add('idle-flash');
@@ -11251,7 +11291,7 @@ async function dbSetStatus(opId, status, note) {
                  'Prefer':'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({
         op_id: opId, date: today(), status, status_note: note||null,
-        started_at: new Date().toISOString(), updated_at: new Date().toISOString()
+        started_at: nowNairobi(), updated_at: nowNairobi()
       })
     });
     if(!r.ok) console.error('Status save failed:', r.status, await r.text());
@@ -11309,7 +11349,7 @@ function applyStatusUI(status) {
   });
   // Update since text
   const sinceEl = document.getElementById('wfh-status-since');
-  if(sinceEl) sinceEl.textContent = cfg.label + ' since ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  if(sinceEl) sinceEl.textContent = cfg.label + ' since ' + nowNairobiTime();
 }
 
 // ── TL: render Status Board ──────────────────────────────────────
@@ -11366,7 +11406,7 @@ async function renderStatusBoard() {
       ? statusStartedTime
       : (checkInTime || null);
     const since  = effectiveStart
-      ? new Date(effectiveStart).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
+      ? nairobiTimestampToTimeStr(effectiveStart)
       : '–';
     const cfg    = STATUS_CONFIG[st] || STATUS_CONFIG.working;
     const team   = getOpTeam(opId);
@@ -11446,7 +11486,7 @@ async function dbJoinRoom(roomId, peerId, opId, name) {
 async function dbLeaveRoom(roomId, peerId) {
   await meetFetch(`meet_participants?room_id=eq.${roomId}&peer_id=eq.${peerId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ active: false, left_at: new Date().toISOString() })
+    body: JSON.stringify({ active: false, left_at: nowNairobi() })
   });
 }
 async function dbGetParticipants(roomId) {
@@ -11802,7 +11842,7 @@ async function leaveMeeting() {
 async function closeMeetingRoom(roomId) {
   if(!confirm('Close this meeting room for everyone?')) return;
   await meetFetch(`meet_rooms?id=eq.${roomId}`, {
-    method:'PATCH', body:JSON.stringify({ active:false, closed_at:new Date().toISOString() })
+    method:'PATCH', body:JSON.stringify({ active:false, closed_at:nowNairobi() })
   });
   await meetFetch(`meet_participants?room_id=eq.${roomId}`, {
     method:'PATCH', body:JSON.stringify({ active:false })
@@ -11834,7 +11874,7 @@ function renderMeetChat(msgs) {
   if(!el || !msgs.length) return;
   el.innerHTML = msgs.map(m => {
     const isOwn = m.op_id === _meetOpId;
-    const t     = new Date(m.sent_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    const t     = nairobiTimestampToTimeStr(m.sent_at);
     return `<div class="meet-chat-msg ${isOwn?'own':''}">
       <div class="meet-chat-name">${m.display_name || m.op_id} · ${t}</div>
       <div class="meet-chat-text">${m.message}</div>
@@ -11943,7 +11983,7 @@ async function runExport(format) {
 // ── Helper: format time ───────────────────────────────────────────
 function fmtT(iso) {
   if(!iso) return '–';
-  return new Date(iso).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  return nairobiTimestampToTimeStr(iso);
 }
 function fmtDT(iso) {
   if(!iso) return '–';
@@ -12321,7 +12361,7 @@ function hubActivityEnterPage(page) {
     date:       today(),
     page:       page,
     page_label: PAGE_LABELS[page] || page,
-    entered_at: new Date().toISOString(),
+    entered_at: nowNairobi(),
     actions:    0
   };
   fetch(_SUPA_URL + '/rest/v1/hub_activity', {
@@ -12345,7 +12385,7 @@ function hubActivityLeavePage() {
       method: 'PATCH',
       headers: { 'apikey':_SUPA_KEY, 'Authorization':'Bearer '+_SUPA_KEY,
                  'Content-Type':'application/json', 'Prefer':'return=minimal' },
-      body: JSON.stringify({ left_at: new Date().toISOString(), duration_s: durS, actions: _actPageActions })
+      body: JSON.stringify({ left_at: nowNairobi(), duration_s: durS, actions: _actPageActions })
     }).catch(() => {});
   }
   _actCurrentPage   = null;
@@ -12669,7 +12709,7 @@ function logWFHBreach(opId, message) {
   const breaches = loadObj('wfh_breaches');
   const date = today();
   if(!breaches[date]) breaches[date]=[];
-  breaches[date].push({opId, message, time:new Date().toISOString()});
+  breaches[date].push({opId, message, time:nowNairobi()});
   save('wfh_breaches', breaches);
 }
 function getBreaches() { return loadObj('wfh_breaches'); }
@@ -12712,7 +12752,7 @@ function saveDashEntry() {
   const ops   = opSel ? Array.from(opSel.selectedOptions).map(o=>o.value) : [];
 
   const all = loadObj('dash_daily');
-  all[date] = { date, cases, hours, aht, intErrors:intE, globErrors:globE, operators:ops, savedAt:new Date().toISOString() };
+  all[date] = { date, cases, hours, aht, intErrors:intE, globErrors:globE, operators:ops, savedAt:nowNairobi() };
   save('dash_daily', all);
 
   // Refresh history dropdown
@@ -12855,7 +12895,7 @@ async function saveDRSection(section) {
     admin: { kings: 'Admin — Team Kings QA', swat: 'Admin — Team SWAT QA', team: 'Admin — Whole Team' },
   };
   const submitterName = (SUBMITTER_NAMES[currentRole]||{})[section] || (section==='kings'?'John Kingori — Team Kings QA':section==='swat'?'Rosemary Nyaleso — Team SWAT QA':'John Paul Kimongo (TL) — Whole Team');
-  const entry  = { id: Date.now(), section, person: section, name: submitterName, submittedBy: currentRole, type:'report', date, savedAt: new Date().toISOString() };
+  const entry  = { id: Date.now(), section, person: section, name: submitterName, submittedBy: currentRole, type:'report', date, savedAt: nowNairobi() };
 
   if(section === 'kings' || section === 'swat') {
     entry.cases      = +document.getElementById(pfx+'cases')?.value||0;
@@ -13018,7 +13058,7 @@ function renderDRView() {
       if(!canComment && !hasComment) return '';
       return `
         <div style="margin-top:12px;padding:12px 14px;background:rgba(0,180,216,0.06);border:1px solid rgba(0,180,216,0.25);border-radius:10px">
-          <div style="font-size:10px;font-weight:800;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">💬 Admin Comment${e.adminCommentAt ? ` · <span style="font-weight:400;color:var(--text3)">${new Date(e.adminCommentAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>` : ''}</div>
+          <div style="font-size:10px;font-weight:800;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">💬 Admin Comment${e.adminCommentAt ? ` · <span style="font-weight:400;color:var(--text3)">${nairobiTimestampToDateTimeStr(e.adminCommentAt)}</span>` : ''}</div>
           ${hasComment ? `<div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;margin-bottom:${canComment?'10px':'0'}">${e.adminComment.replace(/</g,'&lt;')}</div>` : ''}
           ${canComment ? `
             <textarea id="admin-comment-${e.id}" placeholder="Add your comment on this report..." rows="3"
@@ -13062,7 +13102,7 @@ async function saveAdminComment(id) {
   const entry = all.find(e => e.id === id);
   if(!entry) return;
   entry.adminComment = comment;
-  entry.adminCommentAt = comment ? new Date().toISOString() : null;
+  entry.adminCommentAt = comment ? nowNairobi() : null;
   const ok = await saveAndVerify('dr_entries', all);
   if(!ok) { toast('❌ Failed to save comment — please retry','❌'); return; }
   toast(comment ? '💬 Comment saved' : '🗑️ Comment cleared', comment ? '✅' : '🗑️');
@@ -13078,7 +13118,7 @@ async function saveAdminCommentPlan(id) {
   const entry = all.find(e => e.id === id);
   if(!entry) return;
   entry.adminComment = comment;
-  entry.adminCommentAt = comment ? new Date().toISOString() : null;
+  entry.adminCommentAt = comment ? nowNairobi() : null;
   const ok = await saveAndVerify('daily_plans', all);
   if(!ok) { toast('❌ Failed to save comment — please retry','❌'); return; }
   toast(comment ? '💬 Comment saved' : '🗑️ Comment cleared', comment ? '✅' : '🗑️');
@@ -13328,7 +13368,7 @@ async function saveDailyPlan() {
     internalAudits:  +document.getElementById('dp-internal-audits').value||0,
     globalAudits:    +document.getElementById('dp-global-audits').value||0,
     objectives:      document.getElementById('dp-objectives').value,
-    status: 'Pending', savedAt: new Date().toISOString(),
+    status: 'Pending', savedAt: nowNairobi(),
   };
   // Safe-merge: fetch fresh data before saving
   try {
@@ -13369,7 +13409,7 @@ function saveDailyAchieved() {
     internalDone:      +document.getElementById('dp-achieved-internal').value||0,
     globalDone:        +document.getElementById('dp-achieved-global').value||0,
     achievedNotes:     document.getElementById('dp-achieved-notes').value,
-    savedAt:           new Date().toISOString(),
+    savedAt:           nowNairobi(),
   };
   const all = load('daily_plans');
   const idx = all.findIndex(e=>e.person===person&&e.date===date&&e.isAchieved);
@@ -13478,7 +13518,7 @@ function renderDailyPlanView() {
         if(!canComment && !hasComment) return '';
         return `
         <div style="margin-top:12px;padding:12px 14px;background:rgba(0,180,216,0.06);border:1px solid rgba(0,180,216,0.25);border-radius:10px">
-          <div style="font-size:10px;font-weight:800;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">💬 Admin Comment${plan.adminCommentAt ? ` · <span style="font-weight:400;color:var(--text3)">${new Date(plan.adminCommentAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>` : ''}</div>
+          <div style="font-size:10px;font-weight:800;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">💬 Admin Comment${plan.adminCommentAt ? ` · <span style="font-weight:400;color:var(--text3)">${nairobiTimestampToDateTimeStr(plan.adminCommentAt)}</span>` : ''}</div>
           ${hasComment ? `<div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;margin-bottom:${canComment?'10px':'0'}">${plan.adminComment.replace(/</g,'&lt;')}</div>` : ''}
           ${canComment ? `
             <textarea id="admin-comment-plan-${plan.id}" placeholder="Add your comment on this plan..." rows="3"
@@ -14010,7 +14050,7 @@ function renderTeamPerfAggregate(team, view) {
 function testFirebase() {
   // Write a test value to Firebase and read it back
   const testKey = 'aifi_test_' + Date.now();
-  const testVal = { from: sessionStorage.getItem('aifi_session') ? JSON.parse(sessionStorage.getItem('aifi_session')).name : 'unknown', at: new Date().toISOString() };
+  const testVal = { from: sessionStorage.getItem('aifi_session') ? JSON.parse(sessionStorage.getItem('aifi_session')).name : 'unknown', at: nowNairobi() };
   _db.ref('test_ping').set(testVal)
     .then(() => {
       toast('✅ Firebase write OK — connection is working!', '🔥');
@@ -14082,8 +14122,8 @@ function pushNotif(data) {
     cases:   data.cases || 0,
     quality: data.quality || 0,
     status:  data.status || 'Pending',
-    time:    new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-    isoTime: new Date().toISOString(),
+    time:    nowNairobiTime(),
+    isoTime: nowNairobi(),
     read:    false,
   };
   notifs.unshift(entry);
@@ -14250,8 +14290,8 @@ function pushFeedbackNotif(item, type, status) {
     cases:    item.cases || 0,
     status,
     score:    item.score || null,
-    time:     new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
-    isoTime:  new Date().toISOString(),
+    time:     nowNairobiTime(),
+    isoTime:  nowNairobi(),
     read:     false,
     isFeedback: true,
   };
@@ -14678,7 +14718,7 @@ function applyErrorDeductionToPayroll(opId, amount, date, errorId) {
   if(deds[month][opId].find(d=>d.errorId===errorId)) return;
   deds[month][opId].push({
     errorId, amount, date,
-    appliedAt: new Date().toISOString(),
+    appliedAt: nowNairobi(),
   });
   save('payroll_deductions', deds);
 }
@@ -15815,7 +15855,7 @@ async function renderWFHMonitorV2() {
   renderQATrackingV2();
 
   const lrEl = document.getElementById('wfh-last-refresh-v2');
-  if(lrEl) lrEl.textContent = '↺ ' + nairobiTimestampToTimeStr(new Date().toISOString());
+  if(lrEl) lrEl.textContent = '↺ ' + nairobiTimestampToTimeStr(nowNairobi());
 
   // Per JP's decision (2026-06-28): anyone checked out disappears from the
   // Hub entirely — not shown anywhere, not even as a "Checked Out" count.
@@ -15966,7 +16006,7 @@ async function wfhCheckInV2() {
   // otherwise they'd silently end up "checked in" in two places at once,
   // with no single source of truth for their hours today.
   try {
-    const v1Date = new Date().toISOString().split('T')[0];
+    const v1Date = today();
     const v1r = await fetch(
       _SUPA_URL+'/rest/v1/wfh_sessions?date=eq.'+v1Date+'&op_id=eq.'+encodeURIComponent(opId)+'&select=check_in,check_out',
       { headers: { 'apikey': _SUPA_KEY, 'Authorization': 'Bearer '+_SUPA_KEY } }
@@ -15976,7 +16016,7 @@ async function wfhCheckInV2() {
     if(v1Open) {
       const proceed = confirm(
         `${operatorLabel(opId)} still shows an OPEN session on the old system ` +
-        `(checked in at ${new Date(v1Open.check_in).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}, never checked out there).\n\n` +
+        `(checked in at ${nairobiTimestampToTimeStr(v1Open.check_in)}, never checked out there).\n\n` +
         `Checking in here now will NOT close that old session — ask your Team Lead ` +
         `to close it in Supabase first, or your hours may be split across two systems.\n\n` +
         `Check in anyway?`
@@ -16003,7 +16043,7 @@ async function wfhCheckInV2() {
     workspace, breakCount: 0,
   });
 
-  _wfhSessionStartV2 = new Date().toISOString();
+  _wfhSessionStartV2 = nowNairobi();
   _wfhTotalBreakV2 = 0; _wfhOnBreakV2 = false;
 
   const envFlag = (env==='unsuitable') ? ' ⚠️ UNSUITABLE ENVIRONMENT' : '';
@@ -16059,7 +16099,7 @@ async function wfhToggleBreakV2() {
   if(!sess) return;
 
   if(!_wfhOnBreakV2) {
-    _wfhOnBreakV2 = true; _wfhBreakStartV2 = new Date().toISOString();
+    _wfhOnBreakV2 = true; _wfhBreakStartV2 = nowNairobi();
     const breakCount = (sess.breakCount||0) + 1;
     await dbSaveSessionV2(opId, { ...sess, status:'idle', breakCount });
     await dbInsertLogV2(opId, 'break', { notes:`Break #${breakCount} started` });
@@ -16160,7 +16200,7 @@ async function submitEODV2() {
     const ms = (Date.now() - new Date(sess.checkIn).getTime()) - (_wfhTotalBreakV2||0);
     totalHours = (ms/3600000).toFixed(2);
     await dbSaveSessionV2(opId, {
-      ...sess, status:'offline', checkOut: new Date().toISOString(), totalHours,
+      ...sess, status:'offline', checkOut: nowNairobi(), totalHours,
     });
   }
 
