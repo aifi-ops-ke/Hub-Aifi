@@ -16266,7 +16266,7 @@ function nowAsNairobiNaiveString() {
   return new Date(nairobiMs).toISOString().replace('Z','');
 }
 
-const WFH_STALE_MINUTES_V2 = 20;
+const WFH_STALE_MINUTES_V2 = 60; // increased from 20 — auto-close was hiding active operators
 
 async function autoCloseStaleSessionsV2(sessions, logs) {
   const now = Date.now();
@@ -16476,27 +16476,38 @@ async function renderWFHMonitorV2() {
   ]);
 
   // CRITICAL FIX: Build sessions for any operator who has logs today
-  // but NO session row. This was the main reason the dashboard showed
-  // only 1 operator (Mark Obara) — everyone else had logs in wfh_logs_v2
-  // but no row in wfh_sessions_v2 because the extension's session upsert
-  // was 409-conflicting silently on operators with previous-day sessions.
-  // The extension fix (sbUpsert with on_conflict=op_id,date) addresses
-  // the root cause, but this synthesis ensures the Hub shows everyone
-  // even if the session row is missing for any reason.
+  // but NO session row. Also override check_out for operators who have
+  // recent logs — auto-close was closing sessions for operators still
+  // actively submitting, making them disappear from the dashboard.
+  const now = Date.now();
   const opsInLogs = [...new Set(
     logs.filter(l => l.type === 'submission' || l.type === 'hourly')
         .map(l => normalizeOpId(l.opId))
         .filter(Boolean)
   )];
   opsInLogs.forEach(opId => {
+    const opLogs = [...logs.filter(l => normalizeOpId(l.opId) === opId)]
+      .sort((a,b) => (a.isoTime||'').localeCompare(b.isoTime||''));
+    const lastLog = opLogs[opLogs.length - 1];
+    const lastLogMs = lastLog ? parseNairobiTs(lastLog.isoTime) : 0;
+    const minutesSinceLog = (now - lastLogMs) / 60000;
+
     if(!sessions[opId]) {
-      const opLogs = [...logs.filter(l => normalizeOpId(l.opId) === opId)]
-        .sort((a,b) => (a.isoTime||'').localeCompare(b.isoTime||''));
+      // No session row at all — synthesise one
       sessions[opId] = {
         status:      'online',
         checkIn:     opLogs[0]?.isoTime || nowNairobi(),
         checkOut:    null,
         device:      'Chrome-Extension',
+        synthesised: true,
+      };
+    } else if(sessions[opId].checkOut && minutesSinceLog < 30) {
+      // Has a check_out but submitted within last 30 min — clearly still working,
+      // auto-close was wrong. Override so they show on the dashboard.
+      sessions[opId] = {
+        ...sessions[opId],
+        checkOut:    null,
+        status:      'online',
         synthesised: true,
       };
     }
