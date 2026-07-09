@@ -6844,7 +6844,9 @@ function renderErrors() {
   const tbody = document.getElementById('errors-tbody');
   if(!filtered.length) { tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--text3)">No errors logged.</td></tr>'; return; }
 
-  tbody.innerHTML = [...filtered].reverse().map(e=>`<tr>
+  tbody.innerHTML = [...filtered]
+    .sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id)
+    .map(e=>`<tr>
     <td style="font-family:'DM Mono',monospace;font-size:10px;white-space:nowrap">${fmtDate(e.date)}</td>
     <td style="font-weight:600">${operatorLabel(e.operator||'?')}</td>
     <td><span class="badge ${e.type==='global'?'badge-red':'badge-amber'}">${e.type==='global'?'🔴 Global':'🟡 Internal'}</span></td>
@@ -6862,7 +6864,7 @@ function renderErrors() {
   // dash recent errors
   const dash = document.getElementById('recent-errors-dash');
   if(dash) {
-    const recent = [...errors].reverse().slice(0,5);
+    const recent = [...errors].sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id).slice(0,5);
     if(!recent.length) { dash.innerHTML='<div style="color:var(--text3);font-size:12px">No errors logged.</div>'; return; }
     dash.innerHTML = recent.map(e=>`<div class="error-entry">
       <div class="error-dot ${e.type}"></div>
@@ -14905,7 +14907,9 @@ function renderQADashboard(team) {
   // ── Errors list ───────────────────────────────────────────────
   const errEl = document.getElementById(prefix+'dash-errors');
   if(errEl) {
-    errEl.innerHTML = teamErrors.length ? teamErrors.slice(0,8).map(e=>`
+    errEl.innerHTML = teamErrors.length ? [...teamErrors]
+      .sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id)
+      .slice(0,8).map(e=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
         <div>
           <div style="font-size:12px;font-weight:600;color:var(--text)">${operatorLabel(e.operator||'?')}</div>
