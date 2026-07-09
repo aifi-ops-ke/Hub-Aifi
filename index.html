@@ -4899,6 +4899,12 @@ function doLeaveLogin() {
   localStorage.setItem('leave_op_id', opId);
   closeLeaveLogin();
   openLeavePortal(opId);
+
+  // Prompt to set own password if still on default
+  const changed = loadObj('pw_changed');
+  if(!changed['op:'+opId]) {
+    setTimeout(() => showForcePasswordModalForOp(opId), 700);
+  }
 }
 
 function openLeavePortal(opId) {
@@ -5370,6 +5376,12 @@ async function doWFHLogin() {
     headers: { ..._SUPA_HDR, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
     body: JSON.stringify({ last_login: nowNairobi() })
   }).catch(() => {});
+
+  // Prompt to set own password if still on default
+  const changed = loadObj('pw_changed');
+  if(!changed['op:'+opId]) {
+    setTimeout(() => showForcePasswordModalForOp(opId), 700);
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -8189,6 +8201,12 @@ function doOperatorLogin() {
     headers:{ ..._SUPA_HDR, 'Content-Type':'application/json', 'Prefer':'return=minimal' },
     body: JSON.stringify({ last_login: nowNairobi() })
   }).catch(()=>{});
+
+  // Prompt to set own password if still on default
+  const changed = loadObj('pw_changed');
+  if(!changed['op:'+opId]) {
+    setTimeout(() => showForcePasswordModalForOp(opId), 700);
+  }
 }
 
 function togglePw() {
