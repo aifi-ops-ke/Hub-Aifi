@@ -3455,20 +3455,6 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
           <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Live Operator Board (v2)</div>
           <div class="wfh-status-grid" id="wfh-status-grid-v2"></div>
         </div>
-        <div>
-          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Compliance Scorecard (v2)</div>
-          <div class="table-wrap">
-            <table style="font-size:11px">
-              <thead><tr>
-                <th>Operator</th><th>Ext. Compliance</th><th>Submissions</th>
-                <th>Idle</th><th>Cases</th><th>Status</th>
-              </tr></thead>
-              <tbody id="wfh-compliance-tbody-v2">
-                <tr><td colspan="6" style="text-align:center;color:var(--text3)">Click "Run v2 Render" above.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
       <!-- ══════════════ END v2 TEST PANEL ══════════════ -->
 
@@ -16047,8 +16033,20 @@ function startWFHTimerV2() {
 }
 
 function wfhElapsedV2(startIso, breakMs=0) {
-  const ms = Date.now() - new Date(startIso).getTime() - breakMs;
+  // Must use parseNairobiTs() not new Date() — the checkIn value is a
+  // naive Nairobi-local string (no 'Z', no offset). new Date() would
+  // parse it as the machine's local timezone, which could be UTC or any
+  // other timezone, producing wildly wrong elapsed times (e.g. 191 hours
+  // for Gibson when his session was simply never auto-closed). parseNairobiTs
+  // correctly treats the string as Nairobi wall-clock time (+03:00).
+  const startMs = parseNairobiTs(startIso);
+  if(!startMs) return '00:00:00';
+  const ms = Date.now() - startMs - (breakMs||0);
   if(ms < 0) return '00:00:00';
+  // Safety cap: if elapsed is more than 12 hours something went wrong
+  // (auto-close should have caught it). Show capped value with a flag
+  // so the operator knows their session is stale.
+  if(ms > 12 * 3600000) return '12:00:00+';
   const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000), s = Math.floor((ms%60000)/1000);
   return [h,m,s].map(v=>String(v).padStart(2,'0')).join(':');
 }
