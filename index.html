@@ -1613,7 +1613,7 @@ function _dbRefreshPage(key) {
 
   </div><!-- /sidebar-nav-scroll -->
   <div class="sidebar-role">
-    <div class="role-pill" onclick="openChangePassword()" id="change-pw-btn" title="Change passwords (TL only)" style="margin-bottom:8px;background:rgba(0,200,150,0.08);color:var(--text3);border-color:rgba(0,200,150,0.15)">
+    <div class="role-pill" onclick="openChangePassword()" id="change-pw-btn" title="Change passwords" style="margin-bottom:8px;background:rgba(0,200,150,0.08);color:var(--text3);border-color:rgba(0,200,150,0.15)">
       <span>🔐</span>
       <span id="role-label">Team Lead</span>
     </div>
@@ -4245,6 +4245,12 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
           <div class="ophub-tile-title">Team Chat</div>
           <div class="ophub-tile-sub">Message your TL, QAs, and the whole team</div>
         </div>
+
+        <div class="ophub-tile" style="--tile-accent: #ff5e6e" onclick="openOpSelfChangePassword(_opHubId)">
+          <div class="ophub-tile-icon">🔐</div>
+          <div class="ophub-tile-title">Change Password</div>
+          <div class="ophub-tile-sub">Set your own personal password for this Hub</div>
+        </div>
       </div>
     </div>
 
@@ -4597,7 +4603,7 @@ window._wakeLockRoleReady = false;
 // ════════════════════════════════════════════════════════════════
 //  WFH OPERATOR LOGIN SYSTEM
 // ════════════════════════════════════════════════════════════════
-const WFH_OP_CREDS = {
+const WFH_OP_CREDS_DEFAULT = {
   'richard.otieno': 'Richard6022',
   'dennis.keter': 'Dennis7680',
   'collins.marigu': 'Collins4025',
@@ -4641,6 +4647,18 @@ const WFH_OP_CREDS = {
   'ignatious.kahindi': 'Ignatious6029',
   'yassir.khalid': 'Yassir0629',
 };
+
+// Get operator password — reads from aifi_store first so passwords are changeable,
+// falls back to default if no custom password has been set
+function getOpPassword(opId) {
+  const saved = loadObj('op_creds');
+  return saved[opId] || WFH_OP_CREDS_DEFAULT[opId];
+}
+
+// Keep WFH_OP_CREDS as a proxy for backward compat with any remaining direct references
+const WFH_OP_CREDS = new Proxy({}, {
+  get(_, opId) { return getOpPassword(opId); }
+});
 
 
 function exitWFHMode() {
@@ -8042,10 +8060,10 @@ function exportData() {
 // Default passwords set below — you can change via Settings later.
 
 const DEFAULT_CREDS = {
-  tl:     { hash: btoa('Aifi@TL2026!'),      name: 'John Paul Kimongo', role: 'Team Lead',  icon: '🛡️', badge: 'tl'    },
-  admin:  { hash: btoa('Gidraph@Admin2026!'), name: 'Gidraph',           role: 'Admin',      icon: '👑', badge: 'tl'    },
-  kings:  { hash: btoa('Kings@QA2026!'),      name: 'Kingori',           role: 'Kings QA',   icon: '🔵', badge: 'kings' },
-  swat:   { hash: btoa('Swat@Ros2026!'),      name: 'Rosemary Nyaleso',  role: 'SWAT QA',    icon: '🟣', badge: 'swat'  },
+  tl:     { hash: btoa('Aifi@TL2026!'),      name: 'John Paul Kimongo', role: 'Team Lead',  displayRole: 'Supervisor 👑', icon: '🛡️', badge: 'tl'    },
+  admin:  { hash: btoa('Gidraph@Admin2026!'), name: 'Gidraph',           role: 'Admin',      displayRole: 'Admin',         icon: '👑', badge: 'tl'    },
+  kings:  { hash: btoa('Kings@QA2026!'),      name: 'Kingori',           role: 'Kings QA',   displayRole: 'Kings QA',      icon: '🔵', badge: 'kings' },
+  swat:   { hash: btoa('Swat@Ros2026!'),      name: 'Rosemary Nyaleso',  role: 'SWAT QA',    displayRole: 'SWAT QA',       icon: '🟣', badge: 'swat'  },
 };
 
 // Load saved custom passwords (if user changed them), else use defaults
@@ -8234,8 +8252,9 @@ function startSession(role, cred) {
   document.getElementById('session-icon').textContent = cred.icon;
   document.getElementById('session-name').textContent = cred.name;
 
-  // Update sidebar role pill
-  document.getElementById('role-label').textContent = cred.role;
+  // Update sidebar role pill — use displayRole for the UI label (TL shows as "Supervisor 👑")
+  // cred.role stays as "Team Lead" for use in reports and submissions
+  document.getElementById('role-label').textContent = cred.displayRole || cred.role;
   document.getElementById('role-icon').textContent = cred.icon;
   currentRole = role;
   currentUserName = cred.name;
@@ -8328,46 +8347,142 @@ function doLogout() {
   document.getElementById('login-overlay').classList.remove('hidden');
 }
 
-// ── Password Change (for TL only) ──────────────────────────
+// ── Password Change ─────────────────────────────────────────────
+// TL/Admin: can change all role passwords + any operator's password
+// QA roles: can change their own password only
+// Operators: change via a separate self-service prompt in the Operator Hub
 function openChangePassword() {
-  if(currentRole !== 'tl' && currentRole !== 'admin') { toast('Only the Team Lead or Admin can change passwords','⚠️'); return; }
-  openModal('Change Passwords', `
-    <div class="alert alert-info" style="margin-bottom:16px">
-      🔐 Set new passwords for all roles. Leave blank to keep current password.
-    </div>
-    <div class="form-grid" style="gap:14px">
-      <div class="form-group" style="grid-column:span 2">
-        <label>🛡️ Team Lead Password</label>
-        <input type="password" id="cp-tl" placeholder="New TL password (leave blank to keep)" class="login-input" style="width:100%"/>
+  const isSupervisor = currentRole === 'tl' || currentRole === 'admin';
+  const isQA = currentRole === 'kings' || currentRole === 'swat';
+
+  if(isSupervisor) {
+    // Full password management — all roles + operators
+    openModal('🔐 Password Management', `
+      <div class="alert alert-info" style="margin-bottom:16px">
+        Change passwords for any role or operator. Leave blank to keep current password.
       </div>
-      <div class="form-group" style="grid-column:span 2">
-        <label>🔵 Kings QA (Kingori) Password</label>
-        <input type="password" id="cp-kings" placeholder="New Kings password (leave blank to keep)" class="login-input" style="width:100%"/>
+      <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;margin-bottom:10px">Role Passwords</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+        <div class="form-group" style="margin:0">
+          <label>🛡️ Supervisor (John Paul) Password</label>
+          <input type="password" id="cp-tl" placeholder="Leave blank to keep current" class="login-input" style="width:100%"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>👑 Admin (Gidraph) Password</label>
+          <input type="password" id="cp-admin" placeholder="Leave blank to keep current" class="login-input" style="width:100%"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>🔵 Kings QA (Kingori) Password</label>
+          <input type="password" id="cp-kings" placeholder="Leave blank to keep current" class="login-input" style="width:100%"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>🟣 SWAT QA (Rosemary) Password</label>
+          <input type="password" id="cp-swat" placeholder="Leave blank to keep current" class="login-input" style="width:100%"/>
+        </div>
       </div>
-      <div class="form-group" style="grid-column:span 2">
-        <label>🟣 SWAT QA (Rosemary) Password</label>
-        <input type="password" id="cp-swat" placeholder="New SWAT password (leave blank to keep)" class="login-input" style="width:100%"/>
+      <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;margin-bottom:10px">Operator Passwords</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:300px;overflow-y:auto;padding-right:4px">
+        ${OPERATOR_ROSTER.map(o => `
+          <div class="form-group" style="margin:0">
+            <label style="font-size:10px">${operatorLabel(o.id)}</label>
+            <input type="password" id="cp-op-${o.id}" data-opid="${o.id}"
+              placeholder="Current: ${getOpPassword(o.id)||'(none)'}"
+              class="login-input" style="width:100%;font-size:12px;padding:7px 10px"/>
+          </div>`).join('')}
       </div>
-    </div>
-  `);
-  document.getElementById('modal-action').style.display = 'flex';
-  document.getElementById('modal-action').textContent = '🔐 Save Passwords';
-  document.getElementById('modal-action').onclick = savePasswords;
+    `);
+    document.getElementById('modal-action').style.display = 'flex';
+    document.getElementById('modal-action').textContent = '🔐 Save All Passwords';
+    document.getElementById('modal-action').onclick = savePasswords;
+
+  } else if(isQA) {
+    // QA self-service — own password only
+    openModal('🔐 Change My Password', `
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" id="cp-self" placeholder="Enter new password" class="login-input" style="width:100%"/>
+      </div>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" id="cp-self-confirm" placeholder="Confirm new password" class="login-input" style="width:100%"/>
+      </div>
+    `);
+    document.getElementById('modal-action').style.display = 'flex';
+    document.getElementById('modal-action').textContent = '🔐 Save My Password';
+    document.getElementById('modal-action').onclick = () => saveSelfPassword(currentRole);
+  }
 }
 
 function savePasswords() {
   const creds = loadObj('creds');
-  const tlPw = document.getElementById('cp-tl').value;
-  const kingsPw = document.getElementById('cp-kings').value;
-  const swatPw = document.getElementById('cp-swat').value;
+  const opCreds = loadObj('op_creds');
   let changed = 0;
+
+  // Role passwords
+  const tlPw    = document.getElementById('cp-tl')?.value;
+  const adminPw = document.getElementById('cp-admin')?.value;
+  const kingsPw = document.getElementById('cp-kings')?.value;
+  const swatPw  = document.getElementById('cp-swat')?.value;
   if(tlPw)    { creds.tl    = btoa(tlPw);    changed++; }
+  if(adminPw) { creds.admin = btoa(adminPw);  changed++; }
   if(kingsPw) { creds.kings = btoa(kingsPw);  changed++; }
   if(swatPw)  { creds.swat  = btoa(swatPw);   changed++; }
   save('creds', creds);
+
+  // Operator passwords
+  document.querySelectorAll('[data-opid]').forEach(input => {
+    const pw = input.value.trim();
+    if(pw) { opCreds[input.dataset.opid] = pw; changed++; }
+  });
+  save('op_creds', opCreds);
+
   closeModal();
-  toast(`${changed} password${changed!==1?'s':''} updated successfully ✓`,'🔐');
+  toast(`${changed} password${changed!==1?'s':''} updated ✓`, '🔐');
 }
+
+function saveSelfPassword(role) {
+  const pw  = document.getElementById('cp-self')?.value?.trim();
+  const pw2 = document.getElementById('cp-self-confirm')?.value?.trim();
+  if(!pw)          { toast('Please enter a password','⚠️'); return; }
+  if(pw !== pw2)   { toast('Passwords do not match','⚠️'); return; }
+  if(pw.length < 6){ toast('Password must be at least 6 characters','⚠️'); return; }
+  const creds = loadObj('creds');
+  creds[role] = btoa(pw);
+  save('creds', creds);
+  closeModal();
+  toast('Password changed successfully ✓', '🔐');
+}
+
+// Self-service for operators via Operator Hub
+function openOpSelfChangePassword(opId) {
+  openModal('🔐 Change My Password', `
+    <div style="font-size:13px;color:var(--text);margin-bottom:14px;font-weight:600">${operatorLabel(opId)}</div>
+    <div class="form-group">
+      <label>New Password</label>
+      <input type="password" id="op-cp-new" placeholder="Enter new password" class="login-input" style="width:100%"/>
+    </div>
+    <div class="form-group">
+      <label>Confirm Password</label>
+      <input type="password" id="op-cp-confirm" placeholder="Confirm new password" class="login-input" style="width:100%"/>
+    </div>
+  `);
+  document.getElementById('modal-action').style.display = 'flex';
+  document.getElementById('modal-action').textContent = '🔐 Save Password';
+  document.getElementById('modal-action').onclick = () => {
+    const pw  = document.getElementById('op-cp-new')?.value?.trim();
+    const pw2 = document.getElementById('op-cp-confirm')?.value?.trim();
+    if(!pw)          { toast('Please enter a password','⚠️'); return; }
+    if(pw !== pw2)   { toast('Passwords do not match','⚠️'); return; }
+    if(pw.length < 6){ toast('Password must be at least 6 characters','⚠️'); return; }
+    const opCreds = loadObj('op_creds');
+    opCreds[opId] = pw;
+    save('op_creds', opCreds);
+    closeModal();
+    toast('Password changed successfully ✓', '🔐');
+  };
+}
+
+
 
 // ── Check for existing session on page load ──────────────────
 function checkSession() {
@@ -13412,7 +13527,7 @@ function renderDRView() {
     // Admin comment section — only admin can write, everyone can read
     const adminCommentSection = (() => {
       const hasComment = e.adminComment && e.adminComment.trim();
-      const canComment = currentRole === 'admin';
+      const canComment = currentRole === 'admin' || currentRole === 'tl'; // TL = Supervisor, same access as admin
       const canReply   = hasComment && (currentRole === 'tl' || currentRole === 'kings' || currentRole === 'swat');
       const hasReply   = e.adminCommentReply && e.adminCommentReply.trim();
       const REPLY_NAMES = { tl:'John Paul Kimongo (TL)', kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
@@ -13465,7 +13580,7 @@ function deleteDR(id) {
 }
 
 async function saveAdminComment(id) {
-  if(currentRole !== 'admin') { toast('Only Admin can add comments','⚠️'); return; }
+  if(currentRole !== 'admin' && currentRole !== 'tl') { toast('Only Admin/Supervisor can add comments','⚠️'); return; }
   const input = document.getElementById('admin-comment-' + id);
   if(!input) return;
   const comment = input.value.trim();
@@ -13481,7 +13596,7 @@ async function saveAdminComment(id) {
 }
 
 async function saveAdminCommentPlan(id) {
-  if(currentRole !== 'admin') { toast('Only Admin can add comments','⚠️'); return; }
+  if(currentRole !== 'admin' && currentRole !== 'tl') { toast('Only Admin/Supervisor can add comments','⚠️'); return; }
   const input = document.getElementById('admin-comment-plan-' + id);
   if(!input) return;
   const comment = input.value.trim();
@@ -13885,7 +14000,7 @@ function renderDailyPlanView() {
 
       ${(() => {
         const hasComment = plan.adminComment && plan.adminComment.trim();
-        const canComment = currentRole === 'admin';
+        const canComment = currentRole === 'admin' || currentRole === 'tl'; // TL = Supervisor, same access as admin
         const canReply   = hasComment && (currentRole === 'tl' || currentRole === 'kings' || currentRole === 'swat');
         const hasReply   = plan.adminCommentReply && plan.adminCommentReply.trim();
         const REPLY_NAMES = { tl:'John Paul Kimongo (TL)', kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
@@ -13919,7 +14034,7 @@ function renderDailyPlanView() {
 async function saveAdminReply(storeKey, id, inputElementId) {
   // TL, Kings QA, and SWAT QA can all reply to an admin comment.
   // The reply is stored on the entry alongside the admin's original comment.
-  if(currentRole === 'admin') { toast('Admin replies via the Comment field above','⚠️'); return; }
+  if(currentRole === 'admin' || currentRole === 'tl') { toast('Supervisor/Admin replies via the Comment field above','⚠️'); return; }
   if(currentRole !== 'tl' && currentRole !== 'kings' && currentRole !== 'swat') {
     toast('Only TL and QAs can reply to admin comments','⚠️'); return;
   }
