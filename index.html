@@ -16268,10 +16268,31 @@ async function onWFHOperatorSelectV2() {
   if(!opId) return;
   const sessions = await dbGetSessionsV2();
   const sess = sessions[normalizeOpId(opId)] || null;
+
   if(sess && sess.checkIn && sess.status !== 'offline') {
+    // Validate session is actually from today (Nairobi date). If the session
+    // is from a previous day that never got auto-closed — the Gibson/190-hour
+    // problem — do NOT resume it. Auto-close it silently and show the check-in
+    // UI so the operator can start fresh. This prevents ANY operator from ever
+    // seeing a multi-hour or multi-day timer, regardless of their session history.
+    const sessionDate = sess.checkIn.split(' ')[0]; // 'YYYY-MM-DD' from the naive string
+    const todayDate   = today(); // Nairobi-aware today()
+    if(sessionDate !== todayDate) {
+      // Stale session from a previous day — close it in the DB silently
+      try {
+        await fetch(_SUPA_URL+'/rest/v1/wfh_sessions_v2?op_id=eq.'+encodeURIComponent(normalizeOpId(opId))+'&date=eq.'+sessionDate, {
+          method: 'PATCH', headers: WFH2_HDR,
+          body: JSON.stringify({ check_out: nowNairobi(), status: 'offline' })
+        });
+      } catch(e) { console.warn('Auto-close stale session failed (non-blocking):', e); }
+      showCheckinUIV2();
+      return;
+    }
+
+    // Session is from today — resume normally
     _wfhSessionStartV2 = sess.checkIn;
     _wfhTotalBreakV2   = sess.totalBreakMs || 0;
-    _wfhOnBreakV2      = sess.status === 'idle'; // v2 uses 'idle' for on-break, see wfhToggleBreakV2
+    _wfhOnBreakV2      = sess.status === 'idle';
     startWFHTimerV2();
     showSessionUIV2(opId, sess);
   } else {
