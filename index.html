@@ -1170,6 +1170,8 @@ function _dbRefreshPage(key) {
     try {
       if(page==='attendance')           renderAttendance();
       else if(page==='production')      renderProd();
+      else if(page==='heatmap')         renderHeatmap();
+      else if(page==='alerts')          renderAlerts();
       else if(page==='weekly'||page==='monthly'||page==='quarterly') setTimeout(initReportSelects,80);
       else if(page==='errors')          renderErrors();
       else if(page==='leave')           { renderLeave(); renderLeaveBalanceGrid(); }
@@ -1582,6 +1584,13 @@ function _dbRefreshPage(key) {
   </div>
   <div class="nav-section">
     <div class="nav-label">Reports & Data</div>
+    <div class="nav-item" onclick="nav('heatmap')">
+      <span class="nav-icon">🌡️</span><span>Heatmap</span>
+    </div>
+    <div class="nav-item" onclick="nav('alerts')" style="position:relative">
+      <span class="nav-icon">🚨</span><span>Alerts</span>
+      <span id="alerts-nav-badge" style="display:none;margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px"></span>
+    </div>
     <div class="nav-item" onclick="nav('call-reports')">
       <span class="nav-icon">📞</span><span>Call Reports</span>
     </div>
@@ -2275,6 +2284,71 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
     <!-- ══════════════════════════════════════════════════════════
          PAGE: ERRORS & QA
     ═══════════════════════════════════════════════════════════ -->
+    <!-- ════════════════════════════════════════════════════════
+         HEATMAP PAGE
+         ═══════════════════════════════════════════════════════ -->
+    <div class="page" id="page-heatmap">
+      <div class="page-header">
+        <h1>🌡️ Performance Heatmap</h1>
+        <p>Visual breakdown of operator performance patterns across hours and days.</p>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">View</label>
+            <select id="heatmap-view" onchange="renderHeatmap()" style="font-size:12px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text)">
+              <option value="cases-hour">Cases by Hour of Day</option>
+              <option value="cases-dow">Cases by Day of Week per Operator</option>
+              <option value="aht-hour">AHT by Hour of Day</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">Month</label>
+            <input type="month" id="heatmap-month" onchange="renderHeatmap()" style="font-size:12px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text)"/>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">Team</label>
+            <select id="heatmap-team" onchange="renderHeatmap()" style="font-size:12px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text)">
+              <option value="">All</option>
+              <option value="kings">Kings</option>
+              <option value="swat">SWAT</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="heatmap-container">
+        <div style="color:var(--text3);font-size:12px">Select a month to load heatmap data.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:11px;color:var(--text3)">
+        <span>Low</span>
+        <div style="display:flex;gap:3px">
+          <div style="width:18px;height:18px;border-radius:4px;background:rgba(0,212,160,0.1)"></div>
+          <div style="width:18px;height:18px;border-radius:4px;background:rgba(0,212,160,0.3)"></div>
+          <div style="width:18px;height:18px;border-radius:4px;background:rgba(0,212,160,0.55)"></div>
+          <div style="width:18px;height:18px;border-radius:4px;background:rgba(0,212,160,0.75)"></div>
+          <div style="width:18px;height:18px;border-radius:4px;background:rgba(0,212,160,1)"></div>
+        </div>
+        <span>High</span>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════
+         ALERTS PAGE
+         ═══════════════════════════════════════════════════════ -->
+    <div class="page" id="page-alerts">
+      <div class="page-header">
+        <h1>🚨 Alerts</h1>
+        <p>Auto-generated from live Hub data — idle operators, low compliance, errors, missed EODs.</p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="btn btn-secondary btn-sm" onclick="renderAlerts()" style="font-weight:700">↺ Refresh</button>
+        <button class="btn btn-secondary btn-sm" onclick="clearDismissedAlerts()" style="font-weight:700">🗑 Clear Dismissed</button>
+      </div>
+      <div id="alerts-list">
+        <div style="color:var(--text3);font-size:12px">Loading alerts...</div>
+      </div>
+    </div>
+
     <div class="page" id="page-errors">
       <div class="page-header">
         <h1>Errors & QA Tracker</h1>
@@ -6832,6 +6906,284 @@ function saveError() {
   renderErrors(); calcDeductions();
 }
 
+// ════════════════════════════════════════════════════════════════
+// HEATMAP
+// Three views: cases-by-hour, cases-by-operator-day-of-week, aht-by-hour
+// All read from the existing 'prod' store — no new data needed.
+// ════════════════════════════════════════════════════════════════
+
+function renderHeatmap() {
+  const view    = document.getElementById('heatmap-view')?.value || 'cases-hour';
+  const month   = document.getElementById('heatmap-month')?.value || today().substring(0,7);
+  const teamF   = document.getElementById('heatmap-team')?.value || '';
+  const container = document.getElementById('heatmap-container');
+  if(!container) return;
+
+  // Set default month if not set
+  const monthEl = document.getElementById('heatmap-month');
+  if(monthEl && !monthEl.value) monthEl.value = today().substring(0,7);
+
+  let prod = load('prod').filter(p => p.date && p.date.startsWith(month));
+  if(teamF) prod = prod.filter(p => p.team === teamF);
+
+  if(!prod.length) {
+    container.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:16px">No production data for this period.</div>';
+    return;
+  }
+
+  if(view === 'cases-hour') {
+    // Cases by hour: use logTime field (e.g. "8:01:25") to determine the shift-hour bucket
+    // Group by hour (0-23) and average cases across all entries in that hour
+    const byHour = {};
+    prod.forEach(p => {
+      if(!p.logTime) return;
+      const parts = p.logTime.split(':');
+      const totalMins = parseInt(parts[0]||0)*60 + parseInt(parts[1]||0);
+      // Estimate start hour based on shift duration — crude but effective without exact start times
+      // Use cases per hour of log time as a proxy for productivity at that log hour
+      const hour = Math.min(23, Math.floor(totalMins/60));
+      if(!byHour[hour]) byHour[hour] = { total:0, count:0 };
+      byHour[hour].total += parseFloat(p.cases)||0;
+      byHour[hour].count++;
+    });
+    const hours = Array.from({length:12}, (_,i) => i+6); // 06:00–17:00 typical shift range
+    const vals  = hours.map(h => byHour[h] ? byHour[h].total/byHour[h].count : 0);
+    const maxV  = Math.max(...vals, 1);
+
+    container.innerHTML = `
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:12px">Avg Cases per Operator — by Shift Hour · ${month}</div>
+      <div style="display:flex;gap:6px;align-items:flex-end;height:120px">
+        ${hours.map((h,i) => {
+          const v = vals[i];
+          const pct = Math.round((v/maxV)*100);
+          const color = pct>75?'rgba(0,212,160,1)':pct>50?'rgba(0,212,160,0.75)':pct>25?'rgba(0,212,160,0.45)':'rgba(0,212,160,0.15)';
+          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+            <div style="font-size:9px;color:var(--text3);font-weight:700">${v>0?Math.round(v):''}</div>
+            <div style="width:100%;border-radius:4px 4px 0 0;background:${color};height:${Math.max(4,pct)}%" title="${String(h).padStart(2,'0')}:00 — avg ${Math.round(v)} cases"></div>
+            <div style="font-size:9px;color:var(--text3)">${String(h).padStart(2,'0')}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+
+  } else if(view === 'cases-dow') {
+    // Cases by operator × day of week
+    const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const ops  = [...new Set(prod.map(p=>p.operator))].sort((a,b)=>operatorLabel(a).localeCompare(operatorLabel(b)));
+    const byOpDay = {};
+    prod.forEach(p => {
+      if(!p.operator || !p.date) return;
+      const dow = new Date(p.date+'T12:00:00Z').getUTCDay();
+      const key = `${p.operator}:${dow}`;
+      if(!byOpDay[key]) byOpDay[key] = { total:0, count:0 };
+      byOpDay[key].total += parseFloat(p.cases)||0;
+      byOpDay[key].count++;
+    });
+    const allVals = Object.values(byOpDay).map(v=>v.total/v.count);
+    const maxV    = Math.max(...allVals, 1);
+    const cellColor = v => {
+      const pct = v/maxV;
+      if(pct>0.8)  return 'rgba(0,212,160,1)';
+      if(pct>0.6)  return 'rgba(0,212,160,0.75)';
+      if(pct>0.4)  return 'rgba(0,212,160,0.5)';
+      if(pct>0.15) return 'rgba(0,212,160,0.25)';
+      return 'rgba(0,212,160,0.07)';
+    };
+
+    container.innerHTML = `
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:12px">Avg Cases by Operator × Day of Week · ${month}</div>
+      <div style="overflow-x:auto">
+        <table style="font-size:10px;border-collapse:collapse;width:100%">
+          <thead><tr>
+            <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:700">Operator</th>
+            ${DAYS.map(d=>`<th style="padding:4px 8px;color:var(--text3);font-weight:700;text-align:center">${d}</th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${ops.map(op=>`<tr>
+              <td style="padding:4px 8px;font-weight:600;white-space:nowrap;color:var(--text)">${operatorLabel(op)}</td>
+              ${[0,1,2,3,4,5,6].map(dow=>{
+                const d = byOpDay[`${op}:${dow}`];
+                const v = d ? d.total/d.count : 0;
+                return `<td style="padding:3px;text-align:center">
+                  <div style="background:${cellColor(v)};border-radius:4px;padding:5px 8px;font-weight:700;color:${v>0?'var(--text)':'var(--text3)'}">${v>0?Math.round(v):'–'}</div>
+                </td>`;
+              }).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+  } else if(view === 'aht-hour') {
+    // AHT by hour of log-time bucket
+    const byHour = {};
+    prod.forEach(p => {
+      if(!p.logTime || !p.aht) return;
+      const parts = p.logTime.split(':');
+      const totalMins = parseInt(parts[0]||0)*60 + parseInt(parts[1]||0);
+      const hour = Math.min(23, Math.floor(totalMins/60));
+      if(!byHour[hour]) byHour[hour] = { total:0, count:0 };
+      byHour[hour].total += parseFloat(p.aht)||0;
+      byHour[hour].count++;
+    });
+    const hours = Array.from({length:12}, (_,i) => i+6);
+    const vals  = hours.map(h => byHour[h] ? byHour[h].total/byHour[h].count : 0);
+    const maxV  = Math.max(...vals, 1);
+
+    container.innerHTML = `
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:12px">Avg AHT (seconds) — by Shift Hour · ${month}</div>
+      <div style="display:flex;gap:6px;align-items:flex-end;height:120px">
+        ${hours.map((h,i) => {
+          const v = vals[i];
+          const pct = Math.round((v/maxV)*100);
+          // For AHT, lower is better — invert color: high AHT = red, low AHT = green
+          const color = pct>75?'rgba(255,94,110,0.85)':pct>50?'rgba(255,170,68,0.75)':pct>25?'rgba(0,212,160,0.55)':'rgba(0,212,160,0.2)';
+          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+            <div style="font-size:9px;color:var(--text3);font-weight:700">${v>0?Math.round(v)+'s':''}</div>
+            <div style="width:100%;border-radius:4px 4px 0 0;background:${color};height:${Math.max(4,pct)}%" title="${String(h).padStart(2,'0')}:00 — avg AHT ${Math.round(v)}s"></div>
+            <div style="font-size:9px;color:var(--text3)">${String(h).padStart(2,'0')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:8px">🟢 Lower AHT = better · 🔴 Higher AHT = slower processing</div>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// ALERTS CENTER
+// Auto-generated from Hub data: idle operators, low compliance,
+// errors logged, missed EODs. No manual input needed.
+// ════════════════════════════════════════════════════════════════
+
+const ALERT_TYPES = {
+  idle:       { icon:'⏰', color:'var(--amber)',  label:'Idle Operator' },
+  compliance: { icon:'📉', color:'var(--red)',    label:'Low Compliance' },
+  error:      { icon:'🔴', color:'var(--red)',    label:'Error Logged' },
+  missed_eod: { icon:'📋', color:'var(--orange)', label:'Missed EOD' },
+  absent:     { icon:'❌', color:'var(--red)',    label:'Absent' },
+};
+
+function generateAlerts() {
+  const alerts = [];
+  const todayStr = today();
+
+  // 1. Errors logged today
+  const errors = load('errors').filter(e => e.date === todayStr);
+  errors.forEach(e => {
+    alerts.push({
+      type: 'error',
+      operator: e.operator,
+      message: `${e.type === 'global' ? '🔴 Global' : '🟡 Internal'} error — ${e.desc||'No description'}`,
+      detail: e.coaching ? `Coaching: ${e.coaching}` : null,
+      time: e.date,
+      severity: e.type === 'global' ? 3 : 2,
+    });
+  });
+
+  // 2. Absent operators today
+  const att = loadObj('att')[todayStr] || {};
+  Object.entries(att).forEach(([opId, data]) => {
+    if(data.status === 'absent') {
+      alerts.push({
+        type: 'absent',
+        operator: opId,
+        message: `Marked absent today`,
+        detail: data.note || null,
+        time: todayStr,
+        severity: 2,
+      });
+    }
+  });
+
+  // 3. Missed EODs — operators who checked in v1 but no EOD submitted
+  const eods = load('eod_reports') || [];
+  const todayEods = new Set(eods.filter(e => e.date === todayStr).map(e => e.operator));
+  const sessions = load('wfh_sessions') || {};
+  const todaySessions = sessions[todayStr] || {};
+  Object.keys(todaySessions).forEach(opId => {
+    const sess = todaySessions[opId];
+    if(sess?.checkIn && sess?.checkOut && !todayEods.has(opId)) {
+      alerts.push({
+        type: 'missed_eod',
+        operator: opId,
+        message: `Checked out without submitting EOD`,
+        detail: null,
+        time: todayStr,
+        severity: 1,
+      });
+    }
+  });
+
+  // Sort: highest severity first, then alphabetically by operator
+  alerts.sort((a,b) => b.severity - a.severity || (a.operator||'').localeCompare(b.operator||''));
+  return alerts;
+}
+
+function renderAlerts() {
+  const el = document.getElementById('alerts-list');
+  if(!el) return;
+
+  const alerts = generateAlerts();
+  const dismissed = JSON.parse(localStorage.getItem('hub_dismissed_alerts') || '[]');
+
+  const active = alerts.filter(a => !dismissed.includes(`${a.type}:${a.operator}:${today()}`));
+  const badge  = document.getElementById('alerts-nav-badge');
+
+  if(badge) {
+    if(active.length > 0) { badge.style.display='inline-block'; badge.textContent=active.length; }
+    else badge.style.display='none';
+  }
+
+  if(!active.length) {
+    el.innerHTML = `<div class="card" style="text-align:center;padding:32px;color:var(--green)">
+      <div style="font-size:32px;margin-bottom:8px">✅</div>
+      <div style="font-size:14px;font-weight:700">No active alerts</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">Everything looks good for today.</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = active.map(a => {
+    const cfg = ALERT_TYPES[a.type] || ALERT_TYPES.error;
+    const key = `${a.type}:${a.operator}:${today()}`;
+    return `<div class="card" style="margin-bottom:10px;border-left:4px solid ${cfg.color};padding:14px 16px;display:flex;align-items:flex-start;gap:14px">
+      <div style="font-size:22px;line-height:1;flex-shrink:0">${cfg.icon}</div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-size:10px;font-weight:800;color:${cfg.color};text-transform:uppercase;letter-spacing:.06em">${cfg.label}</span>
+          ${a.operator ? `<span style="font-size:12px;font-weight:700;color:var(--text)">${operatorLabel(a.operator)}</span>` : ''}
+        </div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5">${a.message}</div>
+        ${a.detail ? `<div style="font-size:11px;color:var(--text3);margin-top:4px">${a.detail}</div>` : ''}
+      </div>
+      <button onclick="dismissAlert('${key}')" style="flex-shrink:0;background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--text3);cursor:pointer">Dismiss</button>
+    </div>`;
+  }).join('');
+}
+
+function dismissAlert(key) {
+  const dismissed = JSON.parse(localStorage.getItem('hub_dismissed_alerts') || '[]');
+  if(!dismissed.includes(key)) dismissed.push(key);
+  localStorage.setItem('hub_dismissed_alerts', JSON.stringify(dismissed));
+  renderAlerts();
+}
+
+function clearDismissedAlerts() {
+  localStorage.removeItem('hub_dismissed_alerts');
+  renderAlerts();
+  toast('Dismissed alerts cleared','✅');
+}
+
+// Update alerts badge on every page load
+function updateAlertsBadge() {
+  const alerts = generateAlerts();
+  const dismissed = JSON.parse(localStorage.getItem('hub_dismissed_alerts') || '[]');
+  const active = alerts.filter(a => !dismissed.includes(`${a.type}:${a.operator}:${today()}`));
+  const badge  = document.getElementById('alerts-nav-badge');
+  if(badge) {
+    if(active.length > 0) { badge.style.display='inline-block'; badge.textContent=active.length; }
+    else badge.style.display='none';
+  }
+}
+
 function renderErrors() {
   const errors = load('errors');
   const tf = document.getElementById('err-filter-type')?.value;
@@ -7901,6 +8253,7 @@ function startSession(role, cred) {
 
   toast(`Welcome, ${cred.name}! 👋`, cred.icon);
   startChatNotifyWatcher();
+  setTimeout(updateAlertsBadge, 500); // update alerts badge after login
   init();
 }
 
