@@ -16531,14 +16531,45 @@ async function renderWFHMonitorV2() {
     dbGetApprovedV2(date),
   ]);
 
-  // Auto-close anyone with no real activity in the last 20 minutes —
-  // only meaningful for today (closing stale sessions from a past date
-  // doesn't apply the same way), and only re-fetch if something actually
-  // changed, to avoid an extra round-trip on every normal refresh.
+  // CRITICAL FIX: Build sessions for any operator who has logs today
+  // but NO session row. This was the main reason the dashboard showed
+  // only 1 operator (Mark Obara) — everyone else had logs in wfh_logs_v2
+  // but no row in wfh_sessions_v2 because the extension's session upsert
+  // was 409-conflicting silently on operators with previous-day sessions.
+  // The extension fix (sbUpsert with on_conflict=op_id,date) addresses
+  // the root cause, but this synthesis ensures the Hub shows everyone
+  // even if the session row is missing for any reason.
+  const opsInLogs = [...new Set(
+    logs.filter(l => l.type === 'submission' || l.type === 'hourly')
+        .map(l => normalizeOpId(l.opId))
+        .filter(Boolean)
+  )];
+  opsInLogs.forEach(opId => {
+    if(!sessions[opId]) {
+      const opLogs = [...logs.filter(l => normalizeOpId(l.opId) === opId)]
+        .sort((a,b) => (a.isoTime||'').localeCompare(b.isoTime||''));
+      sessions[opId] = {
+        status:      'online',
+        checkIn:     opLogs[0]?.isoTime || nowNairobi(),
+        checkOut:    null,
+        device:      'Chrome-Extension',
+        synthesised: true,
+      };
+    }
+  });
+
+  // Auto-close stale sessions (only for today)
   if(date === nairobiDateStr()) {
     const closedCount = await autoCloseStaleSessionsV2(sessions, logs);
     if(closedCount > 0) {
-      sessions = await dbGetSessionsV2(date); // reflect the cleanup immediately
+      const fresh = await dbGetSessionsV2(date);
+      // Re-apply synthesis after re-fetch
+      opsInLogs.forEach(opId => {
+        if(!fresh[opId] && sessions[opId]?.synthesised) {
+          fresh[opId] = sessions[opId];
+        }
+      });
+      sessions = fresh;
     }
   }
 
