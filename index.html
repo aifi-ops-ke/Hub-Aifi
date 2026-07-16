@@ -1163,8 +1163,26 @@ function _dbRefreshPage(key) {
     'daily-report':['dr_entries'], 'daily-plan':['daily_plans'],
     'call-reports':['call_reports'], 'team-dash':['team_data'],
     'team-perf-kings':['op_perf'], 'team-perf-swat':['op_perf'],
-    dashboard:['dash_daily'], 'mgmt-shifts':['mgmt_shifts']
+    dashboard:['dash_daily'], 'mgmt-shifts':['mgmt_shifts'],
+    'team-chat':[], 'ophub-chat':[],
+    'critical-reports':['critical_reports'],
   };
+
+  // Chat keys start with 'chat_' — refresh messages if user is on chat page
+  if(key.startsWith('chat_') && (page === 'team-chat' || page === 'ophub-chat')) {
+    // Only refresh if the changed key matches the active conversation
+    if(_activeConvoId && key === chatStoreKey(_activeConvoId)) {
+      if(_activeChatContainerId) refreshChatMessages(_activeChatContainerId);
+    }
+    // Also refresh the sidebar so new DMs appear
+    const containerId = page === 'team-chat' ? 'chat-container-tl' : 'chat-container-ophub';
+    const sidebarEl = document.getElementById(containerId + '-sidebar');
+    if(sidebarEl) sidebarEl.innerHTML = chatSidebarHTML(_activeConvoId);
+    // Update chat notification badge
+    if(typeof updateNavBadges === 'function') updateNavBadges();
+    return;
+  }
+
   if(!(MAP[page]||[]).includes(key)) return;
   setTimeout(() => {
     try {
@@ -1182,6 +1200,7 @@ function _dbRefreshPage(key) {
       }
       else if(page==='daily-plan')      renderDailyPlanView();
       else if(page==='call-reports')    renderCallReports();
+      else if(page==='critical-reports') renderCriticalReports();
       else if(page==='team-dash')       renderTeamDashboard();
       else if(page==='team-perf-kings') renderTeamPerf('kings');
       else if(page==='team-perf-swat')  renderTeamPerf('swat');
@@ -6353,10 +6372,28 @@ function openConvo(convoId, otherPersonId, otherPersonName) {
   _chatPollInterval = setInterval(() => refreshChatMessages(containerId), 5000);
 }
 
-function refreshChatMessages(containerId) {
+async function refreshChatMessages(containerId) {
   const msgsEl = document.getElementById(containerId + '-msgs');
   if(!msgsEl || !_activeConvoId) return;
-  const msgs = load(chatStoreKey(_activeConvoId)).slice().sort((a,b) => new Date(a.at) - new Date(b.at));
+
+  // Always fetch fresh from Supabase — don't rely only on local cache.
+  // This was the core problem: load() reads from _dbCache which only
+  // updates every 5s via polling, AND the poll wasn't triggering a
+  // chat refresh at all (chat_ keys were missing from _dbRefreshPage MAP).
+  // Direct fetch here ensures messages from others appear immediately.
+  try {
+    const storeKey = chatStoreKey(_activeConvoId);
+    const r = await fetch(_SUPA_URL + '/rest/v1/aifi_store?select=val&key=eq.' + encodeURIComponent(storeKey),
+      { headers: _SUPA_HDR });
+    if(r.ok) {
+      const rows = await r.json();
+      if(rows.length && Array.isArray(rows[0].val)) {
+        window._dbCache[storeKey] = rows[0].val;
+      }
+    }
+  } catch(e) { /* offline — fall back to cached data */ }
+
+  const msgs = (load(chatStoreKey(_activeConvoId)) || []).slice().sort((a,b) => (a.at||'').localeCompare(b.at||''));
   const wasAtBottom = (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight) < 60;
 
   if(!msgs.length) {
