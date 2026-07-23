@@ -1207,6 +1207,8 @@ function _dbRefreshPage(key) {
       else if(page==='mgmt-shifts')     renderMgmtShiftCalendar();
       // Check for new submissions and notify TL+Admin
       checkForNewSubmissions();
+      // Check for new tab switch flags and notify TL+Admin
+      checkForNewTabFlags();
       // Also refresh notif panel if the 'notifs' key changed (another device approved/rejected)
       if(key==='notifs') { renderNotifs(); renderNotifDropdown(); updateNavBadges(); updateBellCount(); }
       // Flash title bar
@@ -14821,8 +14823,8 @@ function pushNotif(data) {
   updateNavBadges();
   renderNotifDropdown();
   updateBellCount();
-  const TOAST_ICON  = { plan:'📅', report:'📝', call_report:'📞', achieved:'✅' };
-  const TOAST_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report', achieved:'Completed Audits update' };
+  const TOAST_ICON  = { plan:'📅', report:'📝', call_report:'📞', achieved:'✅', tab_flag:'🚩' };
+  const TOAST_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report', achieved:'Completed Audits update', tab_flag:'Tab Switch Flag' };
   toast(`${data.name} submitted ${TOAST_LABEL[data.type] || 'an update'} for ${fmtDate(data.date)}`, TOAST_ICON[data.type] || '🔔');
 }
 
@@ -14869,11 +14871,31 @@ function renderNotifDropdown() {
 
 function buildNotifCard(n, compact) {
   const TEAM_COLOR = { kings:'var(--accent)', swat:'var(--violet)', tl:'var(--green)' };
-  const TYPE_ICON  = { plan:'📅', report:'📝', call_report:'📞', achieved:'✅' };
-  const TYPE_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report', achieved:'Completed Audits' };
+  const TYPE_ICON  = { plan:'📅', report:'📝', call_report:'📞', achieved:'✅', tab_flag:'🚩' };
+  const TYPE_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report', achieved:'Completed Audits', tab_flag:'Tab Switch Flag' };
   const sc = n.status==='Approved'?'var(--green)':n.status==='Rejected'?'var(--red)':'var(--amber)';
   const name = n.name || (n.person==='kings'?'Kingori':n.person==='swat'?'Rosemary Nyaleso':'Team Lead');
-  const isApprovable = n.type==='report'; // plans no longer require approval; call reports never had it
+  const isApprovable = n.type==='report';
+
+  // Tab switch flags get a special compact card
+  if(n.type === 'tab_flag') {
+    return `
+  <div class="notif-item ${n.read?'':'unread'}" onclick="openFromNotif('${n.type}','${n.person}','${n.date}',${n.entryId})" style="border-left:3px solid var(--amber)">
+    <div class="notif-icon">🚩</div>
+    <div style="flex:1;min-width:0">
+      <div class="notif-title">
+        <span style="color:var(--amber);font-weight:800">${name}</span>
+        <span style="font-weight:400;color:var(--text3)"> — Tab Switch</span>
+      </div>
+      <div class="notif-body" style="color:var(--amber)">${n.message||''}</div>
+      <div class="notif-time">${n.time}</div>
+      ${!compact ? `<div class="notif-actions">
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();dismissNotif(${n.id})">✕ Dismiss</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+  }
+
   return `
   <div class="notif-item ${n.read?'':'unread'}" onclick="openFromNotif('${n.type}','${n.person}','${n.date}',${n.entryId})">
     <div class="notif-icon">${TYPE_ICON[n.type]||'🔔'}</div>
@@ -15075,8 +15097,73 @@ function checkForNewSubmissions() {
 }
 
 
-// ════════════════════════════════════════════════════════════════
-// PLAN SCORE SYSTEM
+// ── Tab switch flag notifications ─────────────────────────────────
+// Polls wfh_logs_v2 every 5s (via the existing Supabase poll cycle)
+// for new tab_switch logs from the extension. When detected, sends a
+// bell notification directly to TL and Admin so they see it immediately.
+// Only fires for TL/Admin — operators and QAs don't need to see these.
+let _knownTabFlagIds = new Set();
+let _tabFlagLastCheck = null;
+
+async function checkForNewTabFlags() {
+  if(currentRole !== 'tl' && currentRole !== 'admin') return;
+
+  try {
+    // Only fetch logs from the last 10 minutes to keep the query light
+    const since = new Date(Date.now() - 10*60*1000).toISOString().replace('Z','');
+    const r = await fetch(
+      _SUPA_URL + '/rest/v1/wfh_logs_v2?log_type=eq.tab_switch&logged_at=gt.' + encodeURIComponent(since) + '&order=logged_at.desc&limit=50',
+      { headers: WFH2_HDR }
+    );
+    if(!r.ok) return;
+    const rows = await r.json();
+    if(!Array.isArray(rows)) return;
+
+    rows.forEach(row => {
+      const flagId = row.id;
+      if(_knownTabFlagIds.has(flagId)) return;
+      _knownTabFlagIds.add(flagId);
+
+      // Skip on first load — prime the known set silently
+      if(!_tabFlagLastCheck) return;
+
+      // Skip if the note is empty or just a count (old format before URL tracking)
+      const notes = row.notes || '';
+      if(!notes.includes('Switched to:')) return;
+
+      const opName = operatorLabel(row.op_id) || row.op_id;
+      const time   = nairobiTimestampToTimeStr(row.logged_at) || '';
+
+      // Push to notification bell — same system as daily reports/plans
+      // but with type 'tab_flag' so it routes correctly
+      const notifs = getNotifs();
+      const entry = {
+        id:       Date.now() + Math.random(),
+        entryId:  flagId,
+        type:     'tab_flag',
+        person:   row.op_id,
+        name:     opName,
+        date:     (row.logged_at||'').split(' ')[0] || today(),
+        message:  notes,
+        time,
+        isoTime:  row.logged_at,
+        read:     false,
+        severity: 'warning',
+      };
+      notifs.unshift(entry);
+      saveNotifs(notifs.slice(0, 20));
+      renderNotifs();
+      updateNavBadges();
+      renderNotifDropdown();
+      updateBellCount();
+      toast(`🚩 ${opName} ${notes}`, '⚠️');
+    });
+
+    _tabFlagLastCheck = Date.now();
+  } catch(e) { /* non-blocking */ }
+}
+
+
 // Score per person per day = approved / total plans × 100%
 // Each rejection reduces the score proportionally
 // ════════════════════════════════════════════════════════════════
