@@ -15104,15 +15104,19 @@ function checkForNewSubmissions() {
 // Only fires for TL/Admin — operators and QAs don't need to see these.
 let _knownTabFlagIds = new Set();
 let _tabFlagLastCheck = null;
+// Record the time the Hub session started — only notify about tab switches
+// that happen AFTER this moment, not historical ones from before login
+const _tabFlagSessionStart = nowNairobi();
 
 async function checkForNewTabFlags() {
   if(currentRole !== 'tl' && currentRole !== 'admin') return;
 
   try {
-    // Only fetch logs from the last 10 minutes to keep the query light
-    const since = new Date(Date.now() - 10*60*1000).toISOString().replace('Z','');
+    // Fetch tab switches since Hub session started (not just last 10 min)
+    // Using _tabFlagSessionStart ensures we only see NEW switches after login
+    const since = encodeURIComponent(_tabFlagSessionStart);
     const r = await fetch(
-      _SUPA_URL + '/rest/v1/wfh_logs_v2?log_type=eq.tab_switch&logged_at=gt.' + encodeURIComponent(since) + '&order=logged_at.desc&limit=50',
+      _SUPA_URL + '/rest/v1/wfh_logs_v2?log_type=eq.tab_switch&logged_at=gt.' + since + '&order=logged_at.asc&limit=100',
       { headers: WFH2_HDR }
     );
     if(!r.ok) return;
@@ -15121,21 +15125,15 @@ async function checkForNewTabFlags() {
 
     rows.forEach(row => {
       const flagId = row.id;
-      if(_knownTabFlagIds.has(flagId)) return;
+      if(_knownTabFlagIds.has(flagId)) return; // already notified
       _knownTabFlagIds.add(flagId);
 
-      // Skip on first load — prime the known set silently
-      if(!_tabFlagLastCheck) return;
-
-      // Skip if the note is empty or just a count (old format before URL tracking)
       const notes = row.notes || '';
-      if(!notes.includes('Switched to:')) return;
+      // Only notify for real URL switches (includes 'Switched to:') or new tab opens
+      if(!notes.includes('Switched to:') && !notes.includes('Opened new tab')) return;
 
       const opName = operatorLabel(row.op_id) || row.op_id;
       const time   = nairobiTimestampToTimeStr(row.logged_at) || '';
-
-      // Push to notification bell — same system as daily reports/plans
-      // but with type 'tab_flag' so it routes correctly
       const notifs = getNotifs();
       const entry = {
         id:       Date.now() + Math.random(),
@@ -15156,7 +15154,7 @@ async function checkForNewTabFlags() {
       updateNavBadges();
       renderNotifDropdown();
       updateBellCount();
-      toast(`🚩 ${opName} ${notes}`, '⚠️');
+      toast(`🚩 ${opName} — ${notes}`, '⚠️');
     });
 
     _tabFlagLastCheck = Date.now();
