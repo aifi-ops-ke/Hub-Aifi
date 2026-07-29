@@ -14879,15 +14879,19 @@ function buildNotifCard(n, compact) {
 
   // Tab switch flags get a special compact card
   if(n.type === 'tab_flag') {
+    const isAwayAlert = (n.message||'').includes('Away alert');
+    const flagColor = isAwayAlert ? 'var(--red)' : 'var(--amber)';
+    const flagIcon  = isAwayAlert ? '🚨' : '🚩';
+    const flagLabel = isAwayAlert ? '🚨 Away 10s+' : 'Tab Switch';
     return `
-  <div class="notif-item ${n.read?'':'unread'}" onclick="openFromNotif('${n.type}','${n.person}','${n.date}',${n.entryId})" style="border-left:3px solid var(--amber)">
-    <div class="notif-icon">🚩</div>
+  <div class="notif-item ${n.read?'':`unread`}" onclick="openFromNotif('${n.type}','${n.person}','${n.date}',${n.entryId})" style="border-left:3px solid ${flagColor}">
+    <div class="notif-icon">${flagIcon}</div>
     <div style="flex:1;min-width:0">
       <div class="notif-title">
-        <span style="color:var(--amber);font-weight:800">${name}</span>
-        <span style="font-weight:400;color:var(--text3)"> — Tab Switch</span>
+        <span style="color:${flagColor};font-weight:800">${name}</span>
+        <span style="font-weight:400;color:var(--text3)"> — ${flagLabel}</span>
       </div>
-      <div class="notif-body" style="color:var(--amber)">${n.message||''}</div>
+      <div class="notif-body" style="color:${flagColor}">${n.message||''}</div>
       <div class="notif-time">${n.time}</div>
       ${!compact ? `<div class="notif-actions">
         <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();dismissNotif(${n.id})">✕ Dismiss</button>
@@ -15129,8 +15133,9 @@ async function checkForNewTabFlags() {
       _knownTabFlagIds.add(flagId);
 
       const notes = row.notes || '';
-      // Only notify for real URL switches (includes 'Switched to:') or new tab opens
-      if(!notes.includes('Switched to:') && !notes.includes('Opened new tab')) return;
+      // Notify for: real URL switches, new tab opens, AND away alerts (10s away)
+      const isAwayAlert = notes.includes('Away alert');
+      if(!notes.includes('Switched to:') && !notes.includes('Opened new tab') && !isAwayAlert) return;
 
       const opName = operatorLabel(row.op_id) || row.op_id;
       const time   = nairobiTimestampToTimeStr(row.logged_at) || '';
@@ -15146,7 +15151,7 @@ async function checkForNewTabFlags() {
         time,
         isoTime:  row.logged_at,
         read:     false,
-        severity: 'warning',
+        severity: isAwayAlert ? 'critical' : 'warning',
       };
       notifs.unshift(entry);
       saveNotifs(notifs.slice(0, 20));
@@ -15154,7 +15159,12 @@ async function checkForNewTabFlags() {
       updateNavBadges();
       renderNotifDropdown();
       updateBellCount();
-      toast(`🚩 ${opName} — ${notes}`, '⚠️');
+      // Away alerts get a more urgent toast
+      if(isAwayAlert) {
+        toast(`🚨 ${opName} has been away from AIFI for 10+ seconds`, '🚨');
+      } else {
+        toast(`🚩 ${opName} — ${notes}`, '⚠️');
+      }
     });
 
     _tabFlagLastCheck = Date.now();
