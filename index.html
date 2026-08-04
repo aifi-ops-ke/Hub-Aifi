@@ -2095,162 +2095,149 @@ function _dbRefreshPage(key) {
 
       <!-- Tab switcher -->
       <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
-        <button id="qa-tab-plan" class="btn btn-primary" onclick="switchQATab('plan')" style="font-size:12px">📅 Daily Plan</button>
-        <button id="qa-tab-report" class="btn btn-secondary" onclick="switchQATab('report')" style="font-size:12px">📋 Plan Review</button>
-        <button id="qa-tab-achieved" class="btn btn-secondary" onclick="switchQATab('achieved')" style="font-size:12px">✅ Audit Count</button>
+        <button id="qa-tab-plan" class="btn btn-primary" onclick="switchQATab('plan')" style="font-size:12px">📅 Daily Work</button>
         <button id="qa-tab-myteam" class="btn btn-secondary" onclick="switchQATab('myteam')" style="font-size:12px">👥 My Team</button>
         <button id="qa-tab-perf" class="btn btn-secondary" onclick="switchQATab('perf')" style="font-size:12px">📊 Performance</button>
       </div>
 
       <!-- Daily Plan Tab -->
+      <!-- COMBINED: Daily Plan + Plan Review + Audit Count in one place -->
       <div id="qa-section-plan">
         <div class="grid-2" style="gap:20px">
-          <div class="card">
-            <div class="card-header"><div class="card-title">📅 Today's QA Plan</div></div>
-            <div class="form-group">
-              <label>Date</label>
-              <input type="date" id="qa-dp-date" style="width:100%"/>
-            </div>
-            <div class="form-group">
-              <label>Internal Audits Target</label>
-              <input type="number" id="qa-dp-internal" placeholder="How many internal audits planned?" min="0" style="width:100%"/>
-            </div>
-            <div class="form-group">
-              <label>Global Audits Target</label>
-              <input type="number" id="qa-dp-global" placeholder="How many global audits planned?" min="0" style="width:100%"/>
-            </div>
-            <div class="form-group">
-              <label>Today's Objectives</label>
-              <textarea id="qa-dp-objectives" rows="4" placeholder="What are your QA focus areas today? Which operators/areas are you prioritizing?" style="width:100%;resize:vertical"></textarea>
-            </div>
-            <div class="form-group">
-              <label>Quality Focus</label>
-              <textarea id="qa-dp-quality" rows="3" placeholder="Specific quality issues or patterns to watch for today..." style="width:100%;resize:vertical"></textarea>
-            </div>
-            <div class="form-group">
-              <label>Operator Support Needed</label>
-              <textarea id="qa-dp-support" rows="2" placeholder="Which operators need extra coaching or support?" style="width:100%;resize:vertical"></textarea>
-            </div>
-            <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="saveQAPlan()">💾 Save QA Plan</button>
-          </div>
-          <div class="card">
-            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-              <div class="card-title">📋 Recent Plans</div>
-              <input type="date" id="qa-dp-filter" onchange="renderQAPlanHistory()" style="font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px"/>
-            </div>
-            <div id="qa-plan-history" style="max-height:500px;overflow-y:auto"></div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Daily Report Tab -->
-      <div id="qa-section-report" style="display:none">
-        <div class="grid-2" style="gap:20px">
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">✅ Daily Plan Review</div>
-              <div class="card-sub">What you achieved from today's plan and what you didn't — and why</div>
-            </div>
-            <div class="form-group">
-              <label>Date</label>
-              <input type="date" id="qa-dr-date" style="width:100%"/>
-            </div>
+          <!-- LEFT COLUMN: All three forms stacked -->
+          <div style="display:flex;flex-direction:column;gap:16px">
 
-            <!-- Audit counts -->
-            <div style="background:rgba(0,212,160,0.06);border:1px solid rgba(0,212,160,0.2);border-radius:10px;padding:14px;margin-bottom:14px">
-              <div style="font-size:11px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📊 Audits Completed</div>
+            <!-- 1. DAILY PLAN -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">📅 Today's Plan</div>
+                <div class="card-sub">Set your audit targets and focus areas for the day</div>
+              </div>
+              <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="qa-dp-date" style="width:100%"/>
+              </div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                <div>
-                  <label style="font-size:11px;color:var(--text3)">Internal Audits Done</label>
-                  <input type="number" id="qa-dr-internal" placeholder="0" min="0" style="width:100%;font-size:20px;font-weight:800;text-align:center"/>
+                <div class="form-group" style="margin:0">
+                  <label>Internal Audits Target</label>
+                  <input type="number" id="qa-dp-internal" placeholder="0" min="0" style="width:100%;font-size:18px;font-weight:800;text-align:center"/>
                 </div>
-                <div>
-                  <label style="font-size:11px;color:var(--text3)">Global Audits Done</label>
-                  <input type="number" id="qa-dr-global" placeholder="0" min="0" style="width:100%;font-size:20px;font-weight:800;text-align:center"/>
+                <div class="form-group" style="margin:0">
+                  <label>Global Audits Target</label>
+                  <input type="number" id="qa-dp-global" placeholder="0" min="0" style="width:100%;font-size:18px;font-weight:800;text-align:center"/>
                 </div>
               </div>
+              <div class="form-group">
+                <label>Today's Objectives</label>
+                <textarea id="qa-dp-objectives" rows="3" placeholder="What are your QA focus areas today? Which operators/areas are you prioritizing?" style="width:100%;resize:vertical"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Quality Focus</label>
+                <textarea id="qa-dp-quality" rows="2" placeholder="Specific quality issues or patterns to watch for today..." style="width:100%;resize:vertical"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Operator Support Needed</label>
+                <textarea id="qa-dp-support" rows="2" placeholder="Which operators need extra coaching or support?" style="width:100%;resize:vertical"></textarea>
+              </div>
+              <button class="btn btn-primary" style="width:100%" onclick="saveQAPlan()">💾 Save Plan</button>
             </div>
 
-            <!-- What was achieved -->
-            <div class="form-group">
-              <label style="display:flex;align-items:center;gap:6px">
-                <span style="background:var(--green);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">✓</span>
-                What I Achieved from Today's Plan
-              </label>
-              <textarea id="qa-dr-achieved" rows="4"
-                placeholder="List what you accomplished from your daily plan. Be specific — which objectives were met, how many audits per type, which operators you covered..."
-                style="width:100%;resize:vertical"></textarea>
+            <!-- 2. PLAN REVIEW -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">📋 Plan Review</div>
+                <div class="card-sub">What you achieved, what you didn't, and why</div>
+              </div>
+              <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="qa-dr-date" style="width:100%"/>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px">
+                <div class="form-group" style="margin:0">
+                  <label style="font-size:11px;color:var(--text3)">Internal Audits Done</label>
+                  <input type="number" id="qa-dr-internal" placeholder="0" min="0" style="width:100%;font-size:18px;font-weight:800;text-align:center;color:var(--green)"/>
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label style="font-size:11px;color:var(--text3)">Global Audits Done</label>
+                  <input type="number" id="qa-dr-global" placeholder="0" min="0" style="width:100%;font-size:18px;font-weight:800;text-align:center;color:var(--green)"/>
+                </div>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:6px">
+                  <span style="background:var(--green);color:#fff;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">✓</span>
+                  What I Achieved
+                </label>
+                <textarea id="qa-dr-achieved" rows="3" placeholder="What did you accomplish from today's plan?" style="width:100%;resize:vertical"></textarea>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:6px">
+                  <span style="background:var(--red);color:#fff;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">✗</span>
+                  What I Did NOT Achieve
+                </label>
+                <textarea id="qa-dr-notachieved" rows="2" placeholder="What was left incomplete or missed?" style="width:100%;resize:vertical;border-color:rgba(255,94,110,0.4)"></textarea>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:6px">
+                  <span style="background:var(--amber);color:#fff;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">!</span>
+                  Reasons / Blockers
+                </label>
+                <textarea id="qa-dr-reasons" rows="2" placeholder="Why were those items not achieved?" style="width:100%;resize:vertical;border-color:rgba(255,170,68,0.4)"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Carrying Forward to Tomorrow</label>
+                <textarea id="qa-dr-tomorrow" rows="2" placeholder="What are you bringing into tomorrow's plan?" style="width:100%;resize:vertical"></textarea>
+              </div>
+              <button class="btn btn-primary" style="width:100%" onclick="saveQAReport()">📤 Submit Plan Review</button>
             </div>
 
-            <!-- What was not achieved -->
-            <div class="form-group">
-              <label style="display:flex;align-items:center;gap:6px">
-                <span style="background:var(--red);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">✗</span>
-                What I Did NOT Achieve
-              </label>
-              <textarea id="qa-dr-notachieved" rows="3"
-                placeholder="What from your plan was left incomplete? Which targets were missed?"
-                style="width:100%;resize:vertical;border-color:rgba(255,94,110,0.4)"></textarea>
+            <!-- 3. AUDIT COUNT -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">✅ Audit Count</div>
+                <div class="card-sub">Final internal/global split — goes directly to Supervisor and Admin</div>
+              </div>
+              <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="qa-ach-date" style="width:100%"/>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="form-group" style="margin:0">
+                  <label>Internal Audits Done</label>
+                  <input type="number" id="qa-ach-internal" placeholder="0" min="0" style="width:100%;font-size:22px;font-weight:800;text-align:center"/>
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label>Global Audits Done</label>
+                  <input type="number" id="qa-ach-global" placeholder="0" min="0" style="width:100%;font-size:22px;font-weight:800;text-align:center"/>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Notes (optional)</label>
+                <textarea id="qa-ach-notes" rows="2" placeholder="Any notes about today's audit count?" style="width:100%;resize:vertical"></textarea>
+              </div>
+              <button class="btn btn-green" style="width:100%" onclick="saveQAAchieved()">✅ Submit Audit Count</button>
             </div>
 
-            <!-- Reasons for not achieving -->
-            <div class="form-group">
-              <label style="display:flex;align-items:center;gap:6px">
-                <span style="background:var(--amber);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">!</span>
-                Reasons / Blockers
-              </label>
-              <textarea id="qa-dr-reasons" rows="3"
-                placeholder="Why were those items not achieved? What got in the way? Tool issues, high error volume, operator support needed, etc."
-                style="width:100%;resize:vertical;border-color:rgba(255,170,68,0.4)"></textarea>
-            </div>
-
-            <!-- What to carry forward -->
-            <div class="form-group">
-              <label>What I'm Carrying Forward to Tomorrow</label>
-              <textarea id="qa-dr-tomorrow" rows="2"
-                placeholder="What unfinished tasks or focus areas are you bringing into tomorrow's plan?"
-                style="width:100%;resize:vertical"></textarea>
-            </div>
-
-            <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="saveQAReport()">📤 Submit Plan Review</button>
           </div>
-          <div class="card">
-            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-              <div class="card-title">📋 Previous Reviews</div>
-              <input type="date" id="qa-dr-filter" onchange="renderQAReportHistory()" style="font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px"/>
+
+          <!-- RIGHT COLUMN: History -->
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div class="card" style="flex:1">
+              <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+                <div class="card-title">📋 History</div>
+                <input type="date" id="qa-dp-filter" onchange="renderQAPlanHistory();renderQAReportHistory()" style="font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px"/>
+              </div>
+              <div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;margin-bottom:8px">Plans</div>
+              <div id="qa-plan-history" style="margin-bottom:16px"></div>
+              <div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;margin-bottom:8px;border-top:1px solid var(--border2);padding-top:14px">Plan Reviews</div>
+              <div id="qa-report-history"></div>
             </div>
-            <div id="qa-report-history" style="max-height:600px;overflow-y:auto"></div>
           </div>
+
         </div>
       </div>
 
-      <!-- Audit Count (Achieved) Tab -->
-      <div id="qa-section-achieved" style="display:none">
-        <div class="card" style="max-width:500px">
-          <div class="card-header"><div class="card-title">✅ Daily Audit Count Update</div></div>
-          <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Submit your final internal/global audit split at end of day. This goes directly to the Supervisor and Admin.</div>
-          <div class="form-group">
-            <label>Date</label>
-            <input type="date" id="qa-ach-date" style="width:100%"/>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-            <div class="form-group" style="margin:0">
-              <label>Internal Audits Done</label>
-              <input type="number" id="qa-ach-internal" placeholder="0" min="0" style="width:100%;font-size:18px;font-weight:800;text-align:center"/>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label>Global Audits Done</label>
-              <input type="number" id="qa-ach-global" placeholder="0" min="0" style="width:100%;font-size:18px;font-weight:800;text-align:center"/>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Notes (optional)</label>
-            <textarea id="qa-ach-notes" rows="2" placeholder="Any notes about today's audit count?" style="width:100%;resize:vertical"></textarea>
-          </div>
-          <button class="btn btn-green" style="width:100%;margin-top:8px" onclick="saveQAAchieved()">✅ Submit Audit Count</button>
-        </div>
-      </div>
-
+      <!-- My Team Tab -->
       <!-- My Team Tab -->
       <div id="qa-section-myteam" style="display:none">
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
@@ -7491,7 +7478,7 @@ function initQAPortal() {
 }
 
 function switchQATab(tab) {
-  ['plan','report','achieved','myteam','perf'].forEach(t => {
+  ['plan','myteam','perf'].forEach(t => {
     const sec = document.getElementById('qa-section-'+t);
     const btn = document.getElementById('qa-tab-'+t);
     if(sec) sec.style.display = t===tab ? '' : 'none';
