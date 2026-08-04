@@ -1190,6 +1190,8 @@ function _dbRefreshPage(key) {
       else if(page==='production')      renderProd();
       else if(page==='heatmap')         renderHeatmap();
       else if(page==='alerts')          renderAlerts();
+      else if(page==='tl-portal')       initTLPortal();
+      else if(page==='qa-portal')       initQAPortal();
       else if(page==='weekly'||page==='monthly'||page==='quarterly') setTimeout(initReportSelects,80);
       else if(page==='errors')          renderErrors();
       else if(page==='leave')           { renderLeave(); renderLeaveBalanceGrid(); }
@@ -1519,6 +1521,12 @@ function _dbRefreshPage(key) {
   <div class="sidebar-nav-scroll">
   <div class="nav-section">
     <div class="nav-label">Overview</div>
+    <div class="nav-item" onclick="nav('tl-portal')" style="background:rgba(0,212,160,0.08);border:1px solid rgba(0,212,160,0.2)">
+      <span class="nav-icon">🛡️</span><span style="font-weight:800">Supervisor Portal</span>
+    </div>
+    <div class="nav-item" onclick="nav('qa-portal')" style="background:rgba(160,100,255,0.08);border:1px solid rgba(160,100,255,0.2)">
+      <span class="nav-icon">🔍</span><span style="font-weight:800">QA Portal</span>
+    </div>
     <div class="nav-item active" onclick="nav('dashboard')">
       <span class="nav-icon">📊</span><span>Dashboard</span>
     </div>
@@ -1932,6 +1940,351 @@ function _dbRefreshPage(key) {
     <!-- ═══════════════════════════════════════════════════════════════
          PAGE: DAILY REPORT & PLAN
     ════════════════════════════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE: SUPERVISOR PORTAL (TL)
+         One-stop view: Daily Plan, Daily Report, team overview
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-tl-portal">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#00d4a0,#00b4d8);display:flex;align-items:center;justify-content:center;font-size:22px">🛡️</div>
+          <div>
+            <h1 style="margin:0">Supervisor Portal</h1>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px">John Paul Kimongo · Daily planning, reports and team overview</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab switcher -->
+      <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
+        <button id="tl-tab-plan" class="btn btn-primary" onclick="switchTLTab('plan')" style="font-size:12px">📅 Daily Plan</button>
+        <button id="tl-tab-report" class="btn btn-secondary" onclick="switchTLTab('report')" style="font-size:12px">📝 Daily Report</button>
+        <button id="tl-tab-teams" class="btn btn-secondary" onclick="switchTLTab('teams')" style="font-size:12px">👥 Team Overview</button>
+      </div>
+
+      <!-- Daily Plan Tab -->
+      <div id="tl-section-plan">
+        <div class="grid-2" style="gap:20px">
+          <div class="card">
+            <div class="card-header"><div class="card-title">📅 Today's Plan</div></div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="tl-dp-date" style="width:100%"/>
+            </div>
+            <div class="form-group">
+              <label>Today's Objectives</label>
+              <textarea id="tl-dp-objectives" rows="4" placeholder="What are your main focus areas and goals for today?" style="width:100%;resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Key Tasks</label>
+              <textarea id="tl-dp-tasks" rows="3" placeholder="List the specific tasks you plan to complete..." style="width:100%;resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Team Focus Areas</label>
+              <textarea id="tl-dp-teamfocus" rows="3" placeholder="What will you be focusing on with the team today?" style="width:100%;resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Expected Challenges</label>
+              <textarea id="tl-dp-challenges" rows="2" placeholder="Any anticipated challenges or blockers?" style="width:100%;resize:vertical"></textarea>
+            </div>
+            <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="saveTLPlan()">💾 Save Daily Plan</button>
+          </div>
+          <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+              <div class="card-title">📋 Recent Plans</div>
+              <input type="date" id="tl-dp-filter" onchange="renderTLPlanHistory()" style="font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px"/>
+            </div>
+            <div id="tl-plan-history" style="max-height:500px;overflow-y:auto"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily Report Tab -->
+      <div id="tl-section-report" style="display:none">
+        <div class="grid-2" style="gap:20px">
+          <div class="card">
+            <div class="card-header"><div class="card-title">📝 End of Day Report</div></div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="tl-dr-date" style="width:100%"/>
+            </div>
+            <div class="form-group">
+              <label>What I Accomplished Today</label>
+              <textarea id="tl-dr-accomplished" rows="4" placeholder="Describe what you achieved during the shift..." style="width:100%;resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Team Performance Summary</label>
+              <textarea id="tl-dr-teamsummary" rows="3" placeholder="How did the team perform? Key highlights..." style="width:100%;resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Issues & Escalations</label>
+              <textarea id="tl-dr-issues" rows="3" placeholder="Any issues encountered, escalations made..." style="width:100%;resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Action Plan for Tomorrow</label>
+              <textarea id="tl-dr-tomorrow" rows="2" placeholder="What needs to be followed up tomorrow?" style="width:100%;resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Overall Shift Rating</label>
+              <select id="tl-dr-rating" style="width:100%">
+                <option value="">-- Select rating --</option>
+                <option value="excellent">⭐⭐⭐⭐⭐ Excellent</option>
+                <option value="good">⭐⭐⭐⭐ Good</option>
+                <option value="average">⭐⭐⭐ Average</option>
+                <option value="below">⭐⭐ Below Expectations</option>
+                <option value="poor">⭐ Poor</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="saveTLReport()">📤 Submit Report</button>
+          </div>
+          <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+              <div class="card-title">📋 Recent Reports</div>
+              <input type="date" id="tl-dr-filter" onchange="renderTLReportHistory()" style="font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px"/>
+            </div>
+            <div id="tl-report-history" style="max-height:500px;overflow-y:auto"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Team Overview Tab -->
+      <div id="tl-section-teams" style="display:none">
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
+          <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="tl-teams-date" onchange="renderTLTeamsView()" style="width:160px"/></div>
+          <button class="btn btn-secondary" onclick="renderTLTeamsView()">↺ Refresh</button>
+        </div>
+        <div class="grid-2" style="gap:16px;margin-bottom:16px">
+          <div class="card">
+            <div class="card-header"><div class="card-title">🔵 Team Kings — Today</div></div>
+            <div class="kpi-grid" id="tl-kings-kpis" style="margin-bottom:12px"></div>
+            <div class="table-wrap"><table style="font-size:11px">
+              <thead><tr><th>Operator</th><th>Cases</th><th>AHT</th><th>Occ%</th></tr></thead>
+              <tbody id="tl-kings-prod"></tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">🟣 Team SWAT — Today</div></div>
+            <div class="kpi-grid" id="tl-swat-kpis" style="margin-bottom:12px"></div>
+            <div class="table-wrap"><table style="font-size:11px">
+              <thead><tr><th>Operator</th><th>Cases</th><th>AHT</th><th>Occ%</th></tr></thead>
+              <tbody id="tl-swat-prod"></tbody>
+            </table></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📋 QA Plans & Reports Today</div></div>
+          <div id="tl-qa-submissions" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE: QA PORTAL
+         Combined portal for Kings and SWAT QAs
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-qa-portal">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#a855f7);display:flex;align-items:center;justify-content:center;font-size:22px">🔍</div>
+          <div>
+            <h1 style="margin:0">QA Portal</h1>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px" id="qa-portal-subtitle">Daily planning, reports and team performance tracking</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab switcher -->
+      <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
+        <button id="qa-tab-plan" class="btn btn-primary" onclick="switchQATab('plan')" style="font-size:12px">📅 Daily Plan</button>
+        <button id="qa-tab-report" class="btn btn-secondary" onclick="switchQATab('report')" style="font-size:12px">📋 Plan Review</button>
+        <button id="qa-tab-achieved" class="btn btn-secondary" onclick="switchQATab('achieved')" style="font-size:12px">✅ Audit Count</button>
+        <button id="qa-tab-myteam" class="btn btn-secondary" onclick="switchQATab('myteam')" style="font-size:12px">👥 My Team</button>
+        <button id="qa-tab-perf" class="btn btn-secondary" onclick="switchQATab('perf')" style="font-size:12px">📊 Performance</button>
+      </div>
+
+      <!-- Daily Plan Tab -->
+      <div id="qa-section-plan">
+        <div class="grid-2" style="gap:20px">
+          <div class="card">
+            <div class="card-header"><div class="card-title">📅 Today's QA Plan</div></div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="qa-dp-date" style="width:100%"/>
+            </div>
+            <div class="form-group">
+              <label>Internal Audits Target</label>
+              <input type="number" id="qa-dp-internal" placeholder="How many internal audits planned?" min="0" style="width:100%"/>
+            </div>
+            <div class="form-group">
+              <label>Global Audits Target</label>
+              <input type="number" id="qa-dp-global" placeholder="How many global audits planned?" min="0" style="width:100%"/>
+            </div>
+            <div class="form-group">
+              <label>Today's Objectives</label>
+              <textarea id="qa-dp-objectives" rows="4" placeholder="What are your QA focus areas today? Which operators/areas are you prioritizing?" style="width:100%;resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Quality Focus</label>
+              <textarea id="qa-dp-quality" rows="3" placeholder="Specific quality issues or patterns to watch for today..." style="width:100%;resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Operator Support Needed</label>
+              <textarea id="qa-dp-support" rows="2" placeholder="Which operators need extra coaching or support?" style="width:100%;resize:vertical"></textarea>
+            </div>
+            <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="saveQAPlan()">💾 Save QA Plan</button>
+          </div>
+          <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+              <div class="card-title">📋 Recent Plans</div>
+              <input type="date" id="qa-dp-filter" onchange="renderQAPlanHistory()" style="font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px"/>
+            </div>
+            <div id="qa-plan-history" style="max-height:500px;overflow-y:auto"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily Report Tab -->
+      <div id="qa-section-report" style="display:none">
+        <div class="grid-2" style="gap:20px">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">✅ Daily Plan Review</div>
+              <div class="card-sub">What you achieved from today's plan and what you didn't — and why</div>
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="qa-dr-date" style="width:100%"/>
+            </div>
+
+            <!-- Audit counts -->
+            <div style="background:rgba(0,212,160,0.06);border:1px solid rgba(0,212,160,0.2);border-radius:10px;padding:14px;margin-bottom:14px">
+              <div style="font-size:11px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📊 Audits Completed</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div>
+                  <label style="font-size:11px;color:var(--text3)">Internal Audits Done</label>
+                  <input type="number" id="qa-dr-internal" placeholder="0" min="0" style="width:100%;font-size:20px;font-weight:800;text-align:center"/>
+                </div>
+                <div>
+                  <label style="font-size:11px;color:var(--text3)">Global Audits Done</label>
+                  <input type="number" id="qa-dr-global" placeholder="0" min="0" style="width:100%;font-size:20px;font-weight:800;text-align:center"/>
+                </div>
+              </div>
+            </div>
+
+            <!-- What was achieved -->
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:6px">
+                <span style="background:var(--green);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">✓</span>
+                What I Achieved from Today's Plan
+              </label>
+              <textarea id="qa-dr-achieved" rows="4"
+                placeholder="List what you accomplished from your daily plan. Be specific — which objectives were met, how many audits per type, which operators you covered..."
+                style="width:100%;resize:vertical"></textarea>
+            </div>
+
+            <!-- What was not achieved -->
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:6px">
+                <span style="background:var(--red);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">✗</span>
+                What I Did NOT Achieve
+              </label>
+              <textarea id="qa-dr-notachieved" rows="3"
+                placeholder="What from your plan was left incomplete? Which targets were missed?"
+                style="width:100%;resize:vertical;border-color:rgba(255,94,110,0.4)"></textarea>
+            </div>
+
+            <!-- Reasons for not achieving -->
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:6px">
+                <span style="background:var(--amber);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">!</span>
+                Reasons / Blockers
+              </label>
+              <textarea id="qa-dr-reasons" rows="3"
+                placeholder="Why were those items not achieved? What got in the way? Tool issues, high error volume, operator support needed, etc."
+                style="width:100%;resize:vertical;border-color:rgba(255,170,68,0.4)"></textarea>
+            </div>
+
+            <!-- What to carry forward -->
+            <div class="form-group">
+              <label>What I'm Carrying Forward to Tomorrow</label>
+              <textarea id="qa-dr-tomorrow" rows="2"
+                placeholder="What unfinished tasks or focus areas are you bringing into tomorrow's plan?"
+                style="width:100%;resize:vertical"></textarea>
+            </div>
+
+            <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="saveQAReport()">📤 Submit Plan Review</button>
+          </div>
+          <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+              <div class="card-title">📋 Previous Reviews</div>
+              <input type="date" id="qa-dr-filter" onchange="renderQAReportHistory()" style="font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px"/>
+            </div>
+            <div id="qa-report-history" style="max-height:600px;overflow-y:auto"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audit Count (Achieved) Tab -->
+      <div id="qa-section-achieved" style="display:none">
+        <div class="card" style="max-width:500px">
+          <div class="card-header"><div class="card-title">✅ Daily Audit Count Update</div></div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Submit your final internal/global audit split at end of day. This goes directly to the Supervisor and Admin.</div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="qa-ach-date" style="width:100%"/>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div class="form-group" style="margin:0">
+              <label>Internal Audits Done</label>
+              <input type="number" id="qa-ach-internal" placeholder="0" min="0" style="width:100%;font-size:18px;font-weight:800;text-align:center"/>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Global Audits Done</label>
+              <input type="number" id="qa-ach-global" placeholder="0" min="0" style="width:100%;font-size:18px;font-weight:800;text-align:center"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <textarea id="qa-ach-notes" rows="2" placeholder="Any notes about today's audit count?" style="width:100%;resize:vertical"></textarea>
+          </div>
+          <button class="btn btn-green" style="width:100%;margin-top:8px" onclick="saveQAAchieved()">✅ Submit Audit Count</button>
+        </div>
+      </div>
+
+      <!-- My Team Tab -->
+      <div id="qa-section-myteam" style="display:none">
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
+          <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="qa-myteam-date" onchange="renderQAMyTeam()" style="width:160px"/></div>
+          <button class="btn btn-secondary" onclick="renderQAMyTeam()">↺ Refresh</button>
+        </div>
+        <div class="kpi-grid" id="qa-myteam-kpis" style="margin-bottom:16px"></div>
+        <div class="grid-2" style="gap:16px;margin-bottom:16px">
+          <div class="card">
+            <div class="card-header"><div class="card-title">📋 Attendance</div></div>
+            <div id="qa-myteam-attendance"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">🔍 Errors Today</div></div>
+            <div id="qa-myteam-errors"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📊 Production Today</div></div>
+          <div class="table-wrap"><table style="font-size:11px">
+            <thead><tr><th>Operator</th><th>Cases</th><th>AHT</th><th>Occ%</th><th>Abandoned%</th><th>Log Time</th></tr></thead>
+            <tbody id="qa-myteam-prod"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- Performance Tab -->
+      <div id="qa-section-perf" style="display:none">
+        <div id="qa-portal-perf-content">
+          <!-- Rendered by renderQAPortalPerf() -->
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-daily-report">
       <div class="page-header">
         <h1>📝 Daily Report</h1>
@@ -6951,6 +7304,375 @@ function saveError() {
 // All read from the existing 'prod' store — no new data needed.
 // ════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════
+// SUPERVISOR (TL) PORTAL
+// ════════════════════════════════════════════════════════════════
+
+function initTLPortal() {
+  const today = document.getElementById('tl-dp-date');
+  const today2 = document.getElementById('tl-dr-date');
+  const today3 = document.getElementById('tl-teams-date');
+  if(today && !today.value)   today.value  = nairobiDateStr();
+  if(today2 && !today2.value) today2.value = nairobiDateStr();
+  if(today3 && !today3.value) today3.value = nairobiDateStr();
+  renderTLPlanHistory();
+  renderTLReportHistory();
+}
+
+function switchTLTab(tab) {
+  ['plan','report','teams'].forEach(t => {
+    const sec = document.getElementById('tl-section-'+t);
+    const btn = document.getElementById('tl-tab-'+t);
+    if(sec) sec.style.display = t===tab ? '' : 'none';
+    if(btn) { btn.className = t===tab ? 'btn btn-primary' : 'btn btn-secondary'; btn.style.fontSize='12px'; }
+  });
+  if(tab === 'teams') renderTLTeamsView();
+}
+
+async function saveTLPlan() {
+  const date = document.getElementById('tl-dp-date')?.value;
+  if(!date) { toast('Please select a date','⚠️'); return; }
+  const entry = {
+    id: Date.now(), person: 'tl', name: 'John Paul Kimongo (TL)',
+    date, type: 'tl_plan',
+    objectives:  document.getElementById('tl-dp-objectives')?.value || '',
+    tasks:       document.getElementById('tl-dp-tasks')?.value || '',
+    teamFocus:   document.getElementById('tl-dp-teamfocus')?.value || '',
+    challenges:  document.getElementById('tl-dp-challenges')?.value || '',
+    savedAt: nowNairobi(),
+  };
+  const all = load('tl_plans') || [];
+  const idx = all.findIndex(e => e.date === date);
+  if(idx >= 0) all[idx] = entry; else all.push(entry);
+  const ok = await saveAndVerify('tl_plans', all);
+  if(!ok) { toast('Failed to save — check connection','❌'); return; }
+  toast('Plan saved ✓','📅');
+  renderTLPlanHistory();
+}
+
+async function saveTLReport() {
+  const date = document.getElementById('tl-dr-date')?.value;
+  if(!date) { toast('Please select a date','⚠️'); return; }
+  const entry = {
+    id: Date.now(), person: 'tl', name: 'John Paul Kimongo (TL)',
+    date, type: 'tl_report',
+    accomplished: document.getElementById('tl-dr-accomplished')?.value || '',
+    teamSummary:  document.getElementById('tl-dr-teamsummary')?.value || '',
+    issues:       document.getElementById('tl-dr-issues')?.value || '',
+    tomorrow:     document.getElementById('tl-dr-tomorrow')?.value || '',
+    rating:       document.getElementById('tl-dr-rating')?.value || '',
+    savedAt: nowNairobi(),
+  };
+  const all = load('tl_reports') || [];
+  const idx = all.findIndex(e => e.date === date);
+  if(idx >= 0) all[idx] = entry; else all.push(entry);
+  const ok = await saveAndVerify('tl_reports', all);
+  if(!ok) { toast('Failed to save — check connection','❌'); return; }
+  toast('Report submitted ✓','📝');
+  pushNotif({ ...entry, type: 'report' });
+  renderTLReportHistory();
+}
+
+function renderTLPlanHistory() {
+  const el = document.getElementById('tl-plan-history');
+  if(!el) return;
+  const filter = document.getElementById('tl-dp-filter')?.value || '';
+  let plans = (load('tl_plans') || []).sort((a,b) => b.date.localeCompare(a.date));
+  if(filter) plans = plans.filter(p => p.date === filter);
+  if(!plans.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No plans yet.</div>'; return; }
+  el.innerHTML = plans.map(p => `
+    <div style="padding:14px;border:1px solid var(--border2);border-radius:10px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-weight:800;color:var(--accent)">${fmtDate(p.date)}</div>
+        <button class="btn btn-danger btn-sm" onclick="deleteTLEntry('tl_plans',${p.id})">✕</button>
+      </div>
+      ${p.objectives ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Objectives</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${p.objectives}</div></div>` : ''}
+      ${p.tasks ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Key Tasks</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${p.tasks}</div></div>` : ''}
+      ${p.teamFocus ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Team Focus</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${p.teamFocus}</div></div>` : ''}
+      ${p.challenges ? `<div><div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;margin-bottom:3px">Challenges</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${p.challenges}</div></div>` : ''}
+    </div>`).join('');
+}
+
+function renderTLReportHistory() {
+  const el = document.getElementById('tl-report-history');
+  if(!el) return;
+  const filter = document.getElementById('tl-dr-filter')?.value || '';
+  const RATING_STARS = { excellent:'⭐⭐⭐⭐⭐', good:'⭐⭐⭐⭐', average:'⭐⭐⭐', below:'⭐⭐', poor:'⭐' };
+  let reports = (load('tl_reports') || []).sort((a,b) => b.date.localeCompare(a.date));
+  if(filter) reports = reports.filter(r => r.date === filter);
+  if(!reports.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No reports yet.</div>'; return; }
+  el.innerHTML = reports.map(r => `
+    <div style="padding:14px;border:1px solid var(--border2);border-radius:10px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-weight:800;color:var(--accent)">${fmtDate(r.date)}</div>
+          ${r.rating ? `<span style="font-size:12px">${RATING_STARS[r.rating]||''}</span>` : ''}
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteTLEntry('tl_reports',${r.id})">✕</button>
+      </div>
+      ${r.accomplished ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;margin-bottom:3px">Accomplished</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${r.accomplished}</div></div>` : ''}
+      ${r.teamSummary ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Team Summary</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${r.teamSummary}</div></div>` : ''}
+      ${r.issues ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;margin-bottom:3px">Issues & Escalations</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${r.issues}</div></div>` : ''}
+      ${r.tomorrow ? `<div><div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;margin-bottom:3px">Tomorrow</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${r.tomorrow}</div></div>` : ''}
+    </div>`).join('');
+}
+
+async function deleteTLEntry(storeKey, id) {
+  const all = (load(storeKey) || []).filter(e => e.id !== id);
+  await saveAndVerify(storeKey, all);
+  if(storeKey === 'tl_plans') renderTLPlanHistory();
+  else renderTLReportHistory();
+}
+
+function renderTLTeamsView() {
+  const date = document.getElementById('tl-teams-date')?.value || nairobiDateStr();
+  const prod  = load('prod').filter(p => p.date === date);
+  ['kings','swat'].forEach(team => {
+    const teamProd = prod.filter(p => p.team === team);
+    const tbody = document.getElementById(`tl-${team}-prod`);
+    const kpis  = document.getElementById(`tl-${team}-kpis`);
+    if(tbody) {
+      tbody.innerHTML = teamProd.length
+        ? teamProd.sort((a,b) => b.cases-a.cases).map(p => `<tr>
+            <td style="font-weight:600">${operatorLabel(p.operator)}</td>
+            <td style="color:var(--green);font-weight:700">${Number(p.cases||0).toLocaleString()}</td>
+            <td>${p.aht||'–'}s</td>
+            <td>${p.occ||'–'}%</td>
+          </tr>`).join('')
+        : '<tr><td colspan="4" style="color:var(--text3)">No production data for this date.</td></tr>';
+    }
+    if(kpis) {
+      const totalCases = teamProd.reduce((s,p) => s+(+p.cases||0), 0);
+      const avgAHT     = teamProd.length ? (teamProd.reduce((s,p) => s+(+p.aht||0), 0)/teamProd.length).toFixed(1) : 0;
+      const avgOcc     = teamProd.length ? (teamProd.reduce((s,p) => s+(+p.occ||0), 0)/teamProd.length).toFixed(1) : 0;
+      kpis.innerHTML = `
+        <div class="kpi-card"><div class="kpi-label">Total Cases</div><div class="kpi-value">${totalCases.toLocaleString()}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Avg AHT</div><div class="kpi-value">${avgAHT}s</div></div>
+        <div class="kpi-card"><div class="kpi-label">Avg Occ%</div><div class="kpi-value">${avgOcc}%</div></div>
+        <div class="kpi-card"><div class="kpi-label">Operators</div><div class="kpi-value">${teamProd.length}</div></div>`;
+    }
+  });
+  // QA plans & reports submitted today
+  const qaEl = document.getElementById('tl-qa-submissions');
+  if(qaEl) {
+    const qaPlan  = (load('daily_plans')||[]).filter(p => p.date === date && (p.person==='kings'||p.person==='swat'));
+    const qaAch   = (load('daily_plans')||[]).filter(p => p.date === date && p.isAchieved && (p.person==='kings'||p.person==='swat'));
+    if(!qaPlan.length && !qaAch.length) {
+      qaEl.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No QA plans or reports for this date.</div>';
+    } else {
+      qaEl.innerHTML = [...qaPlan, ...qaAch].map(p => `
+        <div style="padding:12px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2)">
+          <div style="font-size:11px;font-weight:800;color:${p.isAchieved?'var(--green)':'var(--accent)'};text-transform:uppercase;margin-bottom:6px">
+            ${p.isAchieved ? '✅ Achieved' : '📅 Plan'} · ${p.person==='kings'?'Kingori':'Rosemary'}
+          </div>
+          ${p.isAchieved
+            ? `<div style="font-size:12px">Internal Done: <b>${p.internalDone||0}</b> · Global Done: <b>${p.globalDone||0}</b>${p.achievedNotes?` · ${p.achievedNotes}`:''}</div>`
+            : `<div style="font-size:12px">Internal: <b>${p.internalAudits||0}</b> · Global: <b>${p.globalAudits||0}</b>${p.objectives?`<br><span style="color:var(--text3)">${p.objectives}</span>`:''}</div>`
+          }
+        </div>`).join('');
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// QA PORTAL
+// ════════════════════════════════════════════════════════════════
+
+function initQAPortal() {
+  // Pre-fill the QA identity based on logged-in role
+  const qaName = currentRole === 'kings' ? 'Kingori — Kings QA' : currentRole === 'swat' ? 'Rosemary Nyaleso — SWAT QA' : 'QA';
+  const sub = document.getElementById('qa-portal-subtitle');
+  if(sub) sub.textContent = `${qaName} · Daily planning, reports and team performance`;
+
+  const dateFields = ['qa-dp-date','qa-dr-date','qa-ach-date','qa-myteam-date'];
+  dateFields.forEach(id => { const el = document.getElementById(id); if(el && !el.value) el.value = nairobiDateStr(); });
+  renderQAPlanHistory();
+  renderQAReportHistory();
+}
+
+function switchQATab(tab) {
+  ['plan','report','achieved','myteam','perf'].forEach(t => {
+    const sec = document.getElementById('qa-section-'+t);
+    const btn = document.getElementById('qa-tab-'+t);
+    if(sec) sec.style.display = t===tab ? '' : 'none';
+    if(btn) { btn.className = t===tab ? 'btn btn-primary' : 'btn btn-secondary'; btn.style.fontSize='12px'; }
+  });
+  if(tab === 'myteam') renderQAMyTeam();
+  if(tab === 'perf')   renderQAPortalPerf();
+}
+
+async function saveQAPlan() {
+  const date = document.getElementById('qa-dp-date')?.value;
+  if(!date) { toast('Please select a date','⚠️'); return; }
+  const person = currentRole === 'kings' ? 'kings' : 'swat';
+  const NAMES  = { kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
+  const entry  = {
+    id: Date.now(), person, name: NAMES[person], date,
+    internalAudits: +document.getElementById('qa-dp-internal')?.value||0,
+    globalAudits:   +document.getElementById('qa-dp-global')?.value||0,
+    objectives:     document.getElementById('qa-dp-objectives')?.value||'',
+    qualityFocus:   document.getElementById('qa-dp-quality')?.value||'',
+    operatorSupport:document.getElementById('qa-dp-support')?.value||'',
+    savedAt: nowNairobi(),
+  };
+  const all = load('daily_plans') || [];
+  const idx = all.findIndex(e => e.date===date && e.person===person && !e.isAchieved);
+  if(idx>=0) all[idx]=entry; else all.push(entry);
+  const ok = await saveAndVerify('daily_plans', all);
+  if(!ok) { toast('Failed to save','❌'); return; }
+  pushNotif({ ...entry, type: 'plan' });
+  toast('QA Plan saved ✓','📅');
+  renderQAPlanHistory();
+}
+
+async function saveQAReport() {
+  const date = document.getElementById('qa-dr-date')?.value;
+  if(!date) { toast('Please select a date','⚠️'); return; }
+  const person = currentRole === 'kings' ? 'kings' : 'swat';
+  const NAMES  = { kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
+  const entry  = {
+    id: Date.now(), person, name: NAMES[person], date, type: 'qa_report',
+    internalDone:  +document.getElementById('qa-dr-internal')?.value||0,
+    globalDone:    +document.getElementById('qa-dr-global')?.value||0,
+    achieved:      document.getElementById('qa-dr-achieved')?.value||'',
+    notAchieved:   document.getElementById('qa-dr-notachieved')?.value||'',
+    reasons:       document.getElementById('qa-dr-reasons')?.value||'',
+    tomorrow:      document.getElementById('qa-dr-tomorrow')?.value||'',
+    savedAt: nowNairobi(),
+  };
+  const all = load('qa_reports') || [];
+  const idx = all.findIndex(e => e.date===date && e.person===person);
+  if(idx>=0) all[idx]=entry; else all.push(entry);
+  const ok = await saveAndVerify('qa_reports', all);
+  if(!ok) { toast('Failed to save','❌'); return; }
+  pushNotif({ ...entry, type: 'report' });
+  toast('Plan review submitted ✓','✅');
+  renderQAReportHistory();
+}
+
+async function saveQAAchieved() {
+  const date = document.getElementById('qa-ach-date')?.value;
+  if(!date) { toast('Please select a date','⚠️'); return; }
+  const person = currentRole === 'kings' ? 'kings' : 'swat';
+  const NAMES  = { kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
+  const entry  = {
+    id: Date.now(), person, name: NAMES[person], date, isAchieved: true,
+    internalDone: +document.getElementById('qa-ach-internal')?.value||0,
+    globalDone:   +document.getElementById('qa-ach-global')?.value||0,
+    achievedNotes:document.getElementById('qa-ach-notes')?.value||'',
+    savedAt: nowNairobi(),
+  };
+  const all = load('daily_plans') || [];
+  const idx = all.findIndex(e => e.date===date && e.person===person && e.isAchieved);
+  if(idx>=0) all[idx]=entry; else all.push(entry);
+  const ok = await saveAndVerify('daily_plans', all);
+  if(!ok) { toast('Failed to save','❌'); return; }
+  pushNotif({ ...entry, type: 'achieved' });
+  toast('Audit count submitted ✓','✅');
+}
+
+function renderQAPlanHistory() {
+  const el = document.getElementById('qa-plan-history');
+  if(!el) return;
+  const person = currentRole === 'kings' ? 'kings' : 'swat';
+  const filter = document.getElementById('qa-dp-filter')?.value || '';
+  let plans = (load('daily_plans')||[]).filter(p => p.person===person && !p.isAchieved).sort((a,b)=>b.date.localeCompare(a.date));
+  if(filter) plans = plans.filter(p => p.date===filter);
+  if(!plans.length) { el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px">No plans yet.</div>'; return; }
+  el.innerHTML = plans.map(p => `
+    <div style="padding:14px;border:1px solid var(--border2);border-radius:10px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-weight:800;color:var(--accent)">${fmtDate(p.date)}</div>
+        <div style="font-size:11px;color:var(--text3)">Internal: ${p.internalAudits||0} · Global: ${p.globalAudits||0}</div>
+      </div>
+      ${p.objectives?`<div style="margin-bottom:6px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Objectives</div><div style="font-size:12px;white-space:pre-wrap">${p.objectives}</div></div>`:''}
+      ${p.qualityFocus?`<div style="margin-bottom:6px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Quality Focus</div><div style="font-size:12px;white-space:pre-wrap">${p.qualityFocus}</div></div>`:''}
+      ${p.operatorSupport?`<div><div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;margin-bottom:3px">Operator Support</div><div style="font-size:12px;white-space:pre-wrap">${p.operatorSupport}</div></div>`:''}
+    </div>`).join('');
+}
+
+function renderQAReportHistory() {
+  const el = document.getElementById('qa-report-history');
+  if(!el) return;
+  const person = currentRole === 'kings' ? 'kings' : 'swat';
+  const filter = document.getElementById('qa-dr-filter')?.value || '';
+  let reports = (load('qa_reports')||[]).filter(r => r.person===person).sort((a,b)=>b.date.localeCompare(a.date));
+  if(filter) reports = reports.filter(r => r.date===filter);
+  if(!reports.length) { el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px">No plan reviews yet.</div>'; return; }
+  el.innerHTML = reports.map(r => `
+    <div style="padding:14px;border:1px solid var(--border2);border-radius:10px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-weight:800;color:var(--accent)">${fmtDate(r.date)}</div>
+        <div style="font-size:11px;background:rgba(0,212,160,0.1);color:var(--green);padding:3px 10px;border-radius:20px;font-weight:700">
+          ✅ Internal: ${r.internalDone||0} · Global: ${r.globalDone||0}
+        </div>
+      </div>
+      ${r.achieved ? `<div style="margin-bottom:10px;padding:10px;background:rgba(0,212,160,0.06);border-left:3px solid var(--green);border-radius:0 6px 6px 0">
+        <div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;margin-bottom:5px">✓ Achieved</div>
+        <div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6">${r.achieved}</div>
+      </div>` : ''}
+      ${r.notAchieved ? `<div style="margin-bottom:10px;padding:10px;background:rgba(255,94,110,0.06);border-left:3px solid var(--red);border-radius:0 6px 6px 0">
+        <div style="font-size:10px;font-weight:800;color:var(--red);text-transform:uppercase;margin-bottom:5px">✗ Not Achieved</div>
+        <div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6">${r.notAchieved}</div>
+      </div>` : ''}
+      ${r.reasons ? `<div style="margin-bottom:10px;padding:10px;background:rgba(255,170,68,0.06);border-left:3px solid var(--amber);border-radius:0 6px 6px 0">
+        <div style="font-size:10px;font-weight:800;color:var(--amber);text-transform:uppercase;margin-bottom:5px">! Reasons / Blockers</div>
+        <div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6">${r.reasons}</div>
+      </div>` : ''}
+      ${r.tomorrow ? `<div style="padding:10px;background:rgba(0,180,216,0.06);border-left:3px solid var(--teal);border-radius:0 6px 6px 0">
+        <div style="font-size:10px;font-weight:800;color:var(--teal);text-transform:uppercase;margin-bottom:5px">→ Carrying Forward</div>
+        <div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6">${r.tomorrow}</div>
+      </div>` : ''}
+    </div>`).join('');
+}
+
+function renderQAMyTeam() {
+  const date = document.getElementById('qa-myteam-date')?.value || nairobiDateStr();
+  const team = currentRole === 'kings' ? 'kings' : 'swat';
+  renderQADashboard(team);
+  // Also update our custom elements
+  const prod = load('prod').filter(p => p.date===date && p.team===team);
+  const tbody = document.getElementById('qa-myteam-prod');
+  if(tbody) {
+    tbody.innerHTML = prod.length
+      ? prod.sort((a,b)=>b.cases-a.cases).map(p=>`<tr>
+          <td style="font-weight:600">${operatorLabel(p.operator)}</td>
+          <td style="color:var(--green);font-weight:700">${Number(p.cases||0).toLocaleString()}</td>
+          <td>${p.aht||'–'}s</td>
+          <td>${p.occ||'–'}%</td>
+          <td style="color:${(+p.abandoned||0)>5?'var(--red)':'var(--text3)'}">${p.abandoned||0}%</td>
+          <td style="font-family:monospace">${p.logTime||'–'}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" style="color:var(--text3)">No production data.</td></tr>';
+  }
+}
+
+function renderQAPortalPerf() {
+  const el = document.getElementById('qa-portal-perf-content');
+  if(!el) return;
+  const team = currentRole === 'kings' ? 'kings' : 'swat';
+  el.innerHTML = `
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
+      <div class="form-group" style="margin:0"><label>View</label>
+        <select id="qa-perf-view" onchange="renderTeamPerfAggregate('${team}', this.value)" style="width:160px">
+          <option value="aht">AHT Trend</option>
+          <option value="cases">Cases Trend</option>
+          <option value="occ">Occupancy Trend</option>
+          <option value="abandoned">Abandoned % Trend</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0"><label>Period</label>
+        <select id="qa-perf-period" onchange="renderTeamPerfAggregate('${team}', document.getElementById('qa-perf-view').value)" style="width:130px">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+      </div>
+    </div>
+    <div id="team-perf-${team}-grid"></div>`;
+  renderTeamPerfAggregate(team, 'aht');
+}
+
 function renderHeatmap() {
   const view    = document.getElementById('heatmap-view')?.value || 'cases-hour';
   const month   = document.getElementById('heatmap-month')?.value || today().substring(0,7);
@@ -8289,8 +9011,9 @@ function startSession(role, cred) {
   // Restrict nav for QA roles (they only see their own QA pages + dashboard)
   applyRoleRestrictions(role);
   // Auto-navigate QA to their team dashboard
-  if(role === 'kings') setTimeout(() => nav('team-dash-kings'), 400);
-  if(role === 'swat')  setTimeout(() => nav('team-dash-swat'),  400);
+  if(role === 'kings') setTimeout(() => nav('qa-portal'), 400);
+  if(role === 'swat')  setTimeout(() => nav('qa-portal'),  400);
+  if(role === 'tl')    setTimeout(() => nav('tl-portal'),  400);
 
   // Check if this user has set their own password — if not, prompt them immediately
   checkMustSetPassword(role, cred);
@@ -8457,13 +9180,13 @@ function applyRoleRestrictions(role) {
   const kingsPages  = ['dashboard','team-dash-kings','daily-report','daily-plan',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator','meeting'];
+    'wfh','wfh-operator','meeting','qa-portal'];
 
   // Pages Rosemary (swat) can access
   const swatPages   = ['dashboard','team-dash-swat','daily-report','daily-plan',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator','meeting'];
+    'wfh','wfh-operator','meeting','qa-portal'];
 
   const allowedPages = role==='kings' ? kingsPages : swatPages;
 
