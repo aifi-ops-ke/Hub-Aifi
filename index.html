@@ -9167,13 +9167,13 @@ function applyRoleRestrictions(role) {
   const kingsPages  = ['dashboard','team-dash-kings','daily-report','daily-plan',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator','meeting','qa-portal'];
+    'wfh','wfh-operator','meeting','qa-portal','mgmt-shifts'];
 
   // Pages Rosemary (swat) can access
   const swatPages   = ['dashboard','team-dash-swat','daily-report','daily-plan',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator','meeting','qa-portal'];
+    'wfh','wfh-operator','meeting','qa-portal','mgmt-shifts'];
 
   const allowedPages = role==='kings' ? kingsPages : swatPages;
 
