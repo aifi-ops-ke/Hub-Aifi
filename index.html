@@ -1161,6 +1161,8 @@ function _dbRefreshPage(key) {
     attendance:['att'], production:['prod'], errors:['errors'],
     leave:['leaves','leave_balances'], schedule:['schedule'],
     'daily-report':['dr_entries'], 'daily-plan':['daily_plans'],
+    'tl-portal':   ['daily_plans','dr_entries'],
+    'qa-portal':   ['daily_plans','dr_entries'],
     'call-reports':['call_reports'], 'team-dash':['team_data'],
     'team-perf-kings':['op_perf'], 'team-perf-swat':['op_perf'],
     dashboard:['dash_daily'], 'mgmt-shifts':['mgmt_shifts'],
@@ -1201,6 +1203,8 @@ function _dbRefreshPage(key) {
         refreshDRView();
       }
       else if(page==='daily-plan')      renderDailyPlanView();
+      else if(page==='tl-portal')       { renderTLPlanHistory(); renderTLReportHistory(); }
+      else if(page==='qa-portal')       { renderQAPlanHistory(); renderQAReportHistory(); }
       else if(page==='call-reports')    renderCallReports();
       else if(page==='critical-reports') renderCriticalReports();
       else if(page==='team-dash')       renderTeamDashboard();
@@ -2403,6 +2407,7 @@ function _dbRefreshPage(key) {
                 <option value="">All Sections</option>
                 <option value="kings">Team Kings QA</option>
                 <option value="swat">Team SWAT QA</option>
+                <option value="tl">Supervisor (TL)</option>
                 <option value="team">Whole Team</option>
               </select>
             </div>
@@ -7321,18 +7326,20 @@ async function saveTLPlan() {
   if(!date) { toast('Please select a date','⚠️'); return; }
   const entry = {
     id: Date.now(), person: 'tl', name: 'John Paul Kimongo (TL)',
-    date, type: 'tl_plan',
+    date, type: 'plan',
     objectives:  document.getElementById('tl-dp-objectives')?.value || '',
     tasks:       document.getElementById('tl-dp-tasks')?.value || '',
     teamFocus:   document.getElementById('tl-dp-teamfocus')?.value || '',
     challenges:  document.getElementById('tl-dp-challenges')?.value || '',
     savedAt: nowNairobi(),
   };
-  const all = load('tl_plans') || [];
-  const idx = all.findIndex(e => e.date === date);
+  // Save to daily_plans — same store as QA plans, visible to Admin
+  const all = load('daily_plans') || [];
+  const idx = all.findIndex(e => e.date === date && e.person === 'tl' && !e.isAchieved);
   if(idx >= 0) all[idx] = entry; else all.push(entry);
-  const ok = await saveAndVerify('tl_plans', all);
+  const ok = await saveAndVerify('daily_plans', all);
   if(!ok) { toast('Failed to save — check connection','❌'); return; }
+  pushNotif({ ...entry, type: 'plan' }); // notifies Admin immediately
   toast('Plan saved ✓','📅');
   renderTLPlanHistory();
 }
@@ -7342,7 +7349,7 @@ async function saveTLReport() {
   if(!date) { toast('Please select a date','⚠️'); return; }
   const entry = {
     id: Date.now(), person: 'tl', name: 'John Paul Kimongo (TL)',
-    date, type: 'tl_report',
+    section: 'tl', date, type: 'report',
     accomplished: document.getElementById('tl-dr-accomplished')?.value || '',
     teamSummary:  document.getElementById('tl-dr-teamsummary')?.value || '',
     issues:       document.getElementById('tl-dr-issues')?.value || '',
@@ -7350,13 +7357,14 @@ async function saveTLReport() {
     rating:       document.getElementById('tl-dr-rating')?.value || '',
     savedAt: nowNairobi(),
   };
-  const all = load('tl_reports') || [];
-  const idx = all.findIndex(e => e.date === date);
+  // Save to dr_entries — same store as Daily Reports, visible to Admin
+  const all = load('dr_entries') || [];
+  const idx = all.findIndex(e => e.date === date && e.person === 'tl');
   if(idx >= 0) all[idx] = entry; else all.push(entry);
-  const ok = await saveAndVerify('tl_reports', all);
+  const ok = await saveAndVerify('dr_entries', all);
   if(!ok) { toast('Failed to save — check connection','❌'); return; }
+  pushNotif({ ...entry, type: 'report' }); // notifies Admin immediately
   toast('Report submitted ✓','📝');
-  pushNotif({ ...entry, type: 'report' });
   renderTLReportHistory();
 }
 
@@ -7364,7 +7372,7 @@ function renderTLPlanHistory() {
   const el = document.getElementById('tl-plan-history');
   if(!el) return;
   const filter = document.getElementById('tl-dp-filter')?.value || '';
-  let plans = (load('tl_plans') || []).sort((a,b) => b.date.localeCompare(a.date));
+  let plans = (load('daily_plans') || []).filter(p => p.person === 'tl' && !p.isAchieved).sort((a,b) => b.date.localeCompare(a.date));
   if(filter) plans = plans.filter(p => p.date === filter);
   if(!plans.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No plans yet.</div>'; return; }
   el.innerHTML = plans.map(p => `
@@ -7385,7 +7393,7 @@ function renderTLReportHistory() {
   if(!el) return;
   const filter = document.getElementById('tl-dr-filter')?.value || '';
   const RATING_STARS = { excellent:'⭐⭐⭐⭐⭐', good:'⭐⭐⭐⭐', average:'⭐⭐⭐', below:'⭐⭐', poor:'⭐' };
-  let reports = (load('tl_reports') || []).sort((a,b) => b.date.localeCompare(a.date));
+  let reports = (load('dr_entries') || []).filter(r => r.person === 'tl').sort((a,b) => b.date.localeCompare(a.date));
   if(filter) reports = reports.filter(r => r.date === filter);
   if(!reports.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No reports yet.</div>'; return; }
   el.innerHTML = reports.map(r => `
@@ -7405,8 +7413,10 @@ function renderTLReportHistory() {
 }
 
 async function deleteTLEntry(storeKey, id) {
-  const all = (load(storeKey) || []).filter(e => e.id !== id);
-  await saveAndVerify(storeKey, all);
+  // Map old private keys to the shared stores they now use
+  const actualKey = storeKey === 'tl_plans' ? 'daily_plans' : storeKey === 'tl_reports' ? 'dr_entries' : storeKey;
+  const all = (load(actualKey) || []).filter(e => e.id !== id);
+  await saveAndVerify(actualKey, all);
   if(storeKey === 'tl_plans') renderTLPlanHistory();
   else renderTLReportHistory();
 }
@@ -7518,7 +7528,8 @@ async function saveQAReport() {
   const person = currentRole === 'kings' ? 'kings' : 'swat';
   const NAMES  = { kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
   const entry  = {
-    id: Date.now(), person, name: NAMES[person], date, type: 'qa_report',
+    id: Date.now(), person, name: NAMES[person],
+    section: person, date, type: 'report',
     internalDone:  +document.getElementById('qa-dr-internal')?.value||0,
     globalDone:    +document.getElementById('qa-dr-global')?.value||0,
     achieved:      document.getElementById('qa-dr-achieved')?.value||'',
@@ -7527,12 +7538,13 @@ async function saveQAReport() {
     tomorrow:      document.getElementById('qa-dr-tomorrow')?.value||'',
     savedAt: nowNairobi(),
   };
-  const all = load('qa_reports') || [];
+  // Save to dr_entries — same store as Daily Reports, visible to TL and Admin
+  const all = load('dr_entries') || [];
   const idx = all.findIndex(e => e.date===date && e.person===person);
   if(idx>=0) all[idx]=entry; else all.push(entry);
-  const ok = await saveAndVerify('qa_reports', all);
+  const ok = await saveAndVerify('dr_entries', all);
   if(!ok) { toast('Failed to save','❌'); return; }
-  pushNotif({ ...entry, type: 'report' });
+  pushNotif({ ...entry, type: 'report' }); // notifies TL and Admin immediately
   toast('Plan review submitted ✓','✅');
   renderQAReportHistory();
 }
@@ -7581,9 +7593,11 @@ function renderQAPlanHistory() {
 function renderQAReportHistory() {
   const el = document.getElementById('qa-report-history');
   if(!el) return;
-  const person = currentRole === 'kings' ? 'kings' : 'swat';
+  const person = currentRole === 'kings' ? 'kings' : currentRole === 'swat' ? 'swat' : null;
   const filter = document.getElementById('qa-dr-filter')?.value || '';
-  let reports = (load('qa_reports')||[]).filter(r => r.person===person).sort((a,b)=>b.date.localeCompare(a.date));
+  let reports = (load('dr_entries')||[])
+    .filter(r => person ? r.person===person : (r.person==='kings'||r.person==='swat'))
+    .sort((a,b)=>b.date.localeCompare(a.date));
   if(filter) reports = reports.filter(r => r.date===filter);
   if(!reports.length) { el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px">No plan reviews yet.</div>'; return; }
   el.innerHTML = reports.map(r => `
@@ -14335,6 +14349,7 @@ function renderDRView() {
     kings: { label:'🔵 Team Kings QA',    color:'var(--accent)',  border:'rgba(0,212,160,0.25)' },
     swat:  { label:'🟣 Team SWAT QA',     color:'var(--violet)',  border:'rgba(180,138,247,0.25)' },
     team:  { label:'🌐 Whole Team',        color:'var(--amber)',   border:'rgba(255,170,68,0.25)' },
+    tl:    { label:'🛡️ Supervisor (TL)',   color:'var(--teal)',    border:'rgba(0,200,180,0.25)' },
   };
 
   el.innerHTML = entries.map(e => {
