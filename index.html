@@ -8057,7 +8057,6 @@ function doLogin() {
 
   const creds = getCreds();
   const cred = creds[selectedRole];
-  if(!cred) { showLoginError('Hub is still loading — please wait a moment and try again.'); return; }
 
   if(btoa(pw) === cred.hash) {
     // ✅ Success
@@ -8120,7 +8119,7 @@ function startSession(role, cred) {
   if(role === 'tl')    setTimeout(() => nav('tl-portal'),  400);
 
   // Check if this user has set their own password — if not, prompt them immediately
-  checkMustSetPassword(role, cred);
+  setTimeout(() => checkMustSetPassword(role, cred), 1000); // delay so DB cache is loaded
   // Show team-specific dashboard nav item
   const kNav = document.getElementById('nav-team-dash-kings');
   const sNav = document.getElementById('nav-team-dash-swat');
@@ -8178,6 +8177,7 @@ function showForcePasswordModal(role, userName) {
         ✅ Set My Password & Continue
       </button>
       <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:12px">Minimum 6 characters. You can change it anytime from the sidebar.</div>
+      <button onclick="document.getElementById('force-pw-overlay')?.remove()" style="width:100%;margin-top:8px;padding:8px;background:none;border:1px solid var(--border2);border-radius:8px;color:var(--text3);font-size:12px;cursor:pointer">Skip for now — remind me later</button>
     </div>`;
   document.body.appendChild(overlay);
   setTimeout(() => document.getElementById('force-pw-new')?.focus(), 100);
@@ -8243,6 +8243,7 @@ function showForcePasswordModalForOp(opId) {
         ✅ Set My Password & Continue
       </button>
       <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:12px">Minimum 6 characters. You can change it anytime from the Operator Hub.</div>
+      <button onclick="document.getElementById('force-pw-overlay')?.remove()" style="width:100%;margin-top:8px;padding:8px;background:none;border:1px solid var(--border2);border-radius:8px;color:var(--text3);font-size:12px;cursor:pointer">Skip for now — remind me later</button>
     </div>`;
   document.body.appendChild(overlay);
   setTimeout(() => document.getElementById('force-pw-new')?.focus(), 100);
@@ -14881,7 +14882,7 @@ function updateNavBadges() {
   if(chb) { chb.style.display = unread > 0 ? 'inline-flex' : 'none'; chb.textContent = unread; }
 }
 function clearNavBadge(page) {
-  const map = {'daily-plan':'plan','daily-report':'report'};
+  const map = {'tl-portal':'plan','qa-portal':'report'};
   const type = map[page]; if(!type) return;
   const notifs = getNotifs().map(n=>n.type===type?{...n,read:true}:n);
   saveNotifs(notifs); updateNavBadges(); updateBellCount();
@@ -17002,3 +17003,5 @@ function showSessionUIV2(opId, sess) {
 </script>
 </body>
 </html>
+
+    
