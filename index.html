@@ -1160,9 +1160,8 @@ function _dbRefreshPage(key) {
   const MAP = {
     attendance:['att'], production:['prod'], errors:['errors'],
     leave:['leaves','leave_balances'], schedule:['schedule'],
-    'daily-report':['dr_entries'], 'daily-plan':['daily_plans'],
-    'tl-portal':   ['daily_plans','dr_entries'],
-    'qa-portal':   ['daily_plans','dr_entries'],
+    'tl-portal':   ['daily_plans','dr_entries','tl_plans','tl_reports','qa_reports'],
+    'qa-portal':   ['daily_plans','dr_entries','qa_reports','tl_plans'],
     'call-reports':['call_reports'], 'team-dash':['team_data'],
     'team-perf-kings':['op_perf'], 'team-perf-swat':['op_perf'],
     dashboard:['dash_daily'], 'mgmt-shifts':['mgmt_shifts'],
@@ -1197,11 +1196,7 @@ function _dbRefreshPage(key) {
       else if(page==='weekly'||page==='monthly'||page==='quarterly') setTimeout(initReportSelects,80);
       else if(page==='errors')          renderErrors();
       else if(page==='leave')           { renderLeave(); renderLeaveBalanceGrid(); }
-      else if(page==='daily-report') {
-        const dEl = document.getElementById('dr-view-date');
-        if(dEl && !dEl.value) dEl.value = ''; // keep existing filter if set
-        refreshDRView();
-      }
+
       else if(page==='daily-plan')      renderDailyPlanView();
       else if(page==='tl-portal')       { renderTLPlanHistory(); renderTLReportHistory(); }
       else if(page==='qa-portal')       { renderQAPlanHistory(); renderQAReportHistory(); }
@@ -1534,12 +1529,7 @@ function _dbRefreshPage(key) {
     <div class="nav-item active" onclick="nav('dashboard')">
       <span class="nav-icon">📊</span><span>Dashboard</span>
     </div>
-    <div class="nav-item" onclick="nav('daily-report');clearNavBadge('daily-report')">
-      <span class="nav-icon">📝</span><span>Daily Report</span><span class="nav-badge" id="badge-daily-report" style="display:none"></span>
-    </div>
-    <div class="nav-item" onclick="nav('daily-plan');clearNavBadge('daily-plan')">
-      <span class="nav-icon">📅</span><span>Daily Plan</span><span class="nav-badge" id="badge-daily-plan" style="display:none"></span>
-    </div>
+
   </div>
 
   <div class="nav-section">
@@ -1722,7 +1712,7 @@ function _dbRefreshPage(key) {
         </div>
       </div>
       <button class="topbar-btn secondary" onclick="exportData()">↓ Export</button>
-      <button class="topbar-btn" onclick="nav('daily-report')">+ Daily Report</button>
+
     </div>
   </div>
 
@@ -2076,8 +2066,8 @@ function _dbRefreshPage(key) {
           </div>
         </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">📋 QA Plans & Reports Today</div></div>
-          <div id="tl-qa-submissions" style="display:flex;flex-direction:column;gap:10px"></div>
+          <div class="card-header"><div class="card-title">📋 Portal Submissions — Kings, SWAT & Supervisor</div><div class="card-sub">Plans, reviews and audit counts for selected date</div></div>
+          <div id="tl-qa-submissions" style="display:flex;flex-direction:column;gap:0"></div>
         </div>
       </div>
     </div>
@@ -2276,925 +2266,6 @@ function _dbRefreshPage(key) {
       </div>
     </div>
 
-    <div class="page" id="page-daily-report">
-      <div class="page-header">
-        <h1>📝 Daily Report</h1>
-        <p>QA team reports and whole-team quality feedback. Each QA fills their section — TL sees everything.</p>
-      </div>
-
-      <div class="tabs" style="margin-bottom:20px">
-        <div class="tab active" onclick="drTab('submit')">✏️ Submit Report</div>
-        <div class="tab" onclick="drTab('view')">📋 View Reports</div>
-      </div>
-
-      <!-- ── SUBMIT TAB ── -->
-      <div id="dr-tab-submit">
-
-        <!-- SECTION 1: Team Kings QA Report -->
-        <div id="dr-section-kings" class="card" style="display:none" style="margin-bottom:16px;border-color:rgba(0,212,160,0.3)">
-          <div class="card-header">
-            <div>
-              <div class="card-title" style="color:var(--accent)">🔵 Team Kings — QA Daily Report</div>
-              <div class="card-sub">Kingori fills this section for Team Kings</div>
-            </div>
-            <div class="form-group" style="margin:0;min-width:150px">
-              <label>Date</label>
-              <input type="date" id="dr-kings-date"/>
-            </div>
-          </div>
-          <div class="form-grid" style="margin-top:12px">
-            <div class="form-group"><label>Cases Done</label><input type="number" id="dr-kings-cases" placeholder="Total cases completed"/></div>
-            <div class="form-group"><label>AHT (seconds)</label><input type="number" id="dr-kings-aht" placeholder="e.g. 22" step="0.01"/></div>
-            <div class="form-group"><label>Internal Audits Done</label><input type="number" id="dr-kings-int-audits" placeholder="Sessions audited"/></div>
-            <div class="form-group"><label>Global Audits Done</label><input type="number" id="dr-kings-glob-audits" placeholder="Global sessions"/></div>
-            <div class="form-group"><label>Errors Found</label><input type="number" id="dr-kings-errors" placeholder="0"/></div>
-            <div class="form-group"><label>Absentees</label><input type="text" id="dr-kings-absent" placeholder="Names, comma separated"/></div>
-            <div class="form-group span-2">
-              <label>Team Kings — Specific Team Report</label>
-              <textarea id="dr-kings-team-report" placeholder="Report on Team Kings specifically — individual performance, coaching done, operator highlights, issues per operator..." style="min-height:90px"></textarea>
-            </div>
-            <div class="form-group span-2">
-              <label>Challenges Encountered</label>
-              <textarea id="dr-kings-challenges" placeholder="Issues faced during the shift with Team Kings..." style="min-height:60px"></textarea>
-            </div>
-            <div class="form-group span-2">
-              <label>Action Plan / Next Steps</label>
-              <textarea id="dr-kings-actions" placeholder="What will be done tomorrow to improve Team Kings performance..." style="min-height:60px"></textarea>
-            </div>
-          </div>
-          <button class="btn btn-primary" style="margin-top:16px;background:var(--accent)" onclick="saveDRSection('kings')">💾 Save Team Kings Report</button>
-        </div>
-
-        <!-- SECTION 2: Team SWAT QA Report -->
-        <div id="dr-section-swat" class="card" style="display:none" style="margin-bottom:16px;border-color:rgba(180,138,247,0.3)">
-          <div class="card-header">
-            <div>
-              <div class="card-title" style="color:var(--violet)">🟣 Team SWAT — QA Daily Report</div>
-              <div class="card-sub">Rosemary fills this section for Team SWAT</div>
-            </div>
-            <div class="form-group" style="margin:0;min-width:150px">
-              <label>Date</label>
-              <input type="date" id="dr-swat-date"/>
-            </div>
-          </div>
-          <div class="form-grid" style="margin-top:12px">
-            <div class="form-group"><label>Cases Done</label><input type="number" id="dr-swat-cases" placeholder="Total cases completed"/></div>
-            <div class="form-group"><label>AHT (seconds)</label><input type="number" id="dr-swat-aht" placeholder="e.g. 22" step="0.01"/></div>
-            <div class="form-group"><label>Internal Audits Done</label><input type="number" id="dr-swat-int-audits" placeholder="Sessions audited"/></div>
-            <div class="form-group"><label>Global Audits Done</label><input type="number" id="dr-swat-glob-audits" placeholder="Global sessions"/></div>
-            <div class="form-group"><label>Errors Found</label><input type="number" id="dr-swat-errors" placeholder="0"/></div>
-            <div class="form-group"><label>Absentees</label><input type="text" id="dr-swat-absent" placeholder="Names, comma separated"/></div>
-            <div class="form-group span-2">
-              <label>Team SWAT — Specific Team Report</label>
-              <textarea id="dr-swat-team-report" placeholder="Report on Team SWAT specifically — individual performance, coaching done, operator highlights, issues per operator..." style="min-height:90px"></textarea>
-            </div>
-            <div class="form-group span-2">
-              <label>Challenges Encountered</label>
-              <textarea id="dr-swat-challenges" placeholder="Issues faced during the shift with Team SWAT..." style="min-height:60px"></textarea>
-            </div>
-            <div class="form-group span-2">
-              <label>Action Plan / Next Steps</label>
-              <textarea id="dr-swat-actions" placeholder="What will be done tomorrow to improve Team SWAT performance..." style="min-height:60px"></textarea>
-            </div>
-          </div>
-          <button class="btn btn-primary" style="margin-top:16px;background:var(--violet)" onclick="saveDRSection('swat')">💾 Save Team SWAT Report</button>
-        </div>
-
-        <!-- SECTION 3: Whole Team Quality & Feedback -->
-        <div id="dr-section-team" class="card" style="margin-bottom:16px;border-color:rgba(255,170,68,0.3)">
-          <div class="card-header">
-            <div>
-              <div class="card-title" style="color:var(--amber)">🌐 Whole Team — Quality &amp; Feedback</div>
-              <div class="card-sub">John Paul Kimongo (TL) fills this · Kingori covers only when TL is absent</div>
-              <div id="dr-team-tl-note" style="display:none;margin-top:6px;padding:6px 10px;background:rgba(255,170,68,0.1);border:1px solid rgba(255,170,68,0.3);border-radius:7px;font-size:11px;color:var(--amber);font-weight:600">⚠️ Only fill this when the TL is not available — your name will be recorded as the submitter</div>
-            </div>
-            <div class="form-group" style="margin:0;min-width:150px">
-              <label>Date</label>
-              <input type="date" id="dr-team-date"/>
-            </div>
-          </div>
-          <div class="form-grid" style="margin-top:12px">
-            <div class="form-group"><label>Overall Quality %</label><input type="number" id="dr-team-quality" placeholder="Combined team quality score"/></div>
-            <div class="form-group"><label>Total Cases (Both Teams)</label><input type="number" id="dr-team-cases" placeholder="Kings + SWAT combined"/></div>
-            <div class="form-group"><label>AHT (seconds)</label><input type="number" id="dr-team-aht" placeholder="e.g. 22" step="0.01"/></div>
-            <div class="form-group"><label>Total Errors Found</label><input type="number" id="dr-team-errors" placeholder="Across both teams"/></div>
-            <div class="form-group"><label>Occupancy %</label><input type="number" id="dr-team-occ" placeholder="e.g. 85"/></div>
-            <div class="form-group span-2">
-              <label>Overall Quality Feedback</label>
-              <textarea id="dr-team-quality-feedback" placeholder="General quality observations across both teams — trending errors, patterns noticed, quality wins..." style="min-height:90px"></textarea>
-            </div>
-            <div class="form-group span-2">
-              <label>What Was Encountered Today (Whole Team)</label>
-              <textarea id="dr-team-encountered" placeholder="Key events, escalations, system issues, volume patterns, anything notable that affected the whole team today..." style="min-height:90px"></textarea>
-            </div>
-            <div class="form-group span-2">
-              <label>Overall Action Plan for Tomorrow</label>
-              <textarea id="dr-team-actions" placeholder="Combined action plan for both teams — coaching priorities, focus areas, targets..." style="min-height:60px"></textarea>
-            </div>
-          </div>
-          <button class="btn btn-primary" style="margin-top:16px;background:var(--amber);color:#000" onclick="saveDRSection('team')">💾 Save Whole Team Report</button>
-        </div>
-
-      </div>
-
-      <!-- ── VIEW TAB ── -->
-      <div id="dr-tab-view" style="display:none">
-        <div class="card" style="margin-bottom:16px">
-          <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
-            <div class="form-group" style="margin:0;flex:1;min-width:160px">
-              <label>Section</label>
-              <select id="dr-view-person" onchange="renderDRView()" style="width:100%">
-                <option value="">All Sections</option>
-                <option value="kings">Team Kings QA</option>
-                <option value="swat">Team SWAT QA</option>
-                <option value="tl">Supervisor (TL)</option>
-                <option value="team">Whole Team</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0;flex:1;min-width:140px">
-              <label>Date</label>
-              <input type="date" id="dr-view-date" onchange="renderDRView()" style="width:100%"/>
-            </div>
-            <button class="btn btn-secondary" style="padding:9px 14px" onclick="document.getElementById('dr-view-date').value=yesterday();renderDRView()">Yesterday</button>
-            <button class="btn btn-secondary" style="padding:9px 14px" onclick="document.getElementById('dr-view-date').value='';document.getElementById('dr-view-person').value='';renderDRView()">Clear All</button>
-            <button class="btn btn-secondary" style="padding:9px 14px" onclick="refreshDRView()">🔄 Refresh</button>
-          </div>
-        </div>
-        <div id="dr-view-list"><div style="color:var(--text3);font-size:12px">No entries yet.</div></div>
-      </div>
-    </div>
-
-    <div class="page" id="page-attendance">
-      <div class="page-header">
-        <h1>Attendance Tracker</h1>
-        <p>Click operators to toggle attendance status. Data saves automatically.</p>
-      </div>
-
-      <div class="card" style="margin-bottom:20px">
-        <div class="form-grid" style="margin-bottom:16px">
-          <div class="form-group">
-            <label>Date</label>
-            <input type="date" id="att-date" onchange="renderAttendance()"/>
-          </div>
-          <div class="form-group">
-            <label>Filter by Status</label>
-            <select onchange="filterAtt(this.value)">
-              <option value="">All</option>
-              <option value="present">Present ✅</option>
-              <option value="absent">Absent ❌</option>
-              <option value="leave">Leave 🌴</option>
-              <option value="off">Off Day</option>
-            </select>
-          </div>
-        </div>
-        <div class="kpi-grid" style="margin-bottom:0">
-          <div class="kpi-card green"><div class="kpi-label">Present</div><div class="kpi-value" id="att-present-count">0</div></div>
-          <div class="kpi-card red"><div class="kpi-label">Absent</div><div class="kpi-value" id="att-absent-count">0</div></div>
-          <div class="kpi-card amber"><div class="kpi-label">On Leave</div><div class="kpi-value" id="att-leave-count">0</div></div>
-          <div class="kpi-card"><div class="kpi-label">Off Day</div><div class="kpi-value" id="att-off-count">0</div></div>
-          <div class="kpi-card teal"><div class="kpi-label">Night Transport</div><div class="kpi-value" id="att-transport-count">0</div></div>
-        </div>
-      </div>
-
-      <div class="att-grid" id="att-grid"></div>
-    </div>
-
-    <!-- ══════════════════════════════════════════════════════════
-         PAGE: PRODUCTION
-    ═══════════════════════════════════════════════════════════ -->
-    <!-- ══════════════════════════════════════════════════════════
-         PAGE: PRODUCTION TRACKER
-    ═══════════════════════════════════════════════════════════ -->
-    <div class="page" id="page-production">
-      <div class="page-header">
-        <h1>Production Tracker</h1>
-        <p>Paste data directly from the AIFI export, or enter manually per operator.</p>
-      </div>
-
-      <!-- TABS -->
-      <div class="tabs" style="margin-bottom:20px">
-        <div class="tab active" onclick="prodTab('paste')">📋 Paste Data</div>
-        <div class="tab" onclick="prodTab('manual')">✏️ Manual Entry</div>
-        <div class="tab" onclick="prodTab('log')">📊 Production Log</div>
-      </div>
-
-      <!-- ── PASTE TAB ─────────────────────────────────────────── -->
-      <div id="prod-tab-paste">
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">📋 Paste Bulk Data</div>
-              <div class="card-sub">Copy the table from Excel/AIFI export → paste below → click Import</div>
-            </div>
-          </div>
-
-          <div class="form-grid" style="margin-bottom:14px">
-            <div class="form-group">
-              <label>Date for this data</label>
-              <input type="date" id="paste-date"/>
-            </div>
-            <div class="form-group">
-              <label>Team</label>
-              <select id="paste-team">
-                <option value="">All / Both Teams</option>
-                <option value="kings">Team Kings</option>
-                <option value="swat">Team SWAT</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Column mapper -->
-          <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:14px;margin-bottom:14px">
-            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">
-              Column Order (match your paste columns left→right)
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px" id="col-mapper">
-              <!-- Built by JS -->
-            </div>
-            <div style="margin-top:10px;display:flex;gap:8px">
-              <button class="btn btn-secondary btn-sm" onclick="setPreset('aifi')">📊 AIFI Export format</button>
-              <button class="btn btn-secondary btn-sm" onclick="setPreset('simple')">📝 Simple format</button>
-            </div>
-          </div>
-
-          <!-- Paste area -->
-          <div class="form-group" style="margin-bottom:14px">
-            <label>Paste your data here (Tab-separated, copied from Excel)</label>
-            <textarea id="paste-area" style="min-height:200px;font-family:'DM Mono',monospace;font-size:11px;resize:vertical"
-              placeholder="Copy cells from Excel and paste here. First column should be operator name/email.
-Example:
-richard.otieno.impact.nbo&#9;Associate&#9;24.83&#9;18.09&#9;27.06&#9;0.00%&#9;3.49%&#9;1.07%&#9;8:02:50&#9;83.27%
-alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98%&#9;0.30%&#9;8:01:34&#9;88.66%"></textarea>
-          </div>
-
-          <!-- Preview -->
-          <div id="paste-preview" style="display:none;margin-bottom:14px">
-            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Preview</div>
-            <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--border)">
-              <table style="width:100%;border-collapse:collapse;font-size:11px">
-                <thead id="paste-preview-head"></thead>
-                <tbody id="paste-preview-body"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:10px">
-            <button class="btn btn-secondary" onclick="parsePaste()">👁 Preview</button>
-            <button class="btn btn-primary" onclick="importPaste()" id="import-btn" style="display:none">💾 Import All</button>
-            <button class="btn btn-secondary" onclick="clearPaste()">✕ Clear</button>
-          </div>
-          <div id="paste-result" style="margin-top:12px"></div>
-        </div>
-      </div>
-
-      <!-- ── MANUAL TAB ─────────────────────────────────────────── -->
-      <div id="prod-tab-manual" style="display:none">
-        <div class="card">
-          <div class="card-header"><div class="card-title">✏️ Manual Entry</div></div>
-          <div class="form-grid-3">
-            <div class="form-group">
-              <label>Date</label>
-              <input type="date" id="prod-date"/>
-            </div>
-            <div class="form-group">
-              <label>Operator</label>
-              <select id="prod-operator"></select>
-            </div>
-            <div class="form-group">
-              <label>Cases Done</label>
-              <input type="number" id="prod-cases" placeholder="e.g. 750"/>
-            </div>
-            <div class="form-group">
-              <label>AHT (s)</label>
-              <input type="number" id="prod-aht" placeholder="e.g. 22.5" step="0.01"/>
-            </div>
-            <div class="form-group">
-              <label>Normal AHT (s)</label>
-              <input type="number" id="prod-normal-aht" placeholder="e.g. 27.06" step="0.01"/>
-            </div>
-            <div class="form-group">
-              <label>Occupancy %</label>
-              <input type="number" id="prod-occ" placeholder="e.g. 83.27" step="0.01"/>
-            </div>
-            <div class="form-group">
-              <label>Abandoned %</label>
-              <input type="number" id="prod-abandoned" placeholder="e.g. 0.15" step="0.01"/>
-            </div>
-            <div class="form-group">
-              <label>Reported %</label>
-              <input type="number" id="prod-reported" placeholder="e.g. 3.49" step="0.01"/>
-            </div>
-            <div class="form-group">
-              <label>Refreshed %</label>
-              <input type="number" id="prod-refreshed" placeholder="e.g. 1.07" step="0.01"/>
-            </div>
-            <div class="form-group">
-              <label>Log Time</label>
-              <input type="text" id="prod-logtime" placeholder="e.g. 8:02:50"/>
-            </div>
-            <div class="form-group">
-              <label>Global Sessions</label>
-              <input type="number" id="prod-global" placeholder="e.g. 761"/>
-            </div>
-            <div class="form-group">
-              <label>Total Time Spent (min)</label>
-              <input type="number" id="prod-total-time" placeholder="e.g. 33.77" step="0.01"/>
-            </div>
-          </div>
-          <button class="btn btn-primary" style="margin-top:14px" onclick="saveProd()">💾 Save Entry</button>
-        </div>
-      </div>
-
-      <!-- ── LOG TAB ───────────────────────────────────────────── -->
-      <div id="prod-tab-log" style="display:none">
-        <div class="card">
-          <div class="card-header">
-            <div><div class="card-title">📊 Production Log</div></div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <input type="date" id="prod-filter-date" style="font-size:11px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text)" onchange="renderProd()"/>
-              <select id="prod-filter-team" style="font-size:11px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text)" onchange="renderProd()">
-                <option value="">All Teams</option>
-                <option value="kings">Kings</option>
-                <option value="swat">SWAT</option>
-              </select>
-              <button class="btn btn-secondary btn-sm" onclick="clearProdFilter()">Clear</button>
-              <button class="btn btn-secondary btn-sm" onclick="exportProdCSV()">↓ Export CSV</button>
-            </div>
-          </div>
-
-          <!-- Summary KPIs -->
-          <div class="kpi-grid" id="prod-kpi-row" style="margin-bottom:16px"></div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th><th>Name</th><th>Team</th>
-                  <th>Cases</th>
-                  <th>Break Mins</th><th>Meeting Mins</th><th>Lunch Break</th><th>Floor Support</th>
-                  <th>ASD Idle</th><th>Session Handling</th>
-                  <th>Reported%</th><th>Abandoned%</th>
-                  <th>Occupancy%</th><th>Global Session</th>
-                  <th>AHT A.A</th><th>Normal AHT</th><th>AHT</th>
-                  <th>Log Time</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="prod-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════════════════════════════
-         PAGE: ERRORS & QA
-    ═══════════════════════════════════════════════════════════ -->
-    <!-- ════════════════════════════════════════════════════════
-         HEATMAP PAGE
-         ═══════════════════════════════════════════════════════ -->
-    <div class="page" id="page-heatmap">
-      <div class="page-header">
-        <h1>🌡️ Performance Heatmap</h1>
-        <p>Visual breakdown of operator performance patterns across hours and days.</p>
-      </div>
-      <div class="card" style="margin-bottom:16px">
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-          <div>
-            <label style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">View</label>
-            <select id="heatmap-view" onchange="renderHeatmap()" style="font-size:12px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text)">
-              <option value="cases-hour">Cases by Hour of Day</option>
-              <option value="cases-dow">Cases by Day of Week per Operator</option>
-              <option value="aht-hour">AHT by Hour of Day</option>
-            </select>
-          </div>
-          <div>
-            <label style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">Month</label>
-            <input type="month" id="heatmap-month" onchange="renderHeatmap()" style="font-size:12px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text)"/>
-          </div>
-          <div>
-            <label style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px">Team</label>
-            <select id="heatmap-team" onchange="renderHeatmap()" style="font-size:12px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text)">
-              <option value="">All</option>
-              <option value="kings">Kings</option>
-              <option value="swat">SWAT</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div class="card" id="heatmap-container">
-        <div style="color:var(--text3);font-size:12px">Select a month to load heatmap data.</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:11px;color:var(--text3)">
-        <span>Low</span>
-        <div style="display:flex;gap:3px">
-          <div style="width:18px;height:18px;border-radius:4px;background:rgba(0,212,160,0.1)"></div>
-          <div style="width:18px;height:18px;border-radius:4px;background:rgba(0,212,160,0.3)"></div>
-          <div style="width:18px;height:18px;border-radius:4px;background:rgba(0,212,160,0.55)"></div>
-          <div style="width:18px;height:18px;border-radius:4px;background:rgba(0,212,160,0.75)"></div>
-          <div style="width:18px;height:18px;border-radius:4px;background:rgba(0,212,160,1)"></div>
-        </div>
-        <span>High</span>
-      </div>
-    </div>
-
-    <!-- ════════════════════════════════════════════════════════
-         ALERTS PAGE
-         ═══════════════════════════════════════════════════════ -->
-    <div class="page" id="page-alerts">
-      <div class="page-header">
-        <h1>🚨 Alerts</h1>
-        <p>Auto-generated from live Hub data — idle operators, low compliance, errors, missed EODs.</p>
-      </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
-        <button class="btn btn-secondary btn-sm" onclick="renderAlerts()" style="font-weight:700">↺ Refresh</button>
-        <button class="btn btn-secondary btn-sm" onclick="clearDismissedAlerts()" style="font-weight:700">🗑 Clear Dismissed</button>
-      </div>
-      <div id="alerts-list">
-        <div style="color:var(--text3);font-size:12px">Loading alerts...</div>
-      </div>
-    </div>
-
-    <div class="page" id="page-errors">
-      <div class="page-header">
-        <h1>Errors & QA Tracker</h1>
-        <p>Log and track global and internal audit errors. Deductions calculated automatically.</p>
-      </div>
-
-      <div class="alert alert-warn">
-        ⚠️ <strong>Deduction Rules:</strong> Global Audit error = KES 2,000 deducted from incentives. Internal Audit error = KES 1,000. Deductions stop when the KES 7,000 incentive pool is exhausted. Base pay is never touched.
-      </div>
-
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-header"><div class="card-title">+ Log Error</div></div>
-
-          <!-- ── QA VIEW (Kingori & Rosemary) ── -->
-          <div id="err-qa-view" style="display:none">
-            <div style="background:rgba(0,200,150,0.06);border:1px solid rgba(0,200,150,0.15);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text2)">
-              ℹ️ Log the error, set coaching status and deduction amount. Error description and deduct source are visible to Team Lead and Admin only.
-            </div>
-            <div class="form-grid">
-              <div class="form-group">
-                <label>Date</label>
-                <input type="date" id="err-date-qa"/>
-              </div>
-              <div class="form-group">
-                <label>Operator</label>
-                <select id="err-operator-qa"></select>
-              </div>
-              <div class="form-group">
-                <label>Audit Type</label>
-                <select id="err-type-qa">
-                  <option value="global">Global Audit</option>
-                  <option value="internal">Internal Audit</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Deduction Amount (KES)</label>
-                <input type="number" id="err-deduction-qa" placeholder="e.g. 2000" step="500"/>
-              </div>
-              <div class="form-group span-2">
-                <label>Coaching Status</label>
-                <select id="err-coaching-qa">
-                  <option>Pending coaching</option>
-                  <option>Coached - resolved</option>
-                  <option>Coached - in progress</option>
-                  <option>Will be coached on return</option>
-                </select>
-              </div>
-              <div class="form-group span-2">
-                <label>Session Link</label>
-                <input type="url" id="err-session-link-qa" placeholder="https://... paste audit session link"/>
-              </div>
-            </div>
-            <button class="btn btn-primary" style="margin-top:14px" onclick="saveErrorQA()">💾 Log Error</button>
-          </div>
-
-          <!-- ── TL / ADMIN VIEW (John Paul & Gidraph) ── -->
-          <div id="err-tl-view">
-            <div class="form-grid">
-              <div class="form-group">
-                <label>Date</label>
-                <input type="date" id="err-date"/>
-              </div>
-              <div class="form-group">
-                <label>Audit Type</label>
-                <select id="err-type">
-                  <option value="global">Global Audit</option>
-                  <option value="internal">Internal Audit</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Operator</label>
-                <select id="err-operator"></select>
-              </div>
-              <div class="form-group">
-                <label>QA Team</label>
-                <select id="err-qa-team">
-                  <option>Kings</option>
-                  <option>SWAT</option>
-                </select>
-              </div>
-              <div class="form-group span-2">
-                <label>Error Description</label>
-                <input type="text" id="err-desc" placeholder="e.g. Missing product, Different product, Extra quantity..."/>
-              </div>
-              <div class="form-group span-2">
-                <label>Coaching Status</label>
-                <select id="err-coaching">
-                  <option>Pending coaching</option>
-                  <option>Coached - resolved</option>
-                  <option>Coached - in progress</option>
-                  <option>Will be coached on return</option>
-                </select>
-              </div>
-              <div class="form-group span-2">
-                <label>Session Link</label>
-                <input type="url" id="err-session-link" placeholder="https://... paste session link"/>
-              </div>
-              <div class="form-group">
-                <label>Deduction Override (KES) <span style="color:var(--text3);font-size:9px">— leave blank for auto</span></label>
-                <input type="number" id="err-deduction-override" placeholder="Auto-calculated" step="500"/>
-              </div>
-              <div class="form-group">
-                <label>Deduct From</label>
-                <select id="err-deduct-from">
-                  <option value="auto">Auto (rule-based)</option>
-                  <option value="incentive">Incentive pool</option>
-                  <option value="transport">Transport allowance</option>
-                </select>
-              </div>
-            </div>
-            <button class="btn btn-primary" style="margin-top:14px" onclick="saveError()">💾 Log Error</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header"><div class="card-title">💰 Incentive Deduction Calculator</div></div>
-          <div class="form-grid" style="margin-bottom:14px">
-            <div class="form-group">
-              <label>Select Operator</label>
-              <select id="calc-operator" onchange="calcDeductions()"></select>
-            </div>
-            <div class="form-group">
-              <label>Month</label>
-              <select id="calc-month" onchange="calcDeductions()">
-                <option value="">All Time</option>
-                <option value="2026-05">May 2026</option>
-                <option value="2026-04">Apr 2026</option>
-                <option value="2026-03">Mar 2026</option>
-                <option value="2026-02">Feb 2026</option>
-                <option value="2026-01">Jan 2026</option>
-              </select>
-            </div>
-          </div>
-          <div class="calc-result" id="deduction-result">
-            <div style="color:var(--text3);font-size:12px;">Select an operator to calculate deductions.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">📋 Error Log</div>
-          <div style="display:flex;gap:8px">
-            <select id="err-filter-type" style="font-size:11px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text)" onchange="renderErrors()">
-              <option value="">All Types</option>
-              <option value="global">Global</option>
-              <option value="internal">Internal</option>
-            </select>
-            <select id="err-filter-team" style="font-size:11px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text)" onchange="renderErrors()">
-              <option value="">All Teams</option>
-              <option value="Kings">Kings</option>
-              <option value="SWAT">SWAT</option>
-            </select>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Date</th><th>Operator</th><th>Type</th><th>Error</th><th>QA Team</th><th>Coaching</th><th>Deduction</th><th>Payroll</th><th>Session</th><th>Action</th></tr></thead>
-            <tbody id="errors-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════════════════════════════
-         PAGE: PAYROLL
-    ═══════════════════════════════════════════════════════════ -->
-    <div class="page" id="page-payroll">
-      <div class="page-header">
-        <h1>Payroll</h1>
-        <p>Calculate monthly pay including base rates, transport allowance, and incentive deductions</p>
-      </div>
-
-      <div class="alert alert-info">
-        📌 <strong>Pay Structure:</strong> TL = KES 52,000/month fixed | QAs = KES 40,000/month fixed | Operators FT/PT = KES 1,150/day | Trainees = KES 500/day stipend (no transport, no incentives) | Transport = KES 3,000/month (KES 500/day deducted for unexcused absence) | Incentive pool = KES 7,000 (KES 2,000 per Global error, KES 1,000 per Internal error) | Night transport (23:00–01:00 UTC) = KES 300/shift | OT: TL = KES 500/hr, QAs = KES 400/hr | Cover pay (absent account): TL & QAs = KES 400 each
-      </div>
-
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-header"><div class="card-title">🧮 Payroll Calculator</div></div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Staff Member</label>
-              <div style="display:flex;gap:8px;align-items:center">
-                <select id="pay-person" onchange="onPayPersonChange()" style="flex:1">
-                  <option value="">-- Select --</option>
-                  <option value="tl-jk">John Paul Kimongo (TL)</option>
-                  <option value="qa-kings">John Kingori (QA – Kings)</option>
-                  <option value="qa-swat">Rosemary Nyaleso (QA – SWAT)</option>
-                  <option value="operator">Operator ↓</option>
-                </select>
-                <button class="btn btn-secondary btn-sm" id="earnings-btn" onclick="showEarningsHistory()" style="display:none;white-space:nowrap">📊 Earnings</button>
-              </div>
-            </div>
-            <div class="form-group" id="pay-operator-wrap" style="display:none">
-              <label>Operator</label>
-              <select id="pay-operator" onchange="calcPay()"></select>
-            </div>
-            <div class="form-group">
-              <label>Month</label>
-              <select id="pay-month" onchange="calcPay()">
-                <option value="2026-05">May 2026</option>
-                <option value="2026-04">Apr 2026</option>
-                <option value="2026-03">Mar 2026</option>
-                <option value="2026-02">Feb 2026</option>
-                <option value="2026-01">Jan 2026</option>
-              </select>
-            </div>
-            <div class="form-group" id="pay-days-wrap">
-              <label>Days Worked <button class="btn btn-secondary btn-sm" style="margin-left:6px;vertical-align:middle" onclick="loadAttDays()">📋 From Attendance</button></label>
-              <input type="number" id="pay-days" placeholder="e.g. 24" min="0" max="31" oninput="calcPay()"/>
-              <div id="pay-days-hint" style="font-size:10px;color:var(--text3);margin-top:3px"></div>
-            </div>
-            <div class="form-group">
-              <label>Days Absent (no sick note)</label>
-              <input type="number" id="pay-absent-days" placeholder="0" min="0" max="31" oninput="calcPay()"/>
-            </div>
-            <div class="form-group">
-              <label>Night Transport Days (23:00–01:00)</label>
-              <input type="number" id="pay-night-days" placeholder="0" min="0" oninput="calcPay()"/>
-            </div>
-            <div class="form-group" id="pay-ot-hours-wrap">
-              <label>OT Hours (auto-calculated at rate)</label>
-              <input type="number" id="pay-ot-hours" placeholder="e.g. 4" step="0.5" min="0" oninput="calcPay()"/>
-            </div>
-            <div class="form-group">
-              <label>OT Amount Override (KES, optional)</label>
-              <input type="number" id="pay-ot" placeholder="Leave blank to use hours × rate" oninput="calcPay()"/>
-            </div>
-            <div class="form-group" id="pay-standin-wrap">
-              <label>Operators Covered (absent acct cover)</label>
-              <input type="number" id="pay-standin-count" placeholder="No. of accounts covered" min="0" oninput="calcPay()"/>
-            </div>
-          </div>
-          <div class="calc-result" id="pay-result">
-            <div style="color:var(--text3);font-size:12px;">Select a staff member to calculate pay.</div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header"><div class="card-title">📋 Payroll Summary</div></div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Name</th><th>Role</th><th>Base + OT + Cover</th><th>Deductions</th><th>Net Pay</th></tr></thead>
-              <tbody id="payroll-summary-tbody">
-                <tr><td colspan="5" style="text-align:center;color:var(--text3)">Calculate payroll for staff to add entries here.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════════════════════════════
-         PAGE: LEAVE TRACKER
-    ═══════════════════════════════════════════════════════════ -->
-    <div class="page" id="page-leave">
-      <div class="page-header">
-        <h1>Leave Balance Tracker</h1>
-        <p>All leave days seeded from your spreadsheet. Annual leave deducts automatically on approval.</p>
-      </div>
-
-      <div class="grid-2">
-        <!-- Apply Leave Form -->
-        <div class="card">
-          <div class="card-header"><div class="card-title">➕ Apply Leave Request</div></div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Staff Member</label>
-              <select id="leave-person" onchange="onLeavePersonChange()">
-                <option value="jk">John Paul Kimongo (TL)</option>
-                <option value="kings">Kingori (QA – Kings)</option>
-                <option value="swat">Rosemary Nyaleso (QA – SWAT)</option>
-                <option value="operator">Operator ↓</option>
-              </select>
-            </div>
-            <div class="form-group" id="leave-op-wrap" style="display:none">
-              <label>Select Operator</label>
-              <select id="leave-operator" onchange="showLeaveBalance()"></select>
-            </div>
-            <div class="form-group">
-              <label>Leave Type</label>
-              <select id="leave-type" onchange="showLeaveBalance()">
-                <option value="annual">Annual Leave</option>
-                <option value="sick">Sick Leave</option>
-                <option value="compassionate">Compassionate Leave</option>
-                <option value="unpaid">Unpaid Leave</option>
-                <option value="off">Off Day</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Start Date</label>
-              <input type="date" id="leave-start" onchange="calcLeaveDays()"/>
-            </div>
-            <div class="form-group">
-              <label>End Date</label>
-              <input type="date" id="leave-end" onchange="calcLeaveDays()"/>
-            </div>
-            <div class="form-group">
-              <label>Days Requested</label>
-              <input type="number" id="leave-days-calc" readonly style="background:var(--surface3);color:var(--accent);font-weight:700" placeholder="Auto-calculated"/>
-            </div>
-            <div class="form-group">
-              <label>Stand-in / Cover Person</label>
-              <input type="text" id="leave-standin" placeholder="Who will cover this shift?"/>
-            </div>
-            <div class="form-group span-2">
-              <label>Notes / Reason</label>
-              <textarea id="leave-notes" placeholder="Optional notes..." style="min-height:50px"></textarea>
-            </div>
-          </div>
-
-          <!-- Live balance preview -->
-          <div id="leave-balance-preview" style="margin:14px 0;padding:14px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;display:none">
-            <div style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Annual Leave Balance Preview</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center">
-              <div><div style="font-size:20px;font-weight:800;color:var(--text)" id="prev-allocated">–</div><div style="font-size:10px;color:var(--text3)">ALLOCATED</div></div>
-              <div><div style="font-size:20px;font-weight:800;color:var(--amber)" id="prev-taken">–</div><div style="font-size:10px;color:var(--text3)">TAKEN</div></div>
-              <div><div style="font-size:20px;font-weight:800;color:var(--green)" id="prev-remaining">–</div><div style="font-size:10px;color:var(--text3)">REMAINING</div></div>
-            </div>
-            <div class="progress-bar" style="margin-top:10px">
-              <div class="progress-fill" id="prev-bar" style="width:0%;background:var(--green)"></div>
-            </div>
-            <div id="prev-warning" style="margin-top:8px;font-size:11px;color:var(--red);display:none">⚠️ Insufficient annual leave balance. Request will be saved as Unpaid Leave.</div>
-            <div id="prev-after" style="margin-top:6px;font-size:11px;color:var(--text3)"></div>
-          </div>
-
-          <button class="btn btn-primary" onclick="applyLeave()">✅ Approve & Deduct Leave</button>
-        </div>
-
-        <!-- Balance Summary Panel -->
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">📊 Quick Balance Lookup</div>
-              <div class="card-sub">Click any operator to view their full breakdown</div>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;margin-bottom:12px">
-            <input type="text" id="leave-search" placeholder="Search operator..." style="flex:1;font-size:12px;padding:7px 10px;border-radius:7px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);outline:none" oninput="renderLeaveBalanceGrid()"/>
-            <select id="leave-filter-type" style="font-size:11px;padding:7px 10px;border-radius:7px;background:var(--surface2);border:1px solid var(--border2);color:var(--text)" onchange="renderLeaveBalanceGrid()">
-              <option value="">All</option>
-              <option value="low">Low (≤3 days)</option>
-              <option value="ok">OK (4–10)</option>
-              <option value="good">Good (10+)</option>
-            </select>
-          </div>
-          <div id="leave-balance-grid" style="max-height:420px;overflow-y:auto"></div>
-        </div>
-      </div>
-
-      <!-- Full balance table -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">📋 Leave Log — All Requests</div>
-          <div style="display:flex;gap:8px">
-            <select id="leave-log-filter" style="font-size:11px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text)" onchange="renderLeave()">
-              <option value="">All Types</option>
-              <option value="annual">Annual Leave</option>
-              <option value="sick">Sick Leave</option>
-              <option value="compassionate">Compassionate</option>
-              <option value="unpaid">Unpaid Leave</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" onclick="if(confirm('Reset ALL leave to spreadsheet values?')){save(\'leave_balances\',{});renderLeaveBalanceGrid();toast(\'Balances reset to baseline ✓\',\'🔄\');}">↺ Reset Balances</button>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Name ↗</th><th>Type</th><th>Start</th><th>End</th><th>Days</th><th>Balance After</th><th>Stand-in</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody id="leave-tbody"><tr><td colspan="9" style="text-align:center;color:var(--text3)">No leave entries yet.</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════════════════════════════
-         PAGE: SHIFT SCHEDULE
-    ═══════════════════════════════════════════════════════════ -->
-    <!-- ══════════════════════════════════════════════════════════
-         MANAGEMENT SHIFT PLAN
-    ══════════════════════════════════════════════════════════ -->
-    <div class="page" id="page-mgmt-shifts">
-      <div class="page-header">
-        <h1>🗓️ Management Shift Plan</h1>
-        <p>Weekly shift plan for management — John Paul, Kingori, and Rosemary. Updated weekly.</p>
-      </div>
-
-      <!-- Week navigation -->
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-        <button class="btn btn-secondary" onclick="mgmtShiftWeek(-1)">← Prev Week</button>
-        <div id="mgmt-week-label" style="font-size:15px;font-weight:800;color:var(--text);flex:1;text-align:center"></div>
-        <button class="btn btn-secondary" onclick="mgmtShiftWeek(1)">Next Week →</button>
-        <button class="btn btn-primary" onclick="openMgmtShiftEdit()">✏️ Edit This Week</button>
-      </div>
-
-      <!-- Weekly calendar grid -->
-      <div class="card" style="margin-bottom:20px;padding:0;overflow:hidden">
-        <div id="mgmt-shift-calendar"></div>
-      </div>
-
-      <!-- Legend -->
-      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin-bottom:20px">
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(0,212,160,0.25);border:1px solid var(--accent);margin-right:4px;vertical-align:middle"></span>Working</span>
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(255,94,110,0.2);border:1px solid var(--red);margin-right:4px;vertical-align:middle"></span>Day Off</span>
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(255,170,68,0.2);border:1px solid var(--amber);margin-right:4px;vertical-align:middle"></span>On Leave</span>
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(0,200,224,0.2);border:1px solid var(--teal);margin-right:4px;vertical-align:middle"></span>Remote / WFH</span>
-      </div>
-
-      <!-- Edit modal -->
-      <div id="mgmt-shift-edit-panel" style="display:none">
-        <div class="card" style="border-color:rgba(0,212,160,0.3)">
-          <div class="card-header">
-            <div class="card-title">✏️ Edit Week Schedule</div>
-            <div class="card-sub">Set status for each person for each day of the week</div>
-          </div>
-          <div id="mgmt-shift-edit-grid" style="margin-top:12px"></div>
-          <div style="display:flex;gap:10px;margin-top:16px">
-            <button class="btn btn-primary" onclick="saveMgmtShifts()">💾 Save Week</button>
-            <button class="btn btn-secondary" onclick="document.getElementById('mgmt-shift-edit-panel').style.display='none'">Cancel</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="page" id="page-schedule">
-      <div class="page-header">
-        <h1>Shift Schedule</h1>
-        <p>View and manage operator shift assignments. Shift times in UTC.</p>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">+ Assign Shift</div>
-        </div>
-        <div class="form-grid-3">
-          <div class="form-group">
-            <label>Operator</label>
-            <select id="sched-op"></select>
-          </div>
-          <div class="form-group">
-            <label>Date</label>
-            <input type="date" id="sched-date"/>
-          </div>
-          <div class="form-group">
-            <label>Shift</label>
-            <select id="sched-shift">
-              <option value="0300-1100">0300 – 1100 UTC (Shift A)</option>
-              <option value="1200-2000">1200 – 2000 UTC (Shift B)</option>
-              <option value="2100-0500">2100 – 0500 UTC (Shift C)</option>
-              <option value="1800-0200">1800 – 0200 UTC (Night)</option>
-              <option value="2000-0400">2000 – 0400 UTC (Night)</option>
-              <option value="OFF">OFF Day</option>
-              <option value="Leave">Leave</option>
-            </select>
-          </div>
-        </div>
-        <button class="btn btn-primary" style="margin-top:14px" onclick="saveSchedule()">💾 Save Shift</button>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">📅 Weekly Schedule View</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input type="date" id="sched-week-start" style="font-size:11px;padding:5px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:var(--text)" onchange="renderSchedule()"/>
-            <button class="btn btn-secondary btn-sm" onclick="renderSchedule()">Load Week</button>
-          </div>
-        </div>
-        <div class="table-wrap" id="schedule-table-wrap">
-          <div style="color:var(--text3);font-size:12px;">Select a week start date to view the schedule.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════════════════════════════
-         PAGE: WEEKLY REPORT
-    ═══════════════════════════════════════════════════════════ -->
-    <!-- ═══════════════════════════════════════════════════════════════
-         PAGE: CALL REPORTS
-    ════════════════════════════════════════════════════════════════ -->
     <div class="page" id="page-call-reports">
       <div class="page-header">
         <h1>📞 Call Reports</h1>
@@ -3340,95 +2411,6 @@ alfred.korir.impact.nbo&#9;Associate&#9;17.98&#9;12.65&#9;20.94&#9;0.15%&#9;7.98
 
     <!-- ══════════════════════════════════════════════════════════
          PAGE: DAILY PLAN
-    ═══════════════════════════════════════════════════════════ -->
-    <div class="page" id="page-daily-plan">
-      <div class="page-header">
-        <h1>📅 Daily Plan</h1>
-        <p>Set the day's plan and audit targets. Track what was achieved at end of day.</p>
-      </div>
-      <div class="tabs" style="margin-bottom:20px">
-        <div class="tab active" onclick="dpTab('submit')">✏️ Submit Plan</div>
-        <div class="tab" onclick="dpTab('view')">📋 View Plans</div>
-      </div>
-
-      <!-- SUBMIT -->
-      <div id="dp-tab-submit">
-        <!-- Plan for the day -->
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header"><div class="card-title">📅 Plan for the Day</div></div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Person</label>
-              <select id="dp-person">
-                <option value="">-- Select --</option>
-                <option value="tl">🛡️ John Paul Kimongo (TL)</option>
-                <option value="kings">🔵 Kingori — Team Kings QA</option>
-                <option value="swat">🟣 Rosemary Nyaleso — Team SWAT QA</option>
-              </select>
-            </div>
-            <div class="form-group"><label>Date</label><input type="date" id="dp-date"/></div>
-            <div class="form-group"><label>Internal Audits Assigned</label><input type="number" id="dp-internal-audits" placeholder="e.g. 20" min="0"/></div>
-            <div class="form-group"><label>Global Audits Assigned</label><input type="number" id="dp-global-audits" placeholder="e.g. 10" min="0"/></div>
-            <div class="form-group span-2">
-              <label>Plan for the Day</label>
-              <textarea id="dp-objectives" style="min-height:100px" placeholder="What is the plan for today? Describe activities, focus areas, priorities..."></textarea>
-            </div>
-          </div>
-          <button class="btn btn-primary" style="margin-top:16px" onclick="saveDailyPlan()">💾 Save Plan</button>
-        </div>
-
-        <!-- Achieved at end of day -->
-        <div class="card">
-          <div class="card-header"><div class="card-title">✅ Achieved — End of Day Update</div><div class="card-sub">Fill this in at the end of the shift</div></div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Person</label>
-              <select id="dp-achieved-person">
-                <option value="">-- Select --</option>
-                <option value="tl">🛡️ John Paul Kimongo (TL)</option>
-                <option value="kings">🔵 Kingori — Team Kings QA</option>
-                <option value="swat">🟣 Rosemary Nyaleso — Team SWAT QA</option>
-              </select>
-            </div>
-            <div class="form-group"><label>Date</label><input type="date" id="dp-achieved-date"/></div>
-            <div class="form-group"><label>Internal Audits Done</label><input type="number" id="dp-achieved-internal" placeholder="Actual completed" min="0"/></div>
-            <div class="form-group"><label>Global Audits Done</label><input type="number" id="dp-achieved-global" placeholder="Actual completed" min="0"/></div>
-            <div class="form-group span-2">
-              <label>What Was Achieved Today</label>
-              <textarea id="dp-achieved-notes" style="min-height:80px" placeholder="Summary of what was accomplished..."></textarea>
-            </div>
-          </div>
-          <button class="btn btn-green" style="margin-top:16px" onclick="saveDailyAchieved()">✅ Save Achieved</button>
-        </div>
-      </div>
-
-      <!-- VIEW -->
-      <div id="dp-tab-view" style="display:none">
-        <div class="card" style="margin-bottom:16px">
-          <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
-            <div class="form-group" style="margin:0;flex:1;min-width:160px">
-              <label>Person</label>
-              <select id="dp-filter-person" onchange="renderDailyPlanView()" style="width:100%">
-                <option value="">All</option>
-                <option value="tl">John Paul Kimongo (TL)</option>
-                <option value="kings">Kingori (Kings QA)</option>
-                <option value="swat">Rosemary Nyaleso (SWAT QA)</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0;flex:1;min-width:140px">
-              <label>Date</label>
-              <input type="date" id="dp-filter-date" onchange="renderDailyPlanView()" style="width:100%"/>
-            </div>
-            <button class="btn btn-secondary" style="padding:9px 14px" onclick="document.getElementById('dp-filter-date').value='';renderDailyPlanView()">Clear</button>
-            <button class="btn btn-secondary" style="padding:9px 14px" onclick="refreshDPView()">🔄 Refresh</button>
-          </div>
-        </div>
-        <div id="dp-view-list"><div style="color:var(--text3);font-size:12px">No plans yet.</div></div>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════════════════════════════════════
-         PAGE: TEAM KINGS PERFORMANCE TRACKER
     ═══════════════════════════════════════════════════════════ -->
     <div class="page" id="page-team-perf-kings">
       <div class="page-header">
@@ -5975,7 +4957,7 @@ async function saveAndVerify(key, val) {
 // ════════════════════════════════════════════════════════════════
 
 const PAGE_TITLES = {
-  'dashboard':'Dashboard','daily-report':'Daily Report','daily-plan':'Daily Plan',
+  'dashboard':'Dashboard','tl-portal':'Supervisor Portal','qa-portal':'QA Portal',
   'attendance':'Attendance','production':'Production','errors':'Errors & QA','payroll':'Payroll',
   'leave':'Leave Tracker','schedule':'Shift Schedule',
   'weekly':'Weekly Report','monthly':'Monthly Report','quarterly':'Quarterly Report',
@@ -7424,6 +6406,8 @@ async function deleteTLEntry(storeKey, id) {
 function renderTLTeamsView() {
   const date = document.getElementById('tl-teams-date')?.value || nairobiDateStr();
   const prod  = load('prod').filter(p => p.date === date);
+
+  // ── Production KPIs per team ──────────────────────────────────
   ['kings','swat'].forEach(team => {
     const teamProd = prod.filter(p => p.team === team);
     const tbody = document.getElementById(`tl-${team}-prod`);
@@ -7449,26 +6433,144 @@ function renderTLTeamsView() {
         <div class="kpi-card"><div class="kpi-label">Operators</div><div class="kpi-value">${teamProd.length}</div></div>`;
     }
   });
-  // QA plans & reports submitted today
+
+  // ── Portal submissions ────────────────────────────────────────
+  // Config per person — clear color coding so you always know who submitted what
+  const PERSON_CFG = {
+    kings: { label: '🔵 Kingori — Kings QA',          color: 'var(--accent)',  bg: 'rgba(0,212,160,0.06)',  border: 'rgba(0,212,160,0.3)'  },
+    swat:  { label: '🟣 Rosemary — SWAT QA',           color: 'var(--violet)',  bg: 'rgba(160,100,255,0.06)', border: 'rgba(160,100,255,0.3)' },
+    tl:    { label: '🛡️ John Paul — Supervisor (TL)',  color: 'var(--teal)',    bg: 'rgba(0,180,216,0.06)',  border: 'rgba(0,180,216,0.3)'  },
+  };
+  const STARS = { excellent:'⭐⭐⭐⭐⭐', good:'⭐⭐⭐⭐', average:'⭐⭐⭐', below:'⭐⭐', poor:'⭐' };
+
+  // Load all portal data
+  const allPlans   = load('daily_plans') || [];
+  const allReports = load('dr_entries')  || [];
+  const allQARep   = load('qa_reports')  || [];
+
   const qaEl = document.getElementById('tl-qa-submissions');
-  if(qaEl) {
-    const qaPlan  = (load('daily_plans')||[]).filter(p => p.date === date && (p.person==='kings'||p.person==='swat'));
-    const qaAch   = (load('daily_plans')||[]).filter(p => p.date === date && p.isAchieved && (p.person==='kings'||p.person==='swat'));
-    if(!qaPlan.length && !qaAch.length) {
-      qaEl.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No QA plans or reports for this date.</div>';
-    } else {
-      qaEl.innerHTML = [...qaPlan, ...qaAch].map(p => `
-        <div style="padding:12px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2)">
-          <div style="font-size:11px;font-weight:800;color:${p.isAchieved?'var(--green)':'var(--accent)'};text-transform:uppercase;margin-bottom:6px">
-            ${p.isAchieved ? '✅ Achieved' : '📅 Plan'} · ${p.person==='kings'?'Kingori':'Rosemary'}
+  if(!qaEl) return;
+
+  const sections = [];
+
+  // Build one section per person — Kings, SWAT, TL
+  ['kings','swat','tl'].forEach(person => {
+    const cfg = PERSON_CFG[person];
+
+    // Plan for this date
+    const plan = allPlans.find(p => p.date===date && p.person===person && !p.isAchieved);
+
+    // Plan Review (qa_reports for QAs, dr_entries for TL)
+    const review = person === 'tl'
+      ? allReports.find(r => r.date===date && r.person==='tl')
+      : allQARep.find(r => r.date===date && r.person===person);
+
+    // Audit count (achieved) — QAs only
+    const achieved = person !== 'tl'
+      ? allPlans.find(p => p.date===date && p.person===person && p.isAchieved)
+      : null;
+
+    // Only render if any submission exists for this person on this date
+    if(!plan && !review && !achieved && person!=='tl') return;
+
+    sections.push(`
+      <div style="border:1px solid var(--border2);border-radius:12px;overflow:hidden;margin-bottom:14px">
+        <!-- Name header - this is the main identifier -->
+        <div style="background:${cfg.color};padding:14px 16px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:16px;font-weight:900;color:#fff;letter-spacing:0.01em">${cfg.label}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:2px">${person==='tl'?'Supervisor':'QA Analyst'} · ${fmtDate(date)}</div>
           </div>
-          ${p.isAchieved
-            ? `<div style="font-size:12px">Internal Done: <b>${p.internalDone||0}</b> · Global Done: <b>${p.globalDone||0}</b>${p.achievedNotes?` · ${p.achievedNotes}`:''}</div>`
-            : `<div style="font-size:12px">Internal: <b>${p.internalAudits||0}</b> · Global: <b>${p.globalAudits||0}</b>${p.objectives?`<br><span style="color:var(--text3)">${p.objectives}</span>`:''}</div>`
-          }
-        </div>`).join('');
-    }
-  }
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+            ${plan    ? `<span style="font-size:10px;background:rgba(255,255,255,0.2);color:#fff;padding:3px 10px;border-radius:12px;font-weight:700">📅 Plan</span>` : ''}
+            ${review  ? `<span style="font-size:10px;background:rgba(255,255,255,0.2);color:#fff;padding:3px 10px;border-radius:12px;font-weight:700">${person==='tl'?'📝 Report':'📋 Review'}</span>` : ''}
+            ${achieved? `<span style="font-size:10px;background:rgba(255,255,255,0.2);color:#fff;padding:3px 10px;border-radius:12px;font-weight:700">✅ Count</span>` : ''}
+          </div>
+        </div>
+
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:14px">
+
+          ${plan ? `
+          <!-- Daily Plan -->
+          <div>
+            <div style="font-size:10px;font-weight:800;color:${cfg.color};text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">📅 Today's Plan</div>
+            ${person!=='tl' ? `
+            <div style="display:flex;gap:16px;margin-bottom:8px">
+              <div style="text-align:center;padding:8px 16px;background:var(--surface2);border-radius:8px;flex:1">
+                <div style="font-size:18px;font-weight:800;color:var(--text)">${plan.internalAudits||0}</div>
+                <div style="font-size:9px;color:var(--text3);text-transform:uppercase">Internal Target</div>
+              </div>
+              <div style="text-align:center;padding:8px 16px;background:var(--surface2);border-radius:8px;flex:1">
+                <div style="font-size:18px;font-weight:800;color:var(--text)">${plan.globalAudits||0}</div>
+                <div style="font-size:9px;color:var(--text3);text-transform:uppercase">Global Target</div>
+              </div>
+            </div>` : ''}
+            ${plan.objectives ? `<div style="margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Objectives</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${plan.objectives}</div></div>` : ''}
+            ${plan.tasks ? `<div style="margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Key Tasks</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${plan.tasks}</div></div>` : ''}
+            ${plan.qualityFocus ? `<div style="margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Quality Focus</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${plan.qualityFocus}</div></div>` : ''}
+            ${plan.teamFocus ? `<div style="margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Team Focus</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${plan.teamFocus}</div></div>` : ''}
+            ${plan.challenges ? `<div><div style="font-size:9px;font-weight:700;color:var(--amber);text-transform:uppercase;margin-bottom:3px">Challenges</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${plan.challenges}</div></div>` : ''}
+            ${(!plan.objectives&&!plan.tasks&&!plan.qualityFocus&&!plan.teamFocus&&!plan.challenges) ? '<div style="font-size:12px;color:var(--text3);font-style:italic">No details added.</div>' : ''}
+          </div>` : `
+          <div style="padding:10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text3);font-style:italic">📅 No plan submitted for this date.</div>`}
+
+          ${review ? `
+          <!-- Plan Review / Report -->
+          <div style="border-top:1px solid ${cfg.border};padding-top:12px">
+            <div style="font-size:10px;font-weight:800;color:${cfg.color};text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">${person==='tl'?'📝 Daily Report':'📋 Plan Review'}</div>
+            ${person!=='tl' ? `
+            <div style="display:flex;gap:16px;margin-bottom:8px">
+              <div style="text-align:center;padding:8px 16px;background:rgba(0,212,160,0.1);border-radius:8px;flex:1">
+                <div style="font-size:18px;font-weight:800;color:var(--green)">${review.internalDone||0}</div>
+                <div style="font-size:9px;color:var(--text3);text-transform:uppercase">Internal Done</div>
+              </div>
+              <div style="text-align:center;padding:8px 16px;background:rgba(0,212,160,0.1);border-radius:8px;flex:1">
+                <div style="font-size:18px;font-weight:800;color:var(--green)">${review.globalDone||0}</div>
+                <div style="font-size:9px;color:var(--text3);text-transform:uppercase">Global Done</div>
+              </div>
+            </div>
+            ${review.achieved ? `<div style="padding:8px 10px;background:rgba(0,212,160,0.06);border-left:3px solid var(--green);border-radius:0 6px 6px 0;margin-bottom:6px"><div style="font-size:9px;font-weight:800;color:var(--green);text-transform:uppercase;margin-bottom:3px">✓ Achieved</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${review.achieved}</div></div>` : ''}
+            ${review.notAchieved ? `<div style="padding:8px 10px;background:rgba(255,94,110,0.06);border-left:3px solid var(--red);border-radius:0 6px 6px 0;margin-bottom:6px"><div style="font-size:9px;font-weight:800;color:var(--red);text-transform:uppercase;margin-bottom:3px">✗ Not Achieved</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${review.notAchieved}</div></div>` : ''}
+            ${review.reasons ? `<div style="padding:8px 10px;background:rgba(255,170,68,0.06);border-left:3px solid var(--amber);border-radius:0 6px 6px 0;margin-bottom:6px"><div style="font-size:9px;font-weight:800;color:var(--amber);text-transform:uppercase;margin-bottom:3px">! Reasons</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${review.reasons}</div></div>` : ''}
+            ${review.tomorrow ? `<div style="padding:8px 10px;background:rgba(0,180,216,0.06);border-left:3px solid var(--teal);border-radius:0 6px 6px 0"><div style="font-size:9px;font-weight:800;color:var(--teal);text-transform:uppercase;margin-bottom:3px">→ Tomorrow</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${review.tomorrow}</div></div>` : ''}
+            ` : `
+            ${review.rating ? `<div style="margin-bottom:8px"><span style="font-size:14px">${STARS[review.rating]||''}</span></div>` : ''}
+            ${review.accomplished ? `<div style="margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:var(--green);text-transform:uppercase;margin-bottom:3px">Accomplished</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${review.accomplished}</div></div>` : ''}
+            ${review.teamSummary ? `<div style="margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Team Summary</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${review.teamSummary}</div></div>` : ''}
+            ${review.issues ? `<div style="margin-bottom:6px"><div style="font-size:9px;font-weight:700;color:var(--red);text-transform:uppercase;margin-bottom:3px">Issues</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${review.issues}</div></div>` : ''}
+            ${review.tomorrow ? `<div><div style="font-size:9px;font-weight:700;color:var(--amber);text-transform:uppercase;margin-bottom:3px">Tomorrow</div><div style="font-size:12px;color:var(--text);line-height:1.6;white-space:pre-wrap">${review.tomorrow}</div></div>` : ''}
+            `}
+          </div>` : `
+          <div style="border-top:1px solid ${cfg.border};padding-top:12px;padding:10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text3);font-style:italic;margin-top:12px">${person==='tl'?'📝':'📋'} No ${person==='tl'?'report':'plan review'} submitted for this date.</div>`}
+
+          ${achieved ? `
+          <!-- Audit Count -->
+          <div style="border-top:1px solid ${cfg.border};padding-top:12px">
+            <div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">✅ Final Audit Count</div>
+            <div style="display:flex;gap:16px">
+              <div style="text-align:center;padding:10px 20px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:8px;flex:1">
+                <div style="font-size:22px;font-weight:800;color:var(--green)">${achieved.internalDone||0}</div>
+                <div style="font-size:9px;color:var(--text3);text-transform:uppercase">Internal</div>
+              </div>
+              <div style="text-align:center;padding:10px 20px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:8px;flex:1">
+                <div style="font-size:22px;font-weight:800;color:var(--green)">${achieved.globalDone||0}</div>
+                <div style="font-size:9px;color:var(--text3);text-transform:uppercase">Global</div>
+              </div>
+              <div style="text-align:center;padding:10px 20px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:8px;flex:1">
+                <div style="font-size:22px;font-weight:800;color:var(--green)">${(+achieved.internalDone||0)+(+achieved.globalDone||0)}</div>
+                <div style="font-size:9px;color:var(--text3);text-transform:uppercase">Total</div>
+              </div>
+            </div>
+            ${achieved.achievedNotes ? `<div style="margin-top:8px;font-size:12px;color:var(--text3)">${achieved.achievedNotes}</div>` : ''}
+          </div>` : ''}
+
+        </div>
+      </div>`);
+  });
+
+  qaEl.innerHTML = sections.length
+    ? sections.join('')
+    : '<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No portal submissions for this date yet.</div>';
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -9178,13 +8280,13 @@ function applyRoleRestrictions(role) {
   const tlOnlyPages = ['payroll','payroll-full','pay-history','weekly','monthly','quarterly'];
 
   // Pages Kingori (kings) can access
-  const kingsPages  = ['dashboard','team-dash-kings','daily-report','daily-plan',
+  const kingsPages  = ['dashboard','team-dash-kings',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
     'wfh','wfh-operator','meeting','qa-portal','mgmt-shifts'];
 
   // Pages Rosemary (swat) can access
-  const swatPages   = ['dashboard','team-dash-swat','daily-report','daily-plan',
+  const swatPages   = ['dashboard','team-dash-swat',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
     'wfh','wfh-operator','meeting','qa-portal','mgmt-shifts'];
@@ -15675,8 +14777,8 @@ function openFromNotif(type, person, date, entryId) {
   );
   saveNotifs(notifs); renderNotifs(); updateNavBadges(); updateBellCount();
   // Navigate and auto-filter
-  const PAGE_MAP = { plan:'daily-plan', achieved:'daily-plan', report:'daily-report', call_report:'call-reports' };
-  nav(PAGE_MAP[type] || 'daily-report');
+  const PAGE_MAP = { plan:'tl-portal', achieved:'qa-portal', report:'tl-portal', call_report:'call-reports' };
+  nav(PAGE_MAP[type] || 'tl-portal');
   if(type === 'call_report') {
     setTimeout(() => {
       const dEl = document.getElementById('cr-filter-date');
@@ -15762,8 +14864,8 @@ function updateNavBadges() {
   const notifs  = getNotifs().filter(notifVisibleToMe);
   const plans   = notifs.filter(n=>n.type==='plan'   && !n.read).length;
   const reports = notifs.filter(n=>n.type==='report'  && !n.read).length;
-  const pb = document.getElementById('badge-daily-plan');
-  const rb = document.getElementById('badge-daily-report');
+  const pb = null; // daily-plan removed — badge lives in portal
+  const rb = null; // daily-report removed — badge lives in portal
   if(pb){ pb.style.display = plans   > 0 ? 'inline-flex':'none'; pb.textContent=plans;   }
   if(rb){ rb.style.display = reports > 0 ? 'inline-flex':'none'; rb.textContent=reports; }
 
