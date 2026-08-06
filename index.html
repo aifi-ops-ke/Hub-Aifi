@@ -14880,7 +14880,7 @@ function updateNavBadges() {
   if(chb) { chb.style.display = unread > 0 ? 'inline-flex' : 'none'; chb.textContent = unread; }
 }
 function clearNavBadge(page) {
-  const map = {'daily-plan':'plan','daily-report':'report'};
+  const map = {'tl-portal':'plan','qa-portal':'report'};
   const type = map[page]; if(!type) return;
   const notifs = getNotifs().map(n=>n.type===type?{...n,read:true}:n);
   saveNotifs(notifs); updateNavBadges(); updateBellCount();
