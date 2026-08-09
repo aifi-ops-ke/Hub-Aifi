@@ -6589,20 +6589,48 @@ function renderTLPlanHistory() {
   const el = document.getElementById('tl-plan-history');
   if(!el) return;
   const filter = document.getElementById('tl-dp-filter')?.value || '';
-  let plans = [...(load('tl_plans')||[]), ...(load('daily_plans')||[]).filter(p=>p.person==='tl'&&!p.isAchieved)].sort((a,b) => b.date.localeCompare(a.date));
+  let plans = [...(load('tl_plans')||[]), ...(load('daily_plans')||[]).filter(p=>p.person==='tl'&&!p.isAchieved)];
+  // Deduplicate by id
+  const seen = new Set();
+  plans = plans.filter(p => { if(seen.has(p.id)) return false; seen.add(p.id); return true; });
+  plans = plans.sort((a,b) => b.date.localeCompare(a.date));
   if(filter) plans = plans.filter(p => p.date === filter);
   if(!plans.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No plans yet.</div>'; return; }
-  el.innerHTML = plans.map(p => `
+
+  // Fields to display — covers both old and new format
+  const FIELD_LABELS = {
+    objectives:'Objectives', tasks:'Key Tasks', teamFocus:'Team Focus',
+    challenges:'Challenges', targets:'Targets', focusAreas:'Focus Areas',
+    notes:'Notes', qualityFocus:'Quality Focus', operatorSupport:'Operator Support',
+    internalAudits:'Internal Audits Target', globalAudits:'Global Audits Target',
+    teamSummary:'Team Summary', issues:'Issues', tomorrow:'Tomorrow',
+    accomplished:'Accomplished', rating:'Rating',
+  };
+  const FIELD_COLORS = {
+    challenges:'var(--amber)', issues:'var(--red)', tomorrow:'var(--teal)',
+  };
+
+  el.innerHTML = plans.map(p => {
+    const fieldRows = Object.entries(FIELD_LABELS)
+      .filter(([k]) => p[k] && String(p[k]).trim())
+      .map(([k, label]) => `
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;font-weight:700;color:${FIELD_COLORS[k]||'var(--text3)'};text-transform:uppercase;margin-bottom:3px">${label}</div>
+          <div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6">${String(p[k])}</div>
+        </div>`).join('');
+
+    return `
     <div style="padding:14px;border:1px solid var(--border2);border-radius:10px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="font-weight:800;color:var(--accent)">${fmtDate(p.date)}</div>
-        <button class="btn btn-danger btn-sm" onclick="deleteTLEntry('tl_plans',${p.id})">✕</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${p.savedAt?`<span style="font-size:10px;color:var(--text3)">${nairobiTimestampToTimeStr(p.savedAt)||''}</span>`:''}
+          <button class="btn btn-danger btn-sm" onclick="deleteTLEntry('tl_plans',${p.id})">✕</button>
+        </div>
       </div>
-      ${p.objectives ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Objectives</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${p.objectives}</div></div>` : ''}
-      ${p.tasks ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Key Tasks</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${p.tasks}</div></div>` : ''}
-      ${p.teamFocus ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Team Focus</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${p.teamFocus}</div></div>` : ''}
-      ${p.challenges ? `<div><div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;margin-bottom:3px">Challenges</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${p.challenges}</div></div>` : ''}
-    </div>`).join('');
+      ${fieldRows || '<div style="color:var(--text3);font-size:12px;font-style:italic">No details recorded.</div>'}
+    </div>`;
+  }).join('');
 }
 
 function renderTLReportHistory() {
@@ -6610,23 +6638,38 @@ function renderTLReportHistory() {
   if(!el) return;
   const filter = document.getElementById('tl-dr-filter')?.value || '';
   const RATING_STARS = { excellent:'⭐⭐⭐⭐⭐', good:'⭐⭐⭐⭐', average:'⭐⭐⭐', below:'⭐⭐', poor:'⭐' };
-  let reports = [...(load('tl_reports')||[]), ...(load('dr_entries')||[]).filter(r=>r.person==='tl')].sort((a,b) => b.date.localeCompare(a.date));
+  let reports = [...(load('tl_reports')||[]), ...(load('dr_entries')||[]).filter(r=>r.person==='tl')];
+  const seen = new Set();
+  reports = reports.filter(r => { if(seen.has(r.id)) return false; seen.add(r.id); return true; });
+  reports = reports.sort((a,b) => b.date.localeCompare(a.date));
   if(filter) reports = reports.filter(r => r.date === filter);
   if(!reports.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No reports yet.</div>'; return; }
-  el.innerHTML = reports.map(r => `
-    <div style="padding:14px;border:1px solid var(--border2);border-radius:10px;margin-bottom:10px">
+  const FIELD_LABELS = {
+    accomplished:'Accomplished', teamSummary:'Team Summary',
+    issues:'Issues & Escalations', tomorrow:'Action Plan for Tomorrow',
+    objectives:'Objectives', tasks:'Key Tasks', teamFocus:'Team Focus',
+    challenges:'Challenges', notes:'Notes', focusAreas:'Focus Areas',
+    targets:'Targets', qualityFocus:'Quality Focus',
+  };
+  const FIELD_COLORS = { accomplished:'var(--green)', issues:'var(--red)', tomorrow:'var(--amber)', challenges:'var(--amber)' };
+  el.innerHTML = reports.map(r => {
+    const fieldRows = Object.entries(FIELD_LABELS)
+      .filter(([k]) => r[k] && String(r[k]).trim())
+      .map(([k, label]) => `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:${FIELD_COLORS[k]||'var(--text3)'};text-transform:uppercase;margin-bottom:3px">${label}</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6">${String(r[k])}</div></div>`).join('');
+    return `<div style="padding:14px;border:1px solid var(--border2);border-radius:10px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="display:flex;align-items:center;gap:10px">
           <div style="font-weight:800;color:var(--accent)">${fmtDate(r.date)}</div>
-          ${r.rating ? `<span style="font-size:12px">${RATING_STARS[r.rating]||''}</span>` : ''}
+          ${r.rating?`<span style="font-size:13px">${RATING_STARS[r.rating]||r.rating}</span>`:''}
         </div>
-        <button class="btn btn-danger btn-sm" onclick="deleteTLEntry('tl_reports',${r.id})">✕</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${r.savedAt?`<span style="font-size:10px;color:var(--text3)">${nairobiTimestampToTimeStr(r.savedAt)||''}</span>`:''}
+          <button class="btn btn-danger btn-sm" onclick="deleteTLEntry('tl_reports',${r.id})">✕</button>
+        </div>
       </div>
-      ${r.accomplished ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;margin-bottom:3px">Accomplished</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${r.accomplished}</div></div>` : ''}
-      ${r.teamSummary ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Team Summary</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${r.teamSummary}</div></div>` : ''}
-      ${r.issues ? `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;margin-bottom:3px">Issues & Escalations</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${r.issues}</div></div>` : ''}
-      ${r.tomorrow ? `<div><div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;margin-bottom:3px">Tomorrow</div><div style="font-size:12px;color:var(--text);white-space:pre-wrap">${r.tomorrow}</div></div>` : ''}
-    </div>`).join('');
+      ${fieldRows||'<div style="color:var(--text3);font-size:12px;font-style:italic">No details recorded.</div>'}
+    </div>`;
+  }).join('');
 }
 
 async function deleteTLEntry(storeKey, id) {
