@@ -7282,7 +7282,7 @@ function showEarningsHistory() {
     <div style="max-height:380px;overflow-y:auto;border-radius:8px;background:var(--surface)">${rows||'<div style="padding:16px;color:var(--text3)">No data.</div>'}</div>`);
 }
 
-document.getElementById('leave-person').addEventListener('change', function() {
+document.getElementById('leave-person')?.addEventListener('change', function() {
   document.getElementById('leave-op-wrap').style.display = this.value==='operator'?'flex':'none';
 });
 
@@ -8022,9 +8022,9 @@ function getCreds() {
   }, {});
 }
 
-let selectedRole = 'tl';
-let loginAttempts = 0;
-let lockoutUntil = 0;
+var selectedRole = 'tl';
+var loginAttempts = 0;
+var lockoutUntil = 0;
 
 function selectRole(role) {
   selectedRole = role;
