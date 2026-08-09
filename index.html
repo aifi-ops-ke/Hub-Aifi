@@ -9005,7 +9005,8 @@ function startSession(role, cred) {
 
   toast(`Welcome, ${cred.name}! 👋`, cred.icon);
   startChatNotifyWatcher();
-  setTimeout(updateAlertsBadge, 500); // update alerts badge after login
+  setTimeout(updateAlertsBadge, 500);
+  setTimeout(() => checkPasswordExpiry(role), 3000); // monthly password reminder
   init();
 }
 
@@ -9090,7 +9091,6 @@ function openChangePassword() {
   const isQA = currentRole === 'kings' || currentRole === 'swat';
 
   if(isSupervisor) {
-    // Full password management — all roles + operators
     openModal('🔐 Password Management', `
       <div class="alert alert-info" style="margin-bottom:16px">
         Change passwords for any role or operator. Leave blank to keep current password.
@@ -9129,16 +9129,20 @@ function openChangePassword() {
     document.getElementById('modal-action').textContent = '🔐 Save All Passwords';
     document.getElementById('modal-action').onclick = savePasswords;
 
-  } else if(isQA) {
-    // QA self-service — own password only
+  } else {
+    // QA and any other role — self-service own password only
     openModal('🔐 Change My Password', `
       <div class="form-group">
-        <label>New Password</label>
-        <input type="password" id="cp-self" placeholder="Enter new password" class="login-input" style="width:100%"/>
+        <label>Current Password</label>
+        <input type="password" id="cp-current" placeholder="Enter your current password" class="login-input" style="width:100%"/>
       </div>
       <div class="form-group">
-        <label>Confirm Password</label>
-        <input type="password" id="cp-self-confirm" placeholder="Confirm new password" class="login-input" style="width:100%"/>
+        <label>New Password</label>
+        <input type="password" id="cp-self" placeholder="Enter new password (min 6 chars)" class="login-input" style="width:100%"/>
+      </div>
+      <div class="form-group">
+        <label>Confirm New Password</label>
+        <input type="password" id="cp-self-confirm" placeholder="Repeat new password" class="login-input" style="width:100%"/>
       </div>
     `);
     document.getElementById('modal-action').style.display = 'flex';
@@ -9146,6 +9150,40 @@ function openChangePassword() {
     document.getElementById('modal-action').onclick = () => saveSelfPassword(currentRole);
   }
 }
+
+// ── Monthly password reminder ─────────────────────────────────────
+// Fires on login if password hasn't been changed in 30+ days.
+// Non-blocking — just a toast + bell notification.
+function checkPasswordExpiry(role) {
+  try {
+    const history = loadObj('pw_history');
+    const lastChanged = history[role];
+    if(!lastChanged) return; // never changed — default password, no reminder needed
+
+    const daysSince = (Date.now() - new Date(lastChanged).getTime()) / (1000 * 60 * 60 * 24);
+    if(daysSince >= 30) {
+      setTimeout(() => {
+        toast(`🔐 Your password was last changed ${Math.floor(daysSince)} days ago. Please update it.`, '⚠️');
+        // Also add a bell notification
+        const notifs = getNotifs();
+        const already = notifs.find(n => n.type === 'pw_reminder' && n.person === role);
+        if(!already) {
+          notifs.unshift({
+            id: Date.now(), entryId: Date.now(), type: 'pw_reminder',
+            person: role, name: currentUserName,
+            date: today(), time: nowNairobiTime(), isoTime: nowNairobi(),
+            message: `Password last changed ${Math.floor(daysSince)} days ago — please update it.`,
+            read: false
+          });
+          saveNotifs(notifs.slice(0, 20));
+          renderNotifs(); updateNavBadges(); renderNotifDropdown(); updateBellCount();
+        }
+      }, 2000);
+    }
+  } catch(e) { /* non-blocking */ }
+}
+
+
 
 function savePasswords() {
   const creds = loadObj('creds');
@@ -9163,6 +9201,13 @@ function savePasswords() {
   if(swatPw)  { creds.swat  = btoa(swatPw);   changed++; }
   save('creds', creds);
 
+  // Record change dates for monthly reminder
+  const history = loadObj('pw_history');
+  if(tlPw)    history['tl']    = nowNairobi();
+  if(adminPw) history['admin'] = nowNairobi();
+  if(kingsPw) history['kings'] = nowNairobi();
+  if(swatPw)  history['swat']  = nowNairobi();
+
   // Operator passwords
   document.querySelectorAll('[data-opid]').forEach(input => {
     const pw = input.value.trim();
@@ -9175,14 +9220,22 @@ function savePasswords() {
 }
 
 function saveSelfPassword(role) {
+  const current = document.getElementById('cp-current')?.value?.trim();
   const pw  = document.getElementById('cp-self')?.value?.trim();
   const pw2 = document.getElementById('cp-self-confirm')?.value?.trim();
-  if(!pw)          { toast('Please enter a password','⚠️'); return; }
+  // Verify current password
+  const cred = getCreds()[role];
+  if(current && cred && btoa(current) !== cred.hash) { toast('Current password is incorrect','⚠️'); return; }
+  if(!pw)          { toast('Please enter a new password','⚠️'); return; }
   if(pw !== pw2)   { toast('Passwords do not match','⚠️'); return; }
   if(pw.length < 6){ toast('Password must be at least 6 characters','⚠️'); return; }
   const creds = loadObj('creds');
   creds[role] = btoa(pw);
   save('creds', creds);
+  // Record change date for monthly reminder
+  const history = loadObj('pw_history');
+  history[role] = nowNairobi();
+  save('pw_history', history);
   closeModal();
   toast('Password changed successfully ✓', '🔐');
 }
@@ -9192,8 +9245,12 @@ function openOpSelfChangePassword(opId) {
   openModal('🔐 Change My Password', `
     <div style="font-size:13px;color:var(--text);margin-bottom:14px;font-weight:600">${operatorLabel(opId)}</div>
     <div class="form-group">
+      <label>Current Password</label>
+      <input type="password" id="op-cp-current" placeholder="Enter your current password" class="login-input" style="width:100%"/>
+    </div>
+    <div class="form-group">
       <label>New Password</label>
-      <input type="password" id="op-cp-new" placeholder="Enter new password" class="login-input" style="width:100%"/>
+      <input type="password" id="op-cp-new" placeholder="Enter new password (min 6 chars)" class="login-input" style="width:100%"/>
     </div>
     <div class="form-group">
       <label>Confirm Password</label>
@@ -9203,14 +9260,22 @@ function openOpSelfChangePassword(opId) {
   document.getElementById('modal-action').style.display = 'flex';
   document.getElementById('modal-action').textContent = '🔐 Save Password';
   document.getElementById('modal-action').onclick = () => {
-    const pw  = document.getElementById('op-cp-new')?.value?.trim();
-    const pw2 = document.getElementById('op-cp-confirm')?.value?.trim();
-    if(!pw)          { toast('Please enter a password','⚠️'); return; }
+    const current = document.getElementById('op-cp-current')?.value?.trim();
+    const pw      = document.getElementById('op-cp-new')?.value?.trim();
+    const pw2     = document.getElementById('op-cp-confirm')?.value?.trim();
+    // Verify current password
+    const correctPw = getOpPassword(opId);
+    if(current && correctPw && current !== correctPw) { toast('Current password is incorrect','⚠️'); return; }
+    if(!pw)          { toast('Please enter a new password','⚠️'); return; }
     if(pw !== pw2)   { toast('Passwords do not match','⚠️'); return; }
     if(pw.length < 6){ toast('Password must be at least 6 characters','⚠️'); return; }
     const opCreds = loadObj('op_creds');
     opCreds[opId] = pw;
     save('op_creds', opCreds);
+    // Record change date for monthly reminder
+    const history = loadObj('pw_history');
+    history['op:'+opId] = nowNairobi();
+    save('pw_history', history);
     closeModal();
     toast('Password changed successfully ✓', '🔐');
   };
