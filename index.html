@@ -1166,6 +1166,10 @@ function _dbRefreshPage(key) {
     dashboard:['dash_daily'], 'mgmt-shifts':['mgmt_shifts'],
     'team-chat':[], 'ophub-chat':[],
     'critical-reports':['critical_reports'],
+    'tl-portal':['daily_plans','dr_entries','tl_plans','tl_reports','qa_reports'],
+    'qa-portal-kings':['daily_plans','dr_entries','qa_reports'],
+    'qa-portal-swat':['daily_plans','dr_entries','qa_reports'],
+    'audit-links':['audit_links'],
   };
 
   // Chat keys start with 'chat_' — refresh messages if user is on chat page
@@ -1203,6 +1207,10 @@ function _dbRefreshPage(key) {
         refreshDRView();
       }
       else if(page==='daily-plan')      renderDailyPlanView();
+      else if(page==='tl-portal')       { renderTLPlanHistory(); renderTLReportHistory(); renderTLTeamsView(); }
+      else if(page==='qa-portal-kings') renderQAPortalHistory('kings');
+      else if(page==='qa-portal-swat')  renderQAPortalHistory('swat');
+      else if(page==='audit-links')     renderAuditLinks();
       else if(page==='call-reports')    renderCallReports();
       else if(page==='critical-reports') renderCriticalReports();
       else if(page==='team-dash')       renderTeamDashboard();
@@ -6295,9 +6303,9 @@ function renderQAPortalHistory(team) {
   const el = document.getElementById(`${team}-portal-history`);
   if(!el) return;
   const filter = document.getElementById(`${team}-hist-filter`)?.value || '';
-  const plans  = (load('daily_plans')||[]).filter(p=>p.person===team&&!p.isAchieved&&(filter?p.date===filter:true)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
-  const reviews= (load('dr_entries')||[]).filter(r=>r.person===team&&(filter?r.date===filter:true)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
-  const achs   = (load('daily_plans')||[]).filter(p=>p.person===team&&p.isAchieved&&(filter?p.date===filter:true)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+  const plans  = (load('daily_plans')||[]).filter(p=>p.person===team&&!p.isAchieved&&(filter?p.date===filter:true)).sort((a,b)=>b.date.localeCompare(a.date));
+  const reviews= [...(load('dr_entries')||[]), ...(load('qa_reports')||[])].filter(r=>r.person===team&&(filter?r.date===filter:true)).sort((a,b)=>b.date.localeCompare(a.date));
+  const achs   = (load('daily_plans')||[]).filter(p=>p.person===team&&p.isAchieved&&(filter?p.date===filter:true)).sort((a,b)=>b.date.localeCompare(a.date));
   const color  = team==='kings'?'var(--accent)':'var(--violet)';
   const dates  = [...new Set([...plans,...reviews,...achs].map(e=>e.date))].sort((a,b)=>b.localeCompare(a));
   if(!dates.length){el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px">No submissions yet.</div>';return;}
@@ -6581,7 +6589,7 @@ function renderTLPlanHistory() {
   const el = document.getElementById('tl-plan-history');
   if(!el) return;
   const filter = document.getElementById('tl-dp-filter')?.value || '';
-  let plans = (load('tl_plans') || []).sort((a,b) => b.date.localeCompare(a.date));
+  let plans = [...(load('tl_plans')||[]), ...(load('daily_plans')||[]).filter(p=>p.person==='tl'&&!p.isAchieved)].sort((a,b) => b.date.localeCompare(a.date));
   if(filter) plans = plans.filter(p => p.date === filter);
   if(!plans.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No plans yet.</div>'; return; }
   el.innerHTML = plans.map(p => `
@@ -6602,7 +6610,7 @@ function renderTLReportHistory() {
   if(!el) return;
   const filter = document.getElementById('tl-dr-filter')?.value || '';
   const RATING_STARS = { excellent:'⭐⭐⭐⭐⭐', good:'⭐⭐⭐⭐', average:'⭐⭐⭐', below:'⭐⭐', poor:'⭐' };
-  let reports = (load('tl_reports') || []).sort((a,b) => b.date.localeCompare(a.date));
+  let reports = [...(load('tl_reports')||[]), ...(load('dr_entries')||[]).filter(r=>r.person==='tl')].sort((a,b) => b.date.localeCompare(a.date));
   if(filter) reports = reports.filter(r => r.date === filter);
   if(!reports.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No reports yet.</div>'; return; }
   el.innerHTML = reports.map(r => `
@@ -6659,7 +6667,7 @@ function renderTLTeamsView() {
   // QA plans & reports submitted today
   const qaEl = document.getElementById('tl-qa-submissions');
   if(qaEl) {
-    const qaPlan  = (load('daily_plans')||[]).filter(p => p.date === date && (p.person==='kings'||p.person==='swat'));
+    const qaPlan  = (load('daily_plans')||[]).filter(p => p.date === date && (p.person==='kings'||p.person==='swat') && !p.isAchieved);
     const qaAch   = (load('daily_plans')||[]).filter(p => p.date === date && p.isAchieved && (p.person==='kings'||p.person==='swat'));
     if(!qaPlan.length && !qaAch.length) {
       qaEl.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No QA plans or reports for this date.</div>';
@@ -6780,7 +6788,7 @@ function renderQAPlanHistory() {
   if(!el) return;
   const person = currentRole === 'kings' ? 'kings' : 'swat';
   const filter = document.getElementById('qa-dp-filter')?.value || '';
-  let plans = (load('daily_plans')||[]).filter(p => p.person===person && !p.isAchieved).sort((a,b)=>b.date.localeCompare(a.date));
+  let plans = (load('daily_plans')||[]).filter(p => p.person===person && !p.isAchieved).sort((a,b)=>b.date.localeCompare(a.date)); // all dates
   if(filter) plans = plans.filter(p => p.date===filter);
   if(!plans.length) { el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px">No plans yet.</div>'; return; }
   el.innerHTML = plans.map(p => `
@@ -6800,7 +6808,7 @@ function renderQAReportHistory() {
   if(!el) return;
   const person = currentRole === 'kings' ? 'kings' : 'swat';
   const filter = document.getElementById('qa-dr-filter')?.value || '';
-  let reports = (load('qa_reports')||[]).filter(r => r.person===person).sort((a,b)=>b.date.localeCompare(a.date));
+  let reports = [...(load('qa_reports')||[]), ...(load('dr_entries')||[])].filter(r => r.person===person).sort((a,b)=>b.date.localeCompare(a.date));
   if(filter) reports = reports.filter(r => r.date===filter);
   if(!reports.length) { el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px">No plan reviews yet.</div>'; return; }
   el.innerHTML = reports.map(r => `
