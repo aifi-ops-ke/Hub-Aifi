@@ -8223,39 +8223,34 @@ function startSession(role, cred) {
   if(kNav) kNav.style.display = (role==='kings'||role==='tl'||role==='admin') ? 'flex' : 'none';
   if(sNav) sNav.style.display = (role==='swat' ||role==='tl'||role==='admin') ? 'flex' : 'none';
 
-  toast(`Welcome, ${cred.name}! 👋`, cred.icon);
-  startChatNotifyWatcher();
-  setTimeout(updateAlertsBadge, 500);
-  setTimeout(() => checkPasswordExpiry(role), 3000); // monthly password reminder
-  init();
-}
-
-
   // Show/hide QA portal nav items based on role
   const kingsNav = document.getElementById('nav-qa-kings');
   const swatNav  = document.getElementById('nav-qa-swat');
   if(role === 'kings') { if(swatNav) swatNav.style.display='none'; }
   else if(role === 'swat') { if(kingsNav) kingsNav.style.display='none'; }
-  // TL and Admin see both — no hiding needed
+  // TL and Admin see both
+
+  toast(`Welcome, ${cred.name}! 👋`, cred.icon);
+  startChatNotifyWatcher();
+  setTimeout(updateAlertsBadge, 500);
+  setTimeout(() => checkPasswordExpiry(role), 3000);
+  init();
 }
 
 function applyRoleRestrictions(role) {
-  if(role === 'tl' || role === 'admin') return; // TL and Admin see everything
+  if(role === 'tl' || role === 'admin') return;
 
-  // Pages locked to TL/Admin only (no QA access)
   const tlOnlyPages = ['payroll','payroll-full','pay-history','weekly','monthly','quarterly'];
 
-  // Pages Kingori (kings) can access
-  const kingsPages  = ['dashboard','team-dash-kings',
+  const kingsPages = ['dashboard','team-dash-kings',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator','meeting','qa-portal'];
+    'wfh','wfh-operator','meeting','qa-portal-kings','mgmt-shifts'];
 
-  // Pages Rosemary (swat) can access
-  const swatPages   = ['dashboard','team-dash-swat',
+  const swatPages = ['dashboard','team-dash-swat',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator','meeting','qa-portal'];
+    'wfh','wfh-operator','meeting','qa-portal-swat','mgmt-shifts'];
 
   const allowedPages = role==='kings' ? kingsPages : swatPages;
 
