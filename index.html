@@ -8605,7 +8605,7 @@ function init() {
 
   populateSelects();
   renderSparkline();
-  renderErrors();
+  if(document.getElementById('errors-tbody')) renderErrors();
 
   // Load last report for dashboard
   const reports = load('reports').filter(r=>r.type==='tl'||currentRole==='admin');
