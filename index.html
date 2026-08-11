@@ -1618,6 +1618,9 @@ function _dbRefreshPage(key) {
     <div class="nav-item" onclick="nav('meeting')">
       <span class="nav-icon">📹</span><span>Video Meeting</span>
     </div>
+    <div class="nav-item" onclick="window.open('https://meet.google.com/bcn-jytq-xiv','_blank')" style="background:rgba(0,180,216,0.06);border:1px solid rgba(0,180,216,0.2)">
+      <span class="nav-icon">📞</span><span style="font-weight:700">Team Call (Live)</span>
+    </div>
     <div class="nav-item" onclick="nav('hub-activity')">
       <span class="nav-icon">📊</span><span>Activity Tracker</span>
     </div>
@@ -5030,6 +5033,8 @@ function nav(page) {
   if(page==='team-chat') { initChatPage('chat-container-tl'); }
   if(page==='call-reports') { renderCallReports(); }
   if(page==='team-dash') { initTeamDash(); }
+  if(page==='qa-portal-kings') { initQAPortal('kings'); }
+  if(page==='qa-portal-swat')  { initQAPortal('swat'); }
   if(page==='daily-report') { applyDRRoleVisibility(); refreshDRView(); }
   if(page==='daily-plan') { refreshDPView(); }
   if(page==='team-perf-kings') { renderTeamPerf('kings'); }
