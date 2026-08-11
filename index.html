@@ -2135,6 +2135,103 @@ function _dbRefreshPage(key) {
       <div id="swat-section-perf" style="display:none"><div id="swat-perf-content"></div></div>
     </div>
 
+    <!-- ════════════════ ERRORS & QA ════════════════ -->
+    <div class="page" id="page-errors">
+      <div class="page-header">
+        <h1>⚠️ Errors & QA</h1>
+        <p>Log quality errors identified during audits and track deductions.</p>
+      </div>
+
+      <!-- QA-facing simplified form (Kings / SWAT) -->
+      <div id="err-qa-view" style="display:none">
+        <div class="card" style="max-width:520px;margin-bottom:20px">
+          <div class="card-header"><div class="card-title">🔍 Log Error</div></div>
+          <div class="form-group"><label>Operator</label><select id="err-operator-qa" style="width:100%"></select></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="err-date-qa" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Type</label>
+              <select id="err-type-qa" style="width:100%">
+                <option value="internal">🟡 Internal</option>
+                <option value="global">🔴 Global</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group"><label>Deduction (KES) — leave 0 for warning only</label><input type="number" id="err-deduction-qa" value="0" min="0" style="width:100%"/></div>
+          <div class="form-group"><label>Coaching Notes</label><textarea id="err-coaching-qa" rows="2" style="width:100%;resize:vertical" placeholder="Coaching given / pending..."></textarea></div>
+          <div class="form-group"><label>Session Link (optional)</label><input type="text" id="err-session-link-qa" style="width:100%" placeholder="https://..."/></div>
+          <button class="btn btn-primary" style="width:100%" onclick="saveErrorQA()">🔍 Log Error</button>
+        </div>
+      </div>
+
+      <!-- TL / Admin full form -->
+      <div id="err-tl-view" style="display:none">
+        <div class="card" style="max-width:600px;margin-bottom:20px">
+          <div class="card-header"><div class="card-title">🔍 Log Error</div></div>
+          <div class="form-group"><label>Operator</label><select id="err-operator" style="width:100%"></select></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="err-date" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Type</label>
+              <select id="err-type" style="width:100%">
+                <option value="internal">🟡 Internal</option>
+                <option value="global">🔴 Global</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group"><label>QA Team</label>
+            <select id="err-qa-team" style="width:100%">
+              <option value="Kings">Kings</option>
+              <option value="SWAT">SWAT</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Description</label><textarea id="err-desc" rows="2" style="width:100%;resize:vertical" placeholder="What went wrong..."></textarea></div>
+          <div class="form-group"><label>Coaching Notes</label><textarea id="err-coaching" rows="2" style="width:100%;resize:vertical" placeholder="Coaching given / pending..."></textarea></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group" style="margin:0"><label>Deduction Override (KES)</label><input type="number" id="err-deduction-override" value="0" min="0" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Deduct From</label>
+              <select id="err-deduct-from" style="width:100%">
+                <option value="auto">Auto</option>
+                <option value="incentive">Incentive</option>
+                <option value="transport">Transport</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group"><label>Session Link (optional)</label><input type="text" id="err-session-link" style="width:100%" placeholder="https://..."/></div>
+          <button class="btn btn-primary" style="width:100%" onclick="saveError()">🔍 Log Error</button>
+        </div>
+      </div>
+
+      <!-- Shared history — visible to everyone, per existing renderErrors() logic -->
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div class="card-title">📋 Error Log</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select id="err-filter-type" onchange="renderErrors()" style="font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px">
+              <option value="">All Types</option>
+              <option value="global">🔴 Global</option>
+              <option value="internal">🟡 Internal</option>
+            </select>
+            <select id="err-filter-team" onchange="renderErrors()" style="font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px">
+              <option value="">All Teams</option>
+              <option value="Kings">Kings</option>
+              <option value="SWAT">SWAT</option>
+            </select>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="text-align:left;color:var(--text3);font-size:10px;text-transform:uppercase">
+                <th style="padding:8px">Date</th><th style="padding:8px">Operator</th><th style="padding:8px">Type</th>
+                <th style="padding:8px">Description</th><th style="padding:8px">QA Team</th><th style="padding:8px">Coaching</th>
+                <th style="padding:8px">Deduction</th><th style="padding:8px">Applied</th><th style="padding:8px">Link</th><th style="padding:8px"></th>
+              </tr>
+            </thead>
+            <tbody id="errors-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- ════════════════ INTERNAL AUDITS PORTAL ════════════════ -->
     <div class="page" id="page-audit-links">
       <div class="page-header">
@@ -4926,7 +5023,7 @@ function nav(page) {
   if(page==='attendance') renderAttendance();
   if(page==='production') renderProd();
   if(page==='weekly'||page==='monthly'||page==='quarterly') initReportSelects();
-  if(page==='errors') renderErrors();
+  if(page==='errors') { initErrorForm(); renderErrors(); }
   if(page==='leave') { renderLeave(); renderLeaveBalanceGrid(); }
   if(page==='dashboard') { renderNotifs(); updateNavBadges(); renderDashProdKPIs(); renderDashPerfChart(); }
   if(page==='critical-reports') { renderCriticalReports(); }
@@ -6729,205 +6826,6 @@ function renderTLTeamsView() {
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// QA PORTAL
-// ════════════════════════════════════════════════════════════════
-
-function initQAPortal() {
-  // Pre-fill the QA identity based on logged-in role
-  const qaName = currentRole === 'kings' ? 'Kingori — Kings QA' : currentRole === 'swat' ? 'Rosemary Nyaleso — SWAT QA' : 'QA';
-  const sub = document.getElementById('qa-portal-subtitle');
-  if(sub) sub.textContent = `${qaName} · Daily planning, reports and team performance`;
-
-  const dateFields = ['qa-dp-date','qa-dr-date','qa-ach-date','qa-myteam-date'];
-  dateFields.forEach(id => { const el = document.getElementById(id); if(el && !el.value) el.value = nairobiDateStr(); });
-  renderQAPlanHistory();
-  renderQAReportHistory();
-}
-
-function switchQATab(tab) {
-  ['plan','myteam','perf'].forEach(t => {
-    const sec = document.getElementById('qa-section-'+t);
-    const btn = document.getElementById('qa-tab-'+t);
-    if(sec) sec.style.display = t===tab ? '' : 'none';
-    if(btn) { btn.className = t===tab ? 'btn btn-primary' : 'btn btn-secondary'; btn.style.fontSize='12px'; }
-  });
-  if(tab === 'myteam') renderQAMyTeam();
-  if(tab === 'perf')   renderQAPortalPerf();
-}
-
-async function saveQAPlan() {
-  const date = document.getElementById('qa-dp-date')?.value;
-  if(!date) { toast('Please select a date','⚠️'); return; }
-  const person = currentRole === 'kings' ? 'kings' : 'swat';
-  const NAMES  = { kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
-  const entry  = {
-    id: Date.now(), person, name: NAMES[person], date,
-    internalAudits: +document.getElementById('qa-dp-internal')?.value||0,
-    globalAudits:   +document.getElementById('qa-dp-global')?.value||0,
-    objectives:     document.getElementById('qa-dp-objectives')?.value||'',
-    qualityFocus:   document.getElementById('qa-dp-quality')?.value||'',
-    operatorSupport:document.getElementById('qa-dp-support')?.value||'',
-    savedAt: nowNairobi(),
-  };
-  const all = load('daily_plans') || [];
-  const idx = all.findIndex(e => e.date===date && e.person===person && !e.isAchieved);
-  if(idx>=0) all[idx]=entry; else all.push(entry);
-  const ok = await saveAndVerify('daily_plans', all);
-  if(!ok) { toast('Failed to save','❌'); return; }
-  pushNotif({ ...entry, type: 'plan' });
-  toast('QA Plan saved ✓','📅');
-  renderQAPlanHistory();
-}
-
-async function saveQAReport() {
-  const date = document.getElementById('qa-dr-date')?.value;
-  if(!date) { toast('Please select a date','⚠️'); return; }
-  const person = currentRole === 'kings' ? 'kings' : 'swat';
-  const NAMES  = { kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
-  const entry  = {
-    id: Date.now(), person, name: NAMES[person], date, type: 'qa_report',
-    internalDone:  +document.getElementById('qa-dr-internal')?.value||0,
-    globalDone:    +document.getElementById('qa-dr-global')?.value||0,
-    achieved:      document.getElementById('qa-dr-achieved')?.value||'',
-    notAchieved:   document.getElementById('qa-dr-notachieved')?.value||'',
-    reasons:       document.getElementById('qa-dr-reasons')?.value||'',
-    tomorrow:      document.getElementById('qa-dr-tomorrow')?.value||'',
-    savedAt: nowNairobi(),
-  };
-  const all = load('qa_reports') || [];
-  const idx = all.findIndex(e => e.date===date && e.person===person);
-  if(idx>=0) all[idx]=entry; else all.push(entry);
-  const ok = await saveAndVerify('qa_reports', all);
-  if(!ok) { toast('Failed to save','❌'); return; }
-  pushNotif({ ...entry, type: 'report' });
-  toast('Plan review submitted ✓','✅');
-  renderQAReportHistory();
-}
-
-async function saveQAAchieved() {
-  const date = document.getElementById('qa-ach-date')?.value;
-  if(!date) { toast('Please select a date','⚠️'); return; }
-  const person = currentRole === 'kings' ? 'kings' : 'swat';
-  const NAMES  = { kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
-  const entry  = {
-    id: Date.now(), person, name: NAMES[person], date, isAchieved: true,
-    internalDone: +document.getElementById('qa-ach-internal')?.value||0,
-    globalDone:   +document.getElementById('qa-ach-global')?.value||0,
-    achievedNotes:document.getElementById('qa-ach-notes')?.value||'',
-    savedAt: nowNairobi(),
-  };
-  const all = load('daily_plans') || [];
-  const idx = all.findIndex(e => e.date===date && e.person===person && e.isAchieved);
-  if(idx>=0) all[idx]=entry; else all.push(entry);
-  const ok = await saveAndVerify('daily_plans', all);
-  if(!ok) { toast('Failed to save','❌'); return; }
-  pushNotif({ ...entry, type: 'achieved' });
-  toast('Audit count submitted ✓','✅');
-}
-
-function renderQAPlanHistory() {
-  const el = document.getElementById('qa-plan-history');
-  if(!el) return;
-  const person = currentRole === 'kings' ? 'kings' : 'swat';
-  const filter = document.getElementById('qa-dp-filter')?.value || '';
-  let plans = (load('daily_plans')||[]).filter(p => p.person===person && !p.isAchieved).sort((a,b)=>b.date.localeCompare(a.date)); // all dates
-  if(filter) plans = plans.filter(p => p.date===filter);
-  if(!plans.length) { el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px">No plans yet.</div>'; return; }
-  el.innerHTML = plans.map(p => `
-    <div style="padding:14px;border:1px solid var(--border2);border-radius:10px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div style="font-weight:800;color:var(--accent)">${fmtDate(p.date)}</div>
-        <div style="font-size:11px;color:var(--text3)">Internal: ${p.internalAudits||0} · Global: ${p.globalAudits||0}</div>
-      </div>
-      ${p.objectives?`<div style="margin-bottom:6px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Objectives</div><div style="font-size:12px;white-space:pre-wrap">${p.objectives}</div></div>`:''}
-      ${p.qualityFocus?`<div style="margin-bottom:6px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:3px">Quality Focus</div><div style="font-size:12px;white-space:pre-wrap">${p.qualityFocus}</div></div>`:''}
-      ${p.operatorSupport?`<div><div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;margin-bottom:3px">Operator Support</div><div style="font-size:12px;white-space:pre-wrap">${p.operatorSupport}</div></div>`:''}
-    </div>`).join('');
-}
-
-function renderQAReportHistory() {
-  const el = document.getElementById('qa-report-history');
-  if(!el) return;
-  const person = currentRole === 'kings' ? 'kings' : 'swat';
-  const filter = document.getElementById('qa-dr-filter')?.value || '';
-  let reports = [...(load('qa_reports')||[]), ...(load('dr_entries')||[])].filter(r => r.person===person).sort((a,b)=>b.date.localeCompare(a.date));
-  if(filter) reports = reports.filter(r => r.date===filter);
-  if(!reports.length) { el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px">No plan reviews yet.</div>'; return; }
-  el.innerHTML = reports.map(r => `
-    <div style="padding:14px;border:1px solid var(--border2);border-radius:10px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-weight:800;color:var(--accent)">${fmtDate(r.date)}</div>
-        <div style="font-size:11px;background:rgba(0,212,160,0.1);color:var(--green);padding:3px 10px;border-radius:20px;font-weight:700">
-          ✅ Internal: ${r.internalDone||0} · Global: ${r.globalDone||0}
-        </div>
-      </div>
-      ${r.achieved ? `<div style="margin-bottom:10px;padding:10px;background:rgba(0,212,160,0.06);border-left:3px solid var(--green);border-radius:0 6px 6px 0">
-        <div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;margin-bottom:5px">✓ Achieved</div>
-        <div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6">${r.achieved}</div>
-      </div>` : ''}
-      ${r.notAchieved ? `<div style="margin-bottom:10px;padding:10px;background:rgba(255,94,110,0.06);border-left:3px solid var(--red);border-radius:0 6px 6px 0">
-        <div style="font-size:10px;font-weight:800;color:var(--red);text-transform:uppercase;margin-bottom:5px">✗ Not Achieved</div>
-        <div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6">${r.notAchieved}</div>
-      </div>` : ''}
-      ${r.reasons ? `<div style="margin-bottom:10px;padding:10px;background:rgba(255,170,68,0.06);border-left:3px solid var(--amber);border-radius:0 6px 6px 0">
-        <div style="font-size:10px;font-weight:800;color:var(--amber);text-transform:uppercase;margin-bottom:5px">! Reasons / Blockers</div>
-        <div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6">${r.reasons}</div>
-      </div>` : ''}
-      ${r.tomorrow ? `<div style="padding:10px;background:rgba(0,180,216,0.06);border-left:3px solid var(--teal);border-radius:0 6px 6px 0">
-        <div style="font-size:10px;font-weight:800;color:var(--teal);text-transform:uppercase;margin-bottom:5px">→ Carrying Forward</div>
-        <div style="font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.6">${r.tomorrow}</div>
-      </div>` : ''}
-    </div>`).join('');
-}
-
-function renderQAMyTeam() {
-  const date = document.getElementById('qa-myteam-date')?.value || nairobiDateStr();
-  const team = currentRole === 'kings' ? 'kings' : 'swat';
-  renderQADashboard(team);
-  // Also update our custom elements
-  const prod = load('prod').filter(p => p.date===date && p.team===team);
-  const tbody = document.getElementById('qa-myteam-prod');
-  if(tbody) {
-    tbody.innerHTML = prod.length
-      ? prod.sort((a,b)=>b.cases-a.cases).map(p=>`<tr>
-          <td style="font-weight:600">${operatorLabel(p.operator)}</td>
-          <td style="color:var(--green);font-weight:700">${Number(p.cases||0).toLocaleString()}</td>
-          <td>${p.aht||'–'}s</td>
-          <td>${p.occ||'–'}%</td>
-          <td style="color:${(+p.abandoned||0)>5?'var(--red)':'var(--text3)'}">${p.abandoned||0}%</td>
-          <td style="font-family:monospace">${p.logTime||'–'}</td>
-        </tr>`).join('')
-      : '<tr><td colspan="6" style="color:var(--text3)">No production data.</td></tr>';
-  }
-}
-
-function renderQAPortalPerf() {
-  const el = document.getElementById('qa-portal-perf-content');
-  if(!el) return;
-  const team = currentRole === 'kings' ? 'kings' : 'swat';
-  el.innerHTML = `
-    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
-      <div class="form-group" style="margin:0"><label>View</label>
-        <select id="qa-perf-view" onchange="renderTeamPerfAggregate('${team}', this.value)" style="width:160px">
-          <option value="aht">AHT Trend</option>
-          <option value="cases">Cases Trend</option>
-          <option value="occ">Occupancy Trend</option>
-          <option value="abandoned">Abandoned % Trend</option>
-        </select>
-      </div>
-      <div class="form-group" style="margin:0"><label>Period</label>
-        <select id="qa-perf-period" onchange="renderTeamPerfAggregate('${team}', document.getElementById('qa-perf-view').value)" style="width:130px">
-          <option value="7">Last 7 days</option>
-          <option value="14">Last 14 days</option>
-          <option value="30">Last 30 days</option>
-        </select>
-      </div>
-    </div>
-    <div id="team-perf-${team}-grid"></div>`;
-  renderTeamPerfAggregate(team, 'aht');
-}
-
 function renderHeatmap() {
   const view    = document.getElementById('heatmap-view')?.value || 'cases-hour';
   const month   = document.getElementById('heatmap-month')?.value || today().substring(0,7);
@@ -8589,7 +8487,7 @@ function init() {
 
   // Set dates
   const d = today();
-  const dateFields = ['dr-date','kings-date','swat-date','att-date','prod-date','err-date','pay-month','leave-start','sched-date'];
+  const dateFields = ['dr-date','kings-date','swat-date','att-date','prod-date','err-date','err-date-qa','pay-month','leave-start','sched-date'];
   dateFields.forEach(id => { const el=document.getElementById(id); if(el && el.type==='date') el.value=d; });
   
   const dateEl = document.getElementById('topbar-date');
