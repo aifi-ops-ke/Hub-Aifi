@@ -4466,7 +4466,7 @@ function closeOpHubMenu() {
     // Reached via the shared main login as an operator — full logout
     document.body.classList.remove('wfh-op-mode');
     if(_opCamActive && typeof opStopCam === 'function') opStopCam();
-    sessionStorage.removeItem('aifi_session');
+    localStorage.removeItem('aifi_session');
     document.getElementById('login-overlay').style.display = 'flex';
     clearInterval(_chatNotifyPollInterval);
     nav('dashboard');
@@ -8147,8 +8147,8 @@ function showLoginError(msg) {
 }
 
 function startSession(role, cred) {
-  // Save session to sessionStorage (expires when tab closes)
-  sessionStorage.setItem('aifi_session', JSON.stringify({ role, name: cred.name, loginTime: Date.now() }));
+  // Save session to localStorage so it survives browser/tab closes — logout is the only way to clear it
+  localStorage.setItem('aifi_session', JSON.stringify({ role, name: cred.name, loginTime: Date.now() }));
 
   // Hide login screen
   document.getElementById('login-overlay').classList.add('hidden');
@@ -8243,7 +8243,7 @@ function confirmLogout() {
 }
 
 function doLogout() {
-  sessionStorage.removeItem('aifi_session');
+  localStorage.removeItem('aifi_session');
   closeModal();
   // Reset login form
   document.getElementById('login-password').value = '';
@@ -8463,7 +8463,7 @@ function openOpSelfChangePassword(opId) {
 
 // ── Check for existing session on page load ──────────────────
 function checkSession() {
-  const session = sessionStorage.getItem('aifi_session');
+  const session = localStorage.getItem('aifi_session');
   if(session) {
     try {
       const s = JSON.parse(session);
@@ -11956,7 +11956,7 @@ async function dbGetActiveRooms() {
 // ── Page init ────────────────────────────────────────────────────
 async function initMeetingPage() {
   // Determine who is logged in
-  const sess = JSON.parse(sessionStorage.getItem('aifi_session') || '{}');
+  const sess = JSON.parse(localStorage.getItem('aifi_session') || '{}');
   _meetOpId       = sess.name || 'TL';
   _meetDisplayName= sess.name || 'Team Lead';
   await loadActiveRooms();
@@ -14529,7 +14529,7 @@ function renderTeamPerfAggregate(team, view) {
 function testFirebase() {
   // Write a test value to Firebase and read it back
   const testKey = 'aifi_test_' + Date.now();
-  const testVal = { from: sessionStorage.getItem('aifi_session') ? JSON.parse(sessionStorage.getItem('aifi_session')).name : 'unknown', at: nowNairobi() };
+  const testVal = { from: localStorage.getItem('aifi_session') ? JSON.parse(localStorage.getItem('aifi_session')).name : 'unknown', at: nowNairobi() };
   _db.ref('test_ping').set(testVal)
     .then(() => {
       toast('✅ Firebase write OK — connection is working!', '🔥');
