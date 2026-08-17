@@ -2203,6 +2203,18 @@ function _dbRefreshPage(key) {
         </div>
       </div>
 
+      <!-- Deduction Calculator (TL/Admin) -->
+      <div id="err-calc-view" style="display:none">
+        <div class="card" style="max-width:520px;margin-bottom:20px">
+          <div class="card-header"><div class="card-title">🧮 Deduction Calculator</div></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div class="form-group" style="margin:0"><label>Operator</label><select id="calc-operator" onchange="calcDeductions()" style="width:100%"></select></div>
+            <div class="form-group" style="margin:0"><label>Month</label><input type="month" id="calc-month" onchange="calcDeductions()" style="width:100%"/></div>
+          </div>
+          <div id="deduction-result"></div>
+        </div>
+      </div>
+
       <!-- Shared history — visible to everyone, per existing renderErrors() logic -->
       <div class="card">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
@@ -2235,7 +2247,380 @@ function _dbRefreshPage(key) {
       </div>
     </div>
 
+    <!-- ════════════════ PRODUCTION ════════════════ -->
+    <div class="page" id="page-production">
+      <div class="page-header">
+        <h1>📊 Production</h1>
+        <p>Import daily production data, add entries manually, and review the log.</p>
+      </div>
+
+      <div class="tabs" style="margin-bottom:16px">
+        <div class="tab active" onclick="prodTab('paste')">📋 Paste Data</div>
+        <div class="tab" onclick="prodTab('manual')">✏️ Manual Entry</div>
+        <div class="tab" onclick="prodTab('log')">📄 Log</div>
+      </div>
+
+      <!-- PASTE TAB -->
+      <div id="prod-tab-paste">
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:14px">
+            <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="paste-date" style="width:160px"/></div>
+            <div class="form-group" style="margin:0"><label>Team</label>
+              <select id="paste-team" style="width:140px">
+                <option value="">Auto-detect</option>
+                <option value="kings">Kings</option>
+                <option value="swat">SWAT</option>
+              </select>
+            </div>
+            <div style="margin-left:auto;display:flex;gap:8px">
+              <button class="btn btn-secondary btn-sm" onclick="setPreset('aifi')">AIFI Preset</button>
+              <button class="btn btn-secondary btn-sm" onclick="setPreset('simple')">Simple Preset</button>
+            </div>
+          </div>
+          <div id="col-mapper" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
+          <div class="form-group"><label>Paste rows (tab-separated, from your export)</label>
+            <textarea id="paste-area" rows="8" style="width:100%;font-family:'DM Mono',monospace;font-size:11px;resize:vertical" placeholder="Paste exported data here..."></textarea>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:14px">
+            <button class="btn btn-primary" onclick="parsePaste()">🔍 Parse Data</button>
+            <button class="btn btn-secondary" onclick="clearPaste()">Clear</button>
+            <button class="btn btn-green" id="import-btn" style="display:none" onclick="importPaste()">✅ Import All</button>
+          </div>
+          <div id="paste-result"></div>
+          <div id="paste-preview" style="display:none;margin-top:14px;overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead id="paste-preview-head"></thead>
+              <tbody id="paste-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MANUAL ENTRY TAB -->
+      <div id="prod-tab-manual" style="display:none">
+        <div class="card" style="max-width:640px">
+          <div class="card-header"><div class="card-title">✏️ Add Entry</div></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group" style="margin:0"><label>Operator</label><select id="prod-operator" style="width:100%"></select></div>
+            <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="prod-date" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Cases</label><input type="number" id="prod-cases" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>AHT (s)</label><input type="number" step="0.1" id="prod-aht" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Normal AHT</label><input type="number" step="0.1" id="prod-normal-aht" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Occupancy %</label><input type="number" step="0.01" id="prod-occ" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Abandoned %</label><input type="number" step="0.01" id="prod-abandoned" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Reported %</label><input type="number" step="0.01" id="prod-reported" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Refreshed %</label><input type="number" step="0.01" id="prod-refreshed" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Log Time</label><input type="text" id="prod-logtime" placeholder="8:01:25" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Global Sessions</label><input type="number" id="prod-global" style="width:100%"/></div>
+            <div class="form-group" style="margin:0"><label>Total Time</label><input type="number" id="prod-total-time" style="width:100%"/></div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="saveProd()">💾 Save Entry</button>
+        </div>
+      </div>
+
+      <!-- LOG TAB -->
+      <div id="prod-tab-log" style="display:none">
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+            <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="prod-filter-date" onchange="renderProd()" style="width:160px"/></div>
+            <div class="form-group" style="margin:0"><label>Team</label>
+              <select id="prod-filter-team" onchange="renderProd()" style="width:140px">
+                <option value="">All Teams</option>
+                <option value="kings">Kings</option>
+                <option value="swat">SWAT</option>
+              </select>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="clearProdFilter()">Clear Filter</button>
+            <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="exportProdCSV()">⬇ Export CSV</button>
+          </div>
+        </div>
+        <div class="kpi-row" id="prod-kpi-row" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px"></div>
+        <div class="card" style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead>
+              <tr style="text-align:left;color:var(--text3);font-size:9px;text-transform:uppercase">
+                <th style="padding:8px">Date</th><th style="padding:8px">Operator</th><th style="padding:8px">Team</th>
+                <th style="padding:8px">Cases</th><th style="padding:8px">Break</th><th style="padding:8px">Meeting</th>
+                <th style="padding:8px">Lunch</th><th style="padding:8px">Floor Supp.</th><th style="padding:8px">ASD/Idle</th>
+                <th style="padding:8px">Sess. Handling</th><th style="padding:8px">Reported</th><th style="padding:8px">Abandoned</th>
+                <th style="padding:8px">Occupancy</th><th style="padding:8px">Global Sess</th><th style="padding:8px">AHT(AA)</th>
+                <th style="padding:8px">Normal AHT</th><th style="padding:8px">AHT</th><th style="padding:8px">Log Time</th><th style="padding:8px"></th>
+              </tr>
+            </thead>
+            <tbody id="prod-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════ ATTENDANCE (DAILY) ════════════════ -->
+    <div class="page" id="page-attendance">
+      <div class="page-header">
+        <h1>✅ Attendance</h1>
+        <p>Mark today's attendance — click a card to cycle Present → Absent → Leave → Off.</p>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+          <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="att-date" onchange="renderAttendance()" style="width:160px"/></div>
+          <div class="form-group" style="margin:0"><label>Filter</label>
+            <select onchange="filterAtt(this.value)" style="width:140px">
+              <option value="">All</option>
+              <option value="present">Present</option>
+              <option value="absent">Absent</option>
+              <option value="leave">Leave</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-row" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px">
+        <div class="kpi-card green"><div class="kpi-label">Present</div><div class="kpi-value" id="att-present-count">0</div></div>
+        <div class="kpi-card"><div class="kpi-label">Absent</div><div class="kpi-value" id="att-absent-count" style="color:var(--red)">0</div></div>
+        <div class="kpi-card amber"><div class="kpi-label">Leave</div><div class="kpi-value" id="att-leave-count">0</div></div>
+        <div class="kpi-card"><div class="kpi-label">Off</div><div class="kpi-value" id="att-off-count">0</div></div>
+        <div class="kpi-card teal"><div class="kpi-label">🚌 Transport</div><div class="kpi-value" id="att-transport-count">0</div></div>
+      </div>
+      <span id="kpi-present" style="display:none"></span>
+      <div id="att-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px"></div>
+    </div>
+
+    <!-- ════════════════ LEAVE TRACKER ════════════════ -->
+    <div class="page" id="page-leave">
+      <div class="page-header">
+        <h1>🌴 Leave Tracker</h1>
+        <p>Review, approve, and track leave balances across the team.</p>
+      </div>
+      <div class="card" style="margin-bottom:16px;max-width:640px">
+        <div class="card-header"><div class="card-title">🌴 New Leave Request</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group" style="margin:0"><label>Person</label>
+            <select id="leave-person" onchange="onLeavePersonChange()" style="width:100%">
+              <option value="">Select...</option>
+              <option value="tl-jk">John Paul Kimongo (TL)</option>
+              <option value="qa-kings">Kingori (QA)</option>
+              <option value="qa-swat">Rosemary Nyaleso (QA)</option>
+              <option value="operator">Operator</option>
+            </select>
+          </div>
+          <div class="form-group" id="leave-op-wrap" style="margin:0;display:none">
+            <label>Operator</label><select id="leave-operator" onchange="showLeaveBalance()" style="width:100%"></select>
+          </div>
+          <div class="form-group" style="margin:0"><label>Type</label>
+            <select id="leave-type" onchange="showLeaveBalance()" style="width:100%">
+              <option value="annual">🌴 Annual</option>
+              <option value="sick">🤒 Sick</option>
+              <option value="compassionate">💛 Compassionate</option>
+              <option value="unpaid">🔴 Unpaid</option>
+              <option value="off">⬜ Off Day</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0"><label>Days (auto)</label><input type="number" id="leave-days-calc" readonly style="width:100%"/></div>
+          <div class="form-group" style="margin:0"><label>Start</label><input type="date" id="leave-start" onchange="calcLeaveDays()" style="width:100%"/></div>
+          <div class="form-group" style="margin:0"><label>End</label><input type="date" id="leave-end" onchange="calcLeaveDays()" style="width:100%"/></div>
+          <div class="form-group" style="margin:0"><label>Stand-in</label><input type="text" id="leave-standin" style="width:100%" placeholder="Who covers?"/></div>
+          <div class="form-group" style="margin:0"><label>Notes</label><input type="text" id="leave-notes" style="width:100%"/></div>
+        </div>
+        <div id="leave-balance-preview" style="display:none;margin-top:12px;background:var(--surface2);border-radius:8px;padding:12px">
+          <div style="display:flex;gap:16px;font-size:11px;color:var(--text3);margin-bottom:6px">
+            <span>Allocated: <strong id="prev-allocated" style="color:var(--text)"></strong></span>
+            <span>Taken: <strong id="prev-taken" style="color:var(--amber)"></strong></span>
+            <span>Remaining: <strong id="prev-remaining" style="color:var(--green)"></strong></span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="prev-bar" style="width:0%"></div></div>
+          <div id="prev-warning" style="display:none;color:var(--red);font-size:11px;margin-top:6px">⚠️ Requested days exceed remaining balance.</div>
+          <div id="prev-after" style="font-size:11px;margin-top:6px"></div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="applyLeave()">✅ Submit & Approve</button>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">Leave Balances</div></div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <input type="text" id="leave-search" oninput="renderLeaveBalanceGrid()" placeholder="Search name..." style="flex:1;min-width:180px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:7px"/>
+          <select id="leave-filter-type" onchange="renderLeaveBalanceGrid()" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:7px">
+            <option value="">All Balances</option>
+            <option value="low">Low (≤3 days)</option>
+            <option value="ok">OK (4–10 days)</option>
+            <option value="good">Good (10+ days)</option>
+          </select>
+        </div>
+        <div id="leave-balance-grid" style="max-height:340px;overflow-y:auto"></div>
+      </div>
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <div class="card-title">Leave Log</div>
+          <select id="leave-log-filter" onchange="renderLeave()" style="font-size:11px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px">
+            <option value="">All Types</option>
+            <option value="annual">🌴 Annual</option>
+            <option value="sick">🤒 Sick</option>
+            <option value="compassionate">💛 Compassionate</option>
+            <option value="unpaid">🔴 Unpaid</option>
+            <option value="off">⬜ Off Day</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="text-align:left;color:var(--text3);font-size:10px;text-transform:uppercase">
+                <th style="padding:8px">Name</th><th style="padding:8px">Type</th><th style="padding:8px">Start</th>
+                <th style="padding:8px">End</th><th style="padding:8px">Days</th><th style="padding:8px">Balance</th>
+                <th style="padding:8px">Stand-in</th><th style="padding:8px">Status</th><th style="padding:8px"></th>
+              </tr>
+            </thead>
+            <tbody id="leave-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════ SHIFT SCHEDULE ════════════════ -->
+    <div class="page" id="page-schedule">
+      <div class="page-header">
+        <h1>📅 Shift Schedule</h1>
+        <p>Assign shifts and view the weekly grid.</p>
+      </div>
+      <div class="card" style="margin-bottom:16px;max-width:640px">
+        <div class="card-header"><div class="card-title">Assign Shift</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="form-group" style="margin:0"><label>Operator</label><select id="sched-op" style="width:100%"></select></div>
+          <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="sched-date" style="width:100%"/></div>
+          <div class="form-group" style="margin:0"><label>Shift</label>
+            <select id="sched-shift" style="width:100%">
+              <option value="08:00-17:00">08:00–17:00</option>
+              <option value="12:00-21:00">12:00–21:00</option>
+              <option value="14:00-23:00">14:00–23:00</option>
+              <option value="OFF">OFF</option>
+              <option value="Leave">Leave</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="saveSchedule()">💾 Save Shift</button>
+      </div>
+      <div class="card" style="margin-bottom:16px;max-width:280px">
+        <div class="form-group" style="margin:0"><label>Week Starting</label><input type="date" id="sched-week-start" onchange="renderSchedule()" style="width:100%"/></div>
+      </div>
+      <div class="card" style="overflow-x:auto">
+        <div id="schedule-table-wrap"></div>
+      </div>
+    </div>
+
+    <!-- ════════════════ ALERTS ════════════════ -->
+    <div class="page" id="page-alerts">
+      <div class="page-header">
+        <h1>🔔 Alerts</h1>
+        <p>Active issues that need attention.</p>
+      </div>
+      <div id="alerts-list"></div>
+    </div>
+
+    <!-- ════════════════ HEATMAP ════════════════ -->
+    <div class="page" id="page-heatmap">
+      <div class="page-header">
+        <h1>🔥 Production Heatmap</h1>
+        <p>Visualize production patterns by hour, day, and team.</p>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+          <div class="form-group" style="margin:0"><label>View</label>
+            <select id="heatmap-view" onchange="renderHeatmap()" style="width:200px">
+              <option value="cases-hour">Avg Cases by Hour</option>
+              <option value="cases-dow">Cases by Operator × Day</option>
+              <option value="aht-hour">AHT by Hour</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0"><label>Month</label><input type="month" id="heatmap-month" onchange="renderHeatmap()" style="width:150px"/></div>
+          <div class="form-group" style="margin:0"><label>Team</label>
+            <select id="heatmap-team" onchange="renderHeatmap()" style="width:140px">
+              <option value="">All Teams</option>
+              <option value="kings">Kings</option>
+              <option value="swat">SWAT</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="heatmap-container" style="overflow-x:auto"></div>
+    </div>
+
+    <!-- ════════════════ MANAGEMENT SHIFTS ════════════════ -->
+    <div class="page" id="page-mgmt-shifts">
+      <div class="page-header">
+        <h1>🗓️ Management Shifts</h1>
+        <p>Weekly working schedule for TL and QA leads.</p>
+      </div>
+      <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:14px">
+        <button class="btn btn-secondary btn-sm" onclick="_mgmtWeekOffset--; renderMgmtShiftCalendar();">← Prev</button>
+        <div id="mgmt-week-label" style="font-weight:700;font-size:13px;flex:1;text-align:center"></div>
+        <button class="btn btn-secondary btn-sm" onclick="_mgmtWeekOffset++; renderMgmtShiftCalendar();">Next →</button>
+      </div>
+      <div class="card" style="overflow-x:auto">
+        <div id="mgmt-shift-calendar"></div>
+      </div>
+    </div>
+
+    <!-- ════════════════ PAYROLL ════════════════ -->
+    <div class="page" id="page-payroll">
+      <div class="page-header">
+        <h1>💰 Payroll</h1>
+        <p>Calculate pay for staff and operators — attendance, overtime, cover pay, and deductions.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;max-width:680px">
+        <div class="card-header"><div class="card-title">🧮 Pay Calculator</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group" style="margin:0"><label>Person</label>
+            <select id="pay-person" onchange="onPayPersonChange()" style="width:100%">
+              <option value="">Select...</option>
+              <option value="tl-jk">John Paul Kimongo (TL)</option>
+              <option value="qa-kings">Kingori (QA)</option>
+              <option value="qa-swat">Rosemary Nyaleso (QA)</option>
+              <option value="operator">Operator</option>
+            </select>
+          </div>
+          <div class="form-group" id="pay-operator-wrap" style="margin:0;display:none">
+            <label>Operator</label><select id="pay-operator" onchange="calcPay()" style="width:100%"></select>
+          </div>
+          <div class="form-group" style="margin:0"><label>Month</label><input type="month" id="pay-month" onchange="calcPay()" style="width:100%"/></div>
+          <div class="form-group" id="pay-days-wrap" style="margin:0;display:none">
+            <label>Days Worked</label>
+            <div style="display:flex;gap:6px">
+              <input type="number" id="pay-days" onchange="calcPay()" style="width:100%"/>
+              <button class="btn btn-secondary btn-sm" onclick="loadAttDays()">📋 Load</button>
+            </div>
+            <div id="pay-days-hint" style="font-size:10px;color:var(--text3);margin-top:4px"></div>
+          </div>
+          <div class="form-group" id="pay-days-wrap2" style="margin:0">
+            <label>Absent Days</label><input type="number" id="pay-absent-days" onchange="calcPay()" style="width:100%"/>
+          </div>
+          <div class="form-group" style="margin:0"><label>Night Days (+KES 300 ea)</label><input type="number" id="pay-night-days" onchange="calcPay()" style="width:100%" value="0"/></div>
+          <div class="form-group" id="pay-ot-hours-wrap" style="margin:0;display:none">
+            <label>OT Hours</label><input type="number" id="pay-ot-hours" onchange="calcPay()" style="width:100%" value="0"/>
+          </div>
+          <div class="form-group" style="margin:0"><label>OT Override (KES)</label><input type="number" id="pay-ot" onchange="calcPay()" style="width:100%" value="0"/></div>
+          <div class="form-group" id="pay-standin-wrap" style="margin:0;display:none">
+            <label>Stand-in Accounts Covered</label><input type="number" id="pay-standin-count" onchange="calcPay()" style="width:100%" value="0"/>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:14px">
+          <button class="btn btn-secondary btn-sm" id="earnings-btn" style="display:none" onclick="showEarningsHistory()">📊 Earnings History</button>
+        </div>
+        <div id="pay-result" style="margin-top:14px"></div>
+      </div>
+
+      <div class="card" style="overflow-x:auto">
+        <div class="card-header"><div class="card-title">Summary — This Session</div></div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="text-align:left;color:var(--text3);font-size:10px;text-transform:uppercase">
+              <th style="padding:8px">Name</th><th style="padding:8px">Role</th><th style="padding:8px">Base + Extras</th>
+              <th style="padding:8px">Deductions</th><th style="padding:8px">Net Pay</th>
+            </tr>
+          </thead>
+          <tbody id="payroll-summary-tbody"><!-- --></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- ════════════════ INTERNAL AUDITS PORTAL ════════════════ -->
+
     <div class="page" id="page-audit-links">
       <div class="page-header">
         <h1>🔗 Internal Audits</h1>
@@ -5048,6 +5433,10 @@ function nav(page) {
   if(page==='meeting') { initMeetingPage(); }
   if(page==='hub-activity') { initHubActivityPage(); }
   if(page==='mgmt-shifts') { renderMgmtShiftCalendar(); }
+  if(page==='payroll') { /* pure calculator page — no data to pre-render */ }
+  if(page==='schedule') { renderSchedule(); }
+  if(page==='alerts') { renderAlerts(); }
+  if(page==='heatmap') { renderHeatmap(); }
 }
 
 function switchTab(el, show, ...hide) {
@@ -8493,7 +8882,7 @@ function init() {
 
   // Set dates
   const d = today();
-  const dateFields = ['dr-date','kings-date','swat-date','att-date','prod-date','err-date','err-date-qa','pay-month','leave-start','sched-date'];
+  const dateFields = ['dr-date','kings-date','swat-date','att-date','prod-date','err-date','err-date-qa','pay-month','leave-start','sched-date','sched-week-start'];
   dateFields.forEach(id => { const el=document.getElementById(id); if(el && el.type==='date') el.value=d; });
   
   const dateEl = document.getElementById('topbar-date');
@@ -15260,6 +15649,8 @@ function initErrorForm() {
   const tlView = document.getElementById('err-tl-view');
   if(qaView) qaView.style.display = isTLAdmin ? 'none' : 'block';
   if(tlView) tlView.style.display = isTLAdmin ? 'block' : 'none';
+  const calcView = document.getElementById('err-calc-view');
+  if(calcView) calcView.style.display = isTLAdmin ? 'block' : 'none';
   // QA error form operator — show all names (both teams)
   const qaOp = document.getElementById('err-operator-qa');
   if(qaOp) {
