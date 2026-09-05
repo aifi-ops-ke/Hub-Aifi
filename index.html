@@ -1143,7 +1143,7 @@ window.dbStartPolling = function() {
           _dbRefreshPage(row.key);
         }
       });
-    } catch(e) {}
+    } catch(e) { console.warn('[poll] refresh failed', e); }
   }, 5000);
 };
 
@@ -1226,7 +1226,7 @@ function _dbRefreshPage(key) {
       // Flash title bar
       const t = document.getElementById('topbar-title');
       if(t) { const o=t.textContent; t.textContent='↺ '+o; setTimeout(()=>t.textContent=o,1200); }
-    } catch(e) {}
+    } catch(e) { console.warn('[poll] notif refresh failed', e); }
   }, 300);
 }
 </script>
@@ -8859,7 +8859,7 @@ function checkSession() {
       const creds = getCreds();
       const cred = creds[s.role];
       if(cred) { startSession(s.role, cred); return; }
-    } catch(e) {}
+    } catch(e) { console.warn('[session] restore failed', e); }
   }
   // No session — show login
   selectRole('tl');
@@ -10021,7 +10021,7 @@ async function renderEODReports() {
       {headers:{'apikey':_SUPA_KEY,'Authorization':'Bearer '+_SUPA_KEY}});
     eods = await r.json();
     if(!Array.isArray(eods)) eods = [];
-  } catch(e) {}
+  } catch(e) { console.warn('[wfh] eod fetch failed', e); }
 
   // Fetch sessions for hours/timing
   const sessions = _sessionsCache[date] || {};
@@ -11088,7 +11088,7 @@ async function showShiftSummary(opId, sess, eod) {
       const breaches = events.filter(e=>['face_away','cam_blocked','face_changed'].includes(e.event_type)).length;
       camScore = Math.max(40, 100 - breaches * 10);
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[wfh] face events fetch failed', e); }
 
   const camCol   = camScore >= 80 ? '#00d4a0' : camScore >= 60 ? '#ffaa44' : '#ff5e6e';
   const dateStr  = new Date().toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
@@ -12015,7 +12015,7 @@ function startCursorIdleTracking() {
     // Don't flag if operator set a voluntary status (meeting/break/lunch etc.)
     const voluntaryOff = ['meeting','break','lunch','floor_support','training'];
     try { const st = await dbGetOpStatus(opId); if(voluntaryOff.includes(st)) return; }
-    catch(e){}
+    catch(e){ console.warn('[wfh] op status fetch failed', e); }
 
     const idleMs = Date.now() - _cursorLastMove;
     if(idleMs >= 30000 && !_cursorAwayActive) {
@@ -12571,7 +12571,7 @@ async function processIncomingSignals() {
     } else if(sig.signal_type === 'ice') {
       const pc = _meetPeers[fromPeer];
       if(pc && sig.payload.candidate) {
-        try { await pc.addIceCandidate(new RTCIceCandidate(sig.payload.candidate)); } catch(e) {}
+        try { await pc.addIceCandidate(new RTCIceCandidate(sig.payload.candidate)); } catch(e) { console.warn('[meet] ice candidate failed', e); }
       }
     }
   }
@@ -13780,7 +13780,7 @@ async function refreshDPView() {
       const rows = await r.json();
       if(rows.length && Array.isArray(rows[0].val)) window._dbCache['daily_plans'] = rows[0].val;
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[dp] refresh failed', e); }
   renderDailyPlanView();
   if(btn) { btn.textContent = '🔄 Refresh'; btn.disabled = false; }
 }
@@ -13796,7 +13796,7 @@ async function refreshDRView() {
         window._dbCache['dr_entries'] = rows[0].val;
       }
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[dr] refresh failed', e); }
   renderDRView();
   if(btn) { btn.textContent = '🔄 Refresh'; btn.disabled = false; }
 }
@@ -13970,10 +13970,6 @@ function rejectDR(id) {
   e.status  = 'Rejected'; save('dr_entries',all);
   pushFeedbackNotif(e,'report','Rejected');
   renderDRView(); toast('Entry rejected','❌');
-}
-function deleteDR(id) {
-  save('dr_entries', load('dr_entries').filter(e=>e.id!==id));
-  renderDRView();
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -14210,7 +14206,7 @@ async function saveDailyPlan() {
       const rows = await r.json();
       if(rows.length && Array.isArray(rows[0].val)) window._dbCache['daily_plans'] = rows[0].val;
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[dp] safe-merge fetch failed', e); }
   const all = load('daily_plans');
   const idx = all.findIndex(e=>e.person===person&&e.date===date&&!e.isAchieved);
   if(idx>=0) all[idx]=entry; else all.push(entry);
@@ -15404,9 +15400,6 @@ function getPlanScore(person, date) {
   return { score: Math.round((approved/total)*100), total, approved, rejected: total-approved };
 }
 
-function scoreColor(score) {
-  return score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--amber)' : 'var(--red)';
-}
 function scoreEmoji(score) {
   return score === 100 ? '🌟' : score >= 80 ? '✅' : score >= 60 ? '⚠️' : '❌';
 }
@@ -15611,11 +15604,6 @@ function clearProdFilter() {
   const ft = document.getElementById('prod-filter-team');
   if(fd) fd.value='';
   if(ft) ft.value='';
-  renderProd();
-}
-
-function deleteProd(id) {
-  save('prod', load('prod').filter(p=>p.id!==id));
   renderProd();
 }
 
