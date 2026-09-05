@@ -16170,6 +16170,33 @@ async function dbSetApprovedV2(opIds, date) {
   }
 }
 
+// ── Same-day re-checkin lockout (ported from v1) ───────────────────
+// v1 keeps this as a plain field on its session object, which works there
+// because v1's session cache is a client-side object that only gets
+// replaced wholesale on periodic refresh. v2 has no such cache — every
+// caller re-fetches sessions fresh from Supabase (dbGetSessionsV2), and
+// wfh_sessions_v2 has no locked_out/relogin_approved columns — so the flag
+// needs its own real persistence. Reuses the generic aifi_store key/value
+// table (same one 'daily_plans'/'dr_entries'/'prod' etc. already use) so
+// no schema migration is needed.
+function dbGetLockoutV2(opId, date) {
+  const d = date || nairobiDateStr();
+  return (load('wfh_lockouts_v2')||[]).find(l => l.opId===opId && l.date===d) || null;
+}
+async function dbSetLockoutV2(opId, date, patch) {
+  const all = load('wfh_lockouts_v2') || [];
+  const idx = all.findIndex(l => l.opId===opId && l.date===date);
+  if(idx>=0) all[idx] = {...all[idx], ...patch};
+  else all.push({opId, date, lockedOut:false, reloginApproved:false, ...patch});
+  return saveAndVerify('wfh_lockouts_v2', all);
+}
+async function allowReloginV2(opId, date) {
+  const d = date || nairobiDateStr();
+  const ok = await dbSetLockoutV2(opId, d, {reloginApproved:true, lockedOut:false});
+  if(ok) { toast(operatorLabel(opId)+' — re-login approved ✓ (v2)','🔓'); openWFHApprovalV2(); }
+  else toast('❌ Failed to approve re-login — try again','❌');
+}
+
 // ── Breaches ─────────────────────────────────────────────────────
 // v1 only ever wrote breaches to browser localStorage (loadObj/save on
 // 'wfh_breaches') — never shared across devices, never visible to a TL
@@ -17023,6 +17050,17 @@ async function wfhCheckInV2() {
   const existingSess = todaySessions[normalizeOpId(opId)];
   if(existingSess?.checkIn && !existingSess?.checkOut) { toast('Already checked in today','⚠️'); return; }
 
+  // Full-shift (9h+) lockout, ported from v1 — completing a full shift
+  // requires the TL to explicitly unlock re-login (Approve Operators modal),
+  // separate from and in addition to just remaining on the approved list.
+  const lockout = dbGetLockoutV2(normalizeOpId(opId));
+  if(lockout?.lockedOut && !lockout?.reloginApproved) {
+    toast('🔒 Shift completed — contact your Team Lead for permission to start a new shift.','❌');
+    const lockedStatusText = document.getElementById('wfh-session-status-text');
+    if(lockedStatusText) lockedStatusText.textContent = '🔒 Shift completed — contact Team Lead';
+    return;
+  }
+
   // Safety net for the v1→v2 cutover: if this operator still has an OPEN
   // session in the old v1 table (checked in before the cutover, never
   // checked out there), warn before letting them check in fresh under v2 —
@@ -17215,13 +17253,14 @@ async function submitEODV2() {
 
   await dbSaveSubmitLogV2(opId, 'eod', cases, aht, occ);
 
-  // Checkout — same 9-hour lockout rule as v1, ported faithfully.
+  // Checkout
   const sessions = await dbGetSessionsV2();
   const sess = sessions[normalizeOpId(opId)];
   let totalHours = null;
   if(sess?.checkIn) {
     const ms = (Date.now() - new Date(sess.checkIn).getTime()) - (_wfhTotalBreakV2||0);
     totalHours = (ms/3600000).toFixed(2);
+    sess.totalHours = totalHours; // so showShiftSummaryV2 below sees it
     await dbSaveSessionV2(opId, {
       ...sess, status:'offline', checkOut: nowNairobi(), totalHours,
     });
@@ -17230,17 +17269,104 @@ async function submitEODV2() {
   await dbInsertLogV2(opId, 'checkout', { notes:'Checked out. Total hours: '+(totalHours||'–') });
   clearInterval(_wfhTimerIntervalV2);
 
+  // Full-shift (9h+) lockout — same rule as v1: requires the TL to
+  // explicitly unlock re-login (Approve Operators modal) before this
+  // operator can check in again today.
+  if(totalHours !== null && parseFloat(totalHours) >= 9) {
+    await dbSetLockoutV2(normalizeOpId(opId), nairobiDateStr(), {lockedOut:true, reloginApproved:false});
+  }
+
   const eodCard = document.getElementById('wfh-eod-form-card');
   if(eodCard) eodCard.style.display = 'none';
   const statusText = document.getElementById('wfh-session-status-text');
   if(statusText) statusText.textContent = '✅ Shift ended. Great work today!';
   toast(operatorLabel(opId)+' — EOD submitted & checked out ✓ (v2)','📝');
 
-  // NOTE: v1's 9-hour shift lockout (requiring TL approval to start a new
-  // shift same day) and the full End-of-Shift Summary Report are NOT yet
-  // ported — flagging rather than silently dropping. The lockout rule in
-  // particular affects who can check in again today, so it should be
-  // confirmed/ported before this fully replaces v1 for real operators.
+  // Full End-of-Shift Summary Report, ported from v1 — the camera/face-
+  // detection score card is omitted since v2 has no camera monitoring
+  // (retired per JP's decision, see WFH MONITOR v2 header comment).
+  await showShiftSummaryV2(opId, sess, {cases, aht, occ, quality, internet, notes});
+}
+
+// ── End-of-Shift Summary Report (v2) ───────────────────────────────
+// Ported from v1's showShiftSummary. No camera score card — v2 has no
+// camera/face-detection monitoring — so the stats grid is 2 columns
+// (Hours Worked, Cases Done) instead of v1's 3.
+async function showShiftSummaryV2(opId, sess, eod) {
+  const name      = operatorLabel(opId);
+  const team      = getOpTeam(opId).toUpperCase();
+  const checkIn   = sess?.checkIn  ? nairobiTimestampToTimeStr(sess.checkIn) : '–';
+  const checkOut  = nowNairobiTime();
+  const totalHrs  = sess?.totalHours ? parseFloat(sess.totalHours).toFixed(1) : '–';
+  const breakMins = sess?.totalBreakMs ? Math.round(sess.totalBreakMs/60000) : 0;
+  const dateStr   = new Date().toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  openModal('📋 End-of-Shift Report (v2)', `
+    <div style="text-align:center;padding:8px 0 20px">
+      <div style="font-size:32px;margin-bottom:4px">✅</div>
+      <div style="font-size:18px;font-weight:900;color:var(--text)">${name}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">${team} · ${dateStr}</div>
+    </div>
+
+    <!-- Key stats grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center;border:1px solid rgba(0,212,160,0.2)">
+        <div style="font-size:26px;font-weight:900;color:var(--accent);font-family:'DM Mono',monospace">${totalHrs}h</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px">Hours Worked</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;text-align:center;border:1px solid rgba(0,200,224,0.2)">
+        <div style="font-size:26px;font-weight:900;color:var(--teal);font-family:'DM Mono',monospace">${eod.cases||0}</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px">Cases Done</div>
+      </div>
+    </div>
+
+    <!-- Shift timeline -->
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border2)">
+      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">⏱️ Shift Timeline</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="text-align:center">
+          <div style="font-size:18px;font-weight:800;color:var(--green);font-family:'DM Mono',monospace">${checkIn}</div>
+          <div style="font-size:10px;color:var(--text3)">Check In</div>
+        </div>
+        <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--green),var(--accent));margin:0 12px;border-radius:2px"></div>
+        <div style="text-align:center">
+          <div style="font-size:18px;font-weight:800;color:var(--violet);font-family:'DM Mono',monospace">${checkOut}</div>
+          <div style="font-size:10px;color:var(--text3)">Check Out</div>
+        </div>
+      </div>
+      ${breakMins > 0 ? `<div style="font-size:10px;color:var(--amber);text-align:center;margin-top:8px">☕ ${breakMins} min on break</div>` : ''}
+    </div>
+
+    <!-- Quality metrics -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      ${eod.aht ? `<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border:1px solid var(--border2)">
+        <div style="font-size:11px;color:var(--text3)">AHT</div>
+        <div style="font-size:16px;font-weight:800;color:var(--text);font-family:'DM Mono',monospace">${eod.aht}s</div>
+      </div>` : ''}
+      ${eod.occ ? `<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border:1px solid var(--border2)">
+        <div style="font-size:11px;color:var(--text3)">Occupancy</div>
+        <div style="font-size:16px;font-weight:800;color:var(--text);font-family:'DM Mono',monospace">${eod.occ}%</div>
+      </div>` : ''}
+      ${eod.quality ? `<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border:1px solid var(--border2)">
+        <div style="font-size:11px;color:var(--text3)">Quality</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${eod.quality}</div>
+      </div>` : ''}
+      ${eod.internet ? `<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border:1px solid var(--border2)">
+        <div style="font-size:11px;color:var(--text3)">Internet</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${eod.internet}</div>
+      </div>` : ''}
+    </div>
+
+    ${eod.notes ? `<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;border:1px solid var(--border2);margin-bottom:12px">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:4px">📝 Notes</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5">${eod.notes}</div>
+    </div>` : ''}
+
+    <div style="text-align:center;font-size:12px;color:var(--text3);padding-top:4px">
+      Great work today, ${name.split(' ')[0]}! See you next shift. 👋
+    </div>
+  `);
+  document.getElementById('modal-action').style.display = 'none';
 }
 
 // ── Approval (TL-facing) ──────────────────────────────────────────
@@ -17250,14 +17376,18 @@ function openWFHApprovalV2() {
       const chk = approved.includes(op) ? 'checked' : '';
       const t   = getOpType(op);
       const tc  = t==='FT'?'badge-blue':t==='PT'?'badge-amber':'badge-teal';
+      const lockout = dbGetLockoutV2(op);
+      const locked  = lockout?.lockedOut && !lockout?.reloginApproved;
       return `<label style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer">
         <input type="checkbox" value="${op}" ${chk} style="width:15px;height:15px;accent-color:var(--accent)"/>
         <span style="flex:1;font-size:12px;font-weight:600;color:var(--text)">${operatorLabel(op)}</span>
         <span class="badge ${tc}">${t}</span>
+        ${locked ? `<button type="button" onclick="event.preventDefault();allowReloginV2('${op}')" title="Completed a 9h+ shift today — click to allow them to start another"
+          style="font-size:9px;padding:2px 7px;background:rgba(255,94,110,0.12);border:1px solid rgba(255,94,110,0.4);color:var(--red);border-radius:8px;cursor:pointer;font-weight:700">🔒 Unlock</button>` : ''}
       </label>`;
     }).join('');
     openModal('✅ Approve Operators for WFH Today (v2)', `
-      <div class="alert alert-info" style="margin-bottom:12px">Only approved operators appear in the WFH Operator Portal. Unapproved operators cannot check in remotely.</div>
+      <div class="alert alert-info" style="margin-bottom:12px">Only approved operators appear in the WFH Operator Portal. Unapproved operators cannot check in remotely.<br>🔒 Unlock = operator completed a full (9h+) shift today and needs your permission to start another.</div>
       <div style="max-height:360px;overflow-y:auto;padding:2px 4px">${boxes}</div>
     `);
     const actionBtn = document.getElementById('modal-action');
