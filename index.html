@@ -6606,7 +6606,13 @@ function renderProd() {
   }
 
   const tbody = document.getElementById('prod-tbody');
-  if(!prod.length){ tbody.innerHTML='<tr><td colspan="14" style="text-align:center;color:var(--text3)">No entries yet.</td></tr>'; return; }
+  if(!prod.length){
+    const msg = (filterDate || filterTeam)
+      ? `No entries match this filter${filterDate ? ' (date: '+fmtDate(filterDate)+')' : ''}${filterTeam ? ' (team: '+filterTeam+')' : ''} — click "Clear Filter" to see all entries.`
+      : 'No entries yet.';
+    tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;color:var(--text3)">${msg}</td></tr>`;
+    return;
+  }
   const TEAM_BADGE = {kings:'<span class="badge badge-blue">Kings</span>',swat:'<span class="badge badge-purple">SWAT</span>'};
   const mono = 'font-family:\'DM Mono\',monospace;font-size:11px';
   const pct  = v => v != null && v !== '' ? (+v).toFixed(2)+'%' : '–';
