@@ -7691,9 +7691,9 @@ function calcPay() {
       transportAllowance = 0;
       // trainees don't have error deductions
     } else {
-      // Regular operator (FT or PT): KES 1,150/day
-      base = days * 1150;
-      role = operatorLabel(op||'?')+' ['+empType+'] — '+days+' days × KES 1,150';
+      // Regular operator (FT or PT): KES 1,300/day
+      base = days * 1300;
+      role = operatorLabel(op||'?')+' ['+empType+'] — '+days+' days × KES 1,300';
       transportDeduction = absences * 500;
       if(op) {
         const errors = load('errors').filter(e=>e.operator===op && e.date.startsWith(month));
