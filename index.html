@@ -2550,9 +2550,19 @@ function _dbRefreshPage(key) {
         <button class="btn btn-secondary btn-sm" onclick="_mgmtWeekOffset--; renderMgmtShiftCalendar();">← Prev</button>
         <div id="mgmt-week-label" style="font-weight:700;font-size:13px;flex:1;text-align:center"></div>
         <button class="btn btn-secondary btn-sm" onclick="_mgmtWeekOffset++; renderMgmtShiftCalendar();">Next →</button>
+        <button class="btn btn-primary btn-sm" onclick="openMgmtShiftEdit()">✏️ Edit This Week</button>
       </div>
       <div class="card" style="overflow-x:auto">
         <div id="mgmt-shift-calendar"></div>
+      </div>
+
+      <div class="card" id="mgmt-shift-edit-panel" style="display:none;margin-top:16px;overflow-x:auto">
+        <div class="card-header"><div class="card-title">✏️ Edit Week Shift Plan</div></div>
+        <div id="mgmt-shift-edit-grid"></div>
+        <div style="display:flex;gap:10px;margin-top:14px">
+          <button class="btn btn-primary" onclick="saveMgmtShifts()">💾 Save</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('mgmt-shift-edit-panel').style.display='none'">Cancel</button>
+        </div>
       </div>
     </div>
 
@@ -2576,9 +2586,9 @@ function _dbRefreshPage(key) {
             </select>
           </div>
           <div class="form-group" id="pay-operator-wrap" style="margin:0;display:none">
-            <label>Operator</label><select id="pay-operator" onchange="calcPay()" style="width:100%"></select>
+            <label>Operator</label><select id="pay-operator" onchange="loadAttDays()" style="width:100%"></select>
           </div>
-          <div class="form-group" style="margin:0"><label>Month</label><input type="month" id="pay-month" onchange="calcPay()" style="width:100%"/></div>
+          <div class="form-group" style="margin:0"><label>Month</label><input type="month" id="pay-month" onchange="loadAttDays()" style="width:100%"/></div>
           <div class="form-group" id="pay-days-wrap" style="margin:0;display:none">
             <label>Days Worked</label>
             <div style="display:flex;gap:6px">
@@ -7593,17 +7603,19 @@ function loadAttDays() {
   const att = loadObj('att');
   const [yr,mo] = month.split('-').map(Number);
   const days = new Date(yr,mo,0).getDate();
-  let present=0, absent=0;
+  let present=0, leave=0, absent=0;
   for(let d=1;d<=days;d++){
     const ds=`${month}-${String(d).padStart(2,'0')}`;
     const st=att[ds]?.[op]?.status||null;
     if(st==='present') present++;
+    else if(st==='leave') leave++;
     else if(st==='absent') absent++;
   }
-  document.getElementById('pay-days').value = present;
+  const paidDays = present + leave; // Present and Leave are both paid days; Off/Absent are not
+  document.getElementById('pay-days').value = paidDays;
   document.getElementById('pay-absent-days').value = absent;
-  document.getElementById('pay-days-hint').textContent=`Attendance: ${present} present, ${absent} absent in ${month}`;
-  calcPay(); toast(`Loaded: ${present} days worked in ${month}`,'📋');
+  document.getElementById('pay-days-hint').textContent=`Attendance: ${present} present + ${leave} leave = ${paidDays} paid days, ${absent} absent in ${month}`;
+  calcPay(); toast(`Loaded: ${paidDays} paid days in ${month}`,'📋');
 }
 function showEarningsHistory() {
   const person = document.getElementById('pay-person').value;
@@ -7681,9 +7693,9 @@ function calcPay() {
       transportAllowance = 0;
       // trainees don't have error deductions
     } else {
-      // Regular operator (FT or PT): KES 1,150/day
-      base = days * 1150;
-      role = operatorLabel(op||'?')+' ['+empType+'] — '+days+' days × KES 1,150';
+      // Regular operator (FT or PT): KES 1,300/day
+      base = days * 1300;
+      role = operatorLabel(op||'?')+' ['+empType+'] — '+days+' days × KES 1,300';
       transportDeduction = absences * 500;
       if(op) {
         const errors = load('errors').filter(e=>e.operator===op && e.date.startsWith(month));
