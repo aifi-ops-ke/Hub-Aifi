@@ -14548,7 +14548,7 @@ function renderMgmtShiftCalendar() {
       const dt = new Date(mon); dt.setDate(mon.getDate()+i);
       const isToday = dt.getTime()===today.getTime();
       const status  = plan[p.id]?.[i] || 'working';
-      const cfg     = MGMT_STATUS[status];
+      const cfg     = MGMT_STATUS[status] || MGMT_STATUS.working;
       return `<div style="padding:10px 6px;text-align:center;border-right:1px solid var(--border);
         background:${isToday?'rgba(0,212,160,0.04)':'transparent'}">
         <div style="background:${cfg.bg};border:1px solid ${cfg.border};border-radius:8px;
