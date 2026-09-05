@@ -2586,9 +2586,9 @@ function _dbRefreshPage(key) {
             </select>
           </div>
           <div class="form-group" id="pay-operator-wrap" style="margin:0;display:none">
-            <label>Operator</label><select id="pay-operator" onchange="calcPay()" style="width:100%"></select>
+            <label>Operator</label><select id="pay-operator" onchange="loadAttDays()" style="width:100%"></select>
           </div>
-          <div class="form-group" style="margin:0"><label>Month</label><input type="month" id="pay-month" onchange="calcPay()" style="width:100%"/></div>
+          <div class="form-group" style="margin:0"><label>Month</label><input type="month" id="pay-month" onchange="loadAttDays()" style="width:100%"/></div>
           <div class="form-group" id="pay-days-wrap" style="margin:0;display:none">
             <label>Days Worked</label>
             <div style="display:flex;gap:6px">
@@ -7603,17 +7603,19 @@ function loadAttDays() {
   const att = loadObj('att');
   const [yr,mo] = month.split('-').map(Number);
   const days = new Date(yr,mo,0).getDate();
-  let present=0, absent=0;
+  let present=0, leave=0, absent=0;
   for(let d=1;d<=days;d++){
     const ds=`${month}-${String(d).padStart(2,'0')}`;
     const st=att[ds]?.[op]?.status||null;
     if(st==='present') present++;
+    else if(st==='leave') leave++;
     else if(st==='absent') absent++;
   }
-  document.getElementById('pay-days').value = present;
+  const paidDays = present + leave; // Present and Leave are both paid days; Off/Absent are not
+  document.getElementById('pay-days').value = paidDays;
   document.getElementById('pay-absent-days').value = absent;
-  document.getElementById('pay-days-hint').textContent=`Attendance: ${present} present, ${absent} absent in ${month}`;
-  calcPay(); toast(`Loaded: ${present} days worked in ${month}`,'📋');
+  document.getElementById('pay-days-hint').textContent=`Attendance: ${present} present + ${leave} leave = ${paidDays} paid days, ${absent} absent in ${month}`;
+  calcPay(); toast(`Loaded: ${paidDays} paid days in ${month}`,'📋');
 }
 function showEarningsHistory() {
   const person = document.getElementById('pay-person').value;
