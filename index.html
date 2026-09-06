@@ -2495,8 +2495,9 @@ function _dbRefreshPage(key) {
         </div>
         <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="saveSchedule()">💾 Save Shift</button>
       </div>
-      <div class="card" style="margin-bottom:16px;max-width:280px">
+      <div class="card" style="margin-bottom:16px;max-width:640px;display:flex;align-items:flex-end;gap:10px">
         <div class="form-group" style="margin:0"><label>Week Starting</label><input type="date" id="sched-week-start" onchange="renderSchedule()" style="width:100%"/></div>
+        <button class="btn btn-secondary btn-sm" onclick="exportScheduleCSV()">⬇ Export CSV</button>
       </div>
       <div class="card" style="overflow-x:auto">
         <div id="schedule-table-wrap"></div>
@@ -2625,6 +2626,29 @@ function _dbRefreshPage(key) {
             </tr>
           </thead>
           <tbody id="payroll-summary-tbody"><!-- --></tbody>
+        </table>
+      </div>
+
+      <div class="card" style="overflow-x:auto;margin-top:16px">
+        <div class="card-header"><div class="card-title">📥 Bulk Payroll (Everyone, One Month)</div></div>
+        <div class="alert alert-info" style="margin-bottom:12px">
+          Computes attendance-driven pay for all operators (Present/Leave days × rate, minus transport &amp; error deductions) plus fixed salaries for TL/QA.
+          Does <strong>not</strong> include overtime, night-shift transport, or cover pay — those have no stored per-person data outside the single-person calculator above, so add them manually if relevant.
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:14px">
+          <div class="form-group" style="margin:0"><label>Month</label><input type="month" id="bulk-pay-month" style="width:160px"/></div>
+          <button class="btn btn-secondary btn-sm" onclick="renderBulkPayroll()">👁️ Preview</button>
+          <button class="btn btn-primary btn-sm" onclick="exportBulkPayrollCSV()">⬇ Export CSV</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="text-align:left;color:var(--text3);font-size:10px;text-transform:uppercase">
+              <th style="padding:8px">Name</th><th style="padding:8px">Role</th><th style="padding:8px">Paid Days</th>
+              <th style="padding:8px">Base</th><th style="padding:8px">Transport</th><th style="padding:8px">Deductions</th>
+              <th style="padding:8px">Net Pay</th>
+            </tr>
+          </thead>
+          <tbody id="bulk-payroll-tbody"><tr><td colspan="7" style="text-align:center;color:var(--text3);padding:14px">Pick a month and click Preview.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -7695,8 +7719,6 @@ function calcPay() {
 
   let base=0, role='', transportAllowance=3000, transportDeduction=0,
       nightTransport=0, errorDeductions=0, empType='';
-  // Auto-load error deductions for this operator/month
-  const _errDedTotal = (month && op) ? getPayrollErrorDeductions(op, month) : 0;
 
   const month = document.getElementById('pay-month').value;
   const op    = document.getElementById('pay-operator').value;
@@ -7773,6 +7795,95 @@ function calcPay() {
   </tr>`;
   if(existing) existing.outerHTML = row;
   else tbody.innerHTML = tbody.innerHTML.replace('<!-- -->', '') + row;
+}
+
+// ── Bulk Payroll (everyone, one month) ─────────────────────────────
+// Mirrors calcPay()'s rate rules (KES 1,300/day operators, KES 500/day
+// trainees, KES 3,000 transport allowance minus KES 500/absent-day,
+// error deductions capped at KES 7,000) but driven entirely by stored
+// attendance/error data instead of manual per-person form entry, so it
+// can run for all 72 operators + 3 fixed-salary staff at once.
+// Deliberately excludes OT/night-transport/cover-pay: those have no
+// stored per-operator value anywhere — they only ever exist as one-off
+// manual inputs in the single-person calculator above.
+function computeBulkPayroll(month) {
+  const att = loadObj('att');
+  const [yr, mo] = month.split('-').map(Number);
+  const daysInMonth = new Date(yr, mo, 0).getDate();
+  const dateKeys = Array.from({length:daysInMonth}, (_,i) => `${month}-${String(i+1).padStart(2,'0')}`);
+
+  function attendanceDays(op) {
+    let present=0, leave=0, absent=0;
+    dateKeys.forEach(ds => {
+      const st = att[ds]?.[op]?.status || null;
+      if(st==='present') present++;
+      else if(st==='leave') leave++;
+      else if(st==='absent') absent++;
+    });
+    return { paidDays: present+leave, absentDays: absent };
+  }
+
+  const rows = [
+    { name:'John Paul Kimongo', role:'TL', paidDays:'', base:52000, transportAllowance:3000, transportDeduction:0, errorDeductions:0 },
+    { name:'John Kingori',      role:'QA', paidDays:'', base:40000, transportAllowance:3000, transportDeduction:0, errorDeductions:0 },
+    { name:'Rosemary Nyaleso',  role:'QA', paidDays:'', base:40000, transportAllowance:3000, transportDeduction:0, errorDeductions:0 },
+  ];
+
+  OPERATORS.forEach(op => {
+    const empType = getOpType(op);
+    const { paidDays, absentDays } = attendanceDays(op);
+    const isTrainee = empType === 'TR';
+    const base = paidDays * (isTrainee ? 500 : 1300);
+    const transportAllowance = isTrainee ? 0 : 3000;
+    const transportDeduction = isTrainee ? 0 : absentDays * 500;
+    let errorDeductions = 0;
+    if(!isTrainee) {
+      const errors = load('errors').filter(e=>e.operator===op && e.date.startsWith(month));
+      errorDeductions = Math.min(7000, errors.reduce((s,e)=>s+e.deduction,0));
+    }
+    rows.push({
+      name: operatorLabel(op),
+      role: isTrainee ? 'Trainee' : (getOpTeam(op)||'unassigned').toUpperCase()+' ['+empType+']',
+      paidDays, base, transportAllowance, transportDeduction, errorDeductions
+    });
+  });
+
+  return rows.map(r => ({
+    ...r,
+    net: r.base + (r.transportAllowance - r.transportDeduction) - r.errorDeductions
+  }));
+}
+
+function renderBulkPayroll() {
+  const month = document.getElementById('bulk-pay-month')?.value;
+  const tbody = document.getElementById('bulk-payroll-tbody');
+  if(!month) { toast('Select a month first','⚠️'); return; }
+  const rows = computeBulkPayroll(month);
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td>${r.name}</td>
+    <td>${r.role}</td>
+    <td>${r.paidDays}</td>
+    <td>KES ${r.base.toLocaleString()}</td>
+    <td>KES ${r.transportAllowance.toLocaleString()}</td>
+    <td style="color:var(--red)">-KES ${(r.transportDeduction+r.errorDeductions).toLocaleString()}</td>
+    <td style="color:var(--green);font-weight:700">KES ${r.net.toLocaleString()}</td>
+  </tr>`).join('');
+}
+
+function exportBulkPayrollCSV() {
+  const month = document.getElementById('bulk-pay-month')?.value;
+  if(!month) { toast('Select a month first','⚠️'); return; }
+  const rows = computeBulkPayroll(month);
+  let csv = 'Name,Role,Paid Days,Base Pay,Transport Allowance,Transport Deduction,Error Deductions,Net Pay\n';
+  rows.forEach(r => {
+    csv += `"${r.name}","${r.role}",${r.paidDays},${r.base},${r.transportAllowance},${r.transportDeduction},${r.errorDeductions},${r.net}\n`;
+  });
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'aifi-payroll-bulk-'+month+'.csv';
+  a.click();
+  toast(`Bulk payroll exported for ${rows.length} people ✓`,'⬇');
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -8087,6 +8198,28 @@ function renderSchedule() {
     ${days.map(d=>`<td><span class="shift-block ${shiftClass(sched[d]?.[op]||'')}">${sched[d]?.[op]||'–'}</span></td>`).join('')}
   </tr>`).join('')}</tbody></table>`;
   document.getElementById('schedule-table-wrap').innerHTML = html;
+}
+
+// Exports every date on record in 'schedule' (not just the visible week),
+// one row per operator, one column per date, sorted ascending — matches
+// the AIFI Shift Schedule sheet's layout (operator rows × date columns,
+// cell = shift time range / OFF / Leave).
+function exportScheduleCSV() {
+  const sched = loadObj('schedule');
+  const allDates = [...new Set(Object.keys(sched))].sort();
+  if(!allDates.length) { toast('No shift schedule data to export','⚠️'); return; }
+  let csv = 'Operator,Type,' + allDates.map(d=>`"${d}"`).join(',') + '\n';
+  OPERATORS.forEach(op => {
+    const row = allDates.map(d => sched[d]?.[op] || '');
+    if(row.every(v=>!v)) return; // skip operators with no shift data at all
+    csv += `"${operatorLabel(op)}",${getOpType(op)},` + row.map(v=>`"${v}"`).join(',') + '\n';
+  });
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'aifi-shift-schedule-'+today()+'.csv';
+  a.click();
+  toast('Shift schedule exported ✓','⬇');
 }
 
 // ════════════════════════════════════════════════════════════════
