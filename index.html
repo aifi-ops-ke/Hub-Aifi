@@ -1546,6 +1546,9 @@ function _dbRefreshPage(key) {
     <div class="nav-item active" onclick="nav('dashboard')">
       <span class="nav-icon">📊</span><span>Dashboard</span>
     </div>
+    <div class="nav-item" onclick="nav('daily-robot')" style="background:rgba(0,212,160,0.06);border:1px solid rgba(0,212,160,0.15)">
+      <span class="nav-icon">🤖</span><span style="font-weight:800">My Day</span>
+    </div>
 
   </div>
 
@@ -1872,6 +1875,56 @@ function _dbRefreshPage(key) {
         </div>
         <button class="btn btn-primary" onclick="saveDashEntry()">💾 Save</button>
         <div id="dash-hist-display" style="margin-top:16px"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE: MY DAY — DAILY PLANNING ROBOT
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-daily-robot">
+      <div class="page-header">
+        <h1>🤖 My Day — Daily Planning Robot</h1>
+        <p>Wakes you up, plans your day with you, and reminds you of what's next — as long as this tab stays open in your browser.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">⏰ Wake-Up Alarm</div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-top:10px">
+          <div class="form-group" style="margin:0">
+            <label>Wake me up at</label>
+            <input type="time" id="dr-wake-time" style="width:130px" onchange="saveDRSettings()"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;height:36px">
+              <input type="checkbox" id="dr-wake-enabled" style="width:16px;height:16px;accent-color:var(--accent)" onchange="saveDRSettings()"/>
+              <span style="font-size:13px">Enable daily wake-up alarm</span>
+            </label>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="enableDRNotifications()" id="dr-notif-btn">🔔 Enable Notifications</button>
+          <button class="btn btn-primary btn-sm" onclick="triggerDRPlanNow()">☀️ Plan My Day Now</button>
+        </div>
+        <div id="dr-engine-status" style="font-size:11px;color:var(--text3);margin-top:10px"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">🔁 Daily Routine <span style="font-weight:400;color:var(--text3);font-size:11px">(repeats every day, auto-added to today's plan)</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:10px">
+          <div class="form-group" style="margin:0"><label>Time</label><input type="time" id="dr-routine-time" style="width:120px"/></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:180px"><label>Task</label><input type="text" id="dr-routine-title" placeholder="e.g. Morning standup"/></div>
+          <button class="btn btn-secondary btn-sm" onclick="addDRRoutine()">➕ Add to Routine</button>
+        </div>
+        <div id="dr-routine-list" style="margin-top:14px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📋 Today's Plan — <span id="dr-today-label"></span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:10px">
+          <div class="form-group" style="margin:0"><label>Time</label><input type="time" id="dr-task-time" style="width:120px"/></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:180px"><label>Task</label><input type="text" id="dr-task-title" placeholder="e.g. Review QA reports"/></div>
+          <button class="btn btn-primary btn-sm" onclick="addDRTask()">➕ Add Task</button>
+        </div>
+        <div id="dr-task-list" style="margin-top:14px"></div>
       </div>
     </div>
 
@@ -5432,6 +5485,7 @@ async function saveAndVerify(key, val) {
 // ════════════════════════════════════════════════════════════════
 
 const PAGE_TITLES = {
+  'daily-robot':'🤖 My Day — Planning Robot',
   'dashboard':'Dashboard','tl-portal':'Supervisor Portal','qa-portal-kings':'Kings QA Portal','qa-portal-swat':'SWAT QA Portal','audit-links':'Internal Audits',
   'attendance':'Attendance','production':'Production','errors':'Errors & QA','payroll':'Payroll',
   'leave':'Leave Tracker','schedule':'Shift Schedule',
@@ -5501,6 +5555,7 @@ function nav(page) {
   if(page==='schedule') { renderSchedule(); }
   if(page==='alerts') { renderAlerts(); }
   if(page==='heatmap') { renderHeatmap(); }
+  if(page==='daily-robot') { renderDailyRobotPage(); }
 }
 
 function switchTab(el, show, ...hide) {
@@ -5990,6 +6045,274 @@ function nairobiTimestampToDateTimeStr(ts) {
 }
 function fmtDate(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '–'; }
 function daysBetween(a,b) { return Math.round((new Date(b)-new Date(a))/(1000*60*60*24))+1; }
+
+// ════════════════════════════════════════════════════════════════
+//  MY DAY — DAILY PLANNING ROBOT
+//  Personal wake-up alarm + routine/task reminders for whoever is
+//  logged in. Runs entirely client-side (Notification API + Web
+//  Audio beep) on top of the same cloud key/value store as the rest
+//  of the hub, so it only works while this tab stays open.
+// ════════════════════════════════════════════════════════════════
+
+let _drEngineTimer = null;
+
+function _drEsc(s) {
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function _drKey() { return 'daily_robot_' + (currentRole || 'guest'); }
+
+function getDRData() {
+  const d = loadObj(_drKey(), null);
+  if(d && typeof d === 'object') return { wakeTime:'', wakeEnabled:false, routine:[], days:{}, ...d };
+  return { wakeTime:'', wakeEnabled:false, routine:[], days:{} };
+}
+
+function saveDRData(d) { save(_drKey(), d); }
+
+// Make sure today's task bucket exists — auto-populated from the
+// routine the first time "today" is seen. Also prunes old day buckets
+// so this doesn't grow forever.
+function _drEnsureToday(d) {
+  const dateKey = today();
+  Object.keys(d.days).forEach(k => { if(daysBetween(k, dateKey) > 14) delete d.days[k]; });
+  if(!d.days[dateKey]) {
+    d.days[dateKey] = {
+      tasks: d.routine.map(r => ({ id:'dr'+Date.now()+Math.random().toString(36).slice(2,7), time:r.time, title:r.title, done:false, source:'routine', routineId:r.id })),
+      alarmFired: false,
+      remindersFired: []
+    };
+  }
+  return d.days[dateKey];
+}
+
+function renderDailyRobotPage() {
+  const d = getDRData();
+  const bucket = _drEnsureToday(d);
+  saveDRData(d);
+
+  document.getElementById('dr-wake-time').value = d.wakeTime || '';
+  document.getElementById('dr-wake-enabled').checked = !!d.wakeEnabled;
+  document.getElementById('dr-today-label').textContent = fmtDate(today());
+
+  document.getElementById('dr-routine-list').innerHTML = d.routine.length ? d.routine
+    .slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''))
+    .map(r => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border-radius:8px;margin-bottom:6px">
+        <span style="font-size:13px"><b style="color:var(--accent)">${_drEsc(r.time)||'--:--'}</b> &nbsp; ${_drEsc(r.title)}</span>
+        <button class="btn btn-secondary btn-sm" onclick="deleteDRRoutine('${r.id}')">🗑</button>
+      </div>`).join('')
+    : '<div style="color:var(--text3);font-size:12px">No recurring routine yet — add tasks that should show up every day.</div>';
+
+  renderDRTaskList();
+  updateDRNotifButton();
+  updateDREngineStatus();
+}
+
+function renderDRTaskList() {
+  const el = document.getElementById('dr-task-list');
+  if(!el) return;
+  const d = getDRData();
+  const bucket = _drEnsureToday(d);
+  const nowT = nowNairobiTime();
+  el.innerHTML = bucket.tasks.length ? bucket.tasks
+    .slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''))
+    .map(t => {
+      const overdue = !t.done && t.time && t.time < nowT;
+      const color = t.done ? 'var(--text3)' : overdue ? 'var(--red)' : 'var(--text)';
+      return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border-radius:8px;margin-bottom:6px;border-left:3px solid ${t.done?'var(--green)':overdue?'var(--red)':'var(--border2)'}">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;font-size:13px;color:${color};text-decoration:${t.done?'line-through':'none'}">
+          <input type="checkbox" ${t.done?'checked':''} onchange="toggleDRTask('${t.id}')" style="width:15px;height:15px;accent-color:var(--accent)"/>
+          <b>${t.time?_drEsc(t.time):'--:--'}</b> ${_drEsc(t.title)} ${t.source==='routine'?'<span style="font-size:10px;color:var(--text3)">(routine)</span>':''}
+        </label>
+        <button class="btn btn-secondary btn-sm" onclick="deleteDRTask('${t.id}')">🗑</button>
+      </div>`;
+    }).join('')
+    : '<div style="color:var(--text3);font-size:12px">Nothing planned yet — add a task above, or set up a daily routine.</div>';
+}
+
+function saveDRSettings() {
+  const d = getDRData();
+  d.wakeTime = document.getElementById('dr-wake-time').value || '';
+  d.wakeEnabled = document.getElementById('dr-wake-enabled').checked;
+  saveDRData(d);
+  updateDREngineStatus();
+  toast(d.wakeEnabled && d.wakeTime ? `Wake-up alarm set for ${d.wakeTime} ⏰` : 'Wake-up alarm updated', '⏰');
+}
+
+function addDRRoutine() {
+  const time = document.getElementById('dr-routine-time').value;
+  const title = document.getElementById('dr-routine-title').value.trim();
+  if(!title) { toast('Type a task first', '⚠️'); return; }
+  const d = getDRData();
+  const r = { id:'dr'+Date.now()+Math.random().toString(36).slice(2,7), time, title };
+  d.routine.push(r);
+  const bucket = _drEnsureToday(d);
+  bucket.tasks.push({ id:'dr'+Date.now()+Math.random().toString(36).slice(2,7), time, title, done:false, source:'routine', routineId:r.id });
+  saveDRData(d);
+  document.getElementById('dr-routine-title').value = '';
+  document.getElementById('dr-routine-time').value = '';
+  renderDailyRobotPage();
+  toast('Added to your daily routine', '🔁');
+}
+
+function deleteDRRoutine(id) {
+  const d = getDRData();
+  d.routine = d.routine.filter(r => r.id !== id);
+  const bucket = _drEnsureToday(d);
+  bucket.tasks = bucket.tasks.filter(t => !(t.source==='routine' && t.routineId===id && !t.done));
+  saveDRData(d);
+  renderDailyRobotPage();
+}
+
+function addDRTask() {
+  const time = document.getElementById('dr-task-time').value;
+  const title = document.getElementById('dr-task-title').value.trim();
+  if(!title) { toast('Type a task first', '⚠️'); return; }
+  const d = getDRData();
+  const bucket = _drEnsureToday(d);
+  bucket.tasks.push({ id:'dr'+Date.now()+Math.random().toString(36).slice(2,7), time, title, done:false, source:'manual' });
+  saveDRData(d);
+  document.getElementById('dr-task-title').value = '';
+  document.getElementById('dr-task-time').value = '';
+  renderDRTaskList();
+  toast('Added to today\'s plan', '📋');
+}
+
+function toggleDRTask(id) {
+  const d = getDRData();
+  const bucket = _drEnsureToday(d);
+  const t = bucket.tasks.find(t=>t.id===id);
+  if(t) t.done = !t.done;
+  saveDRData(d);
+  renderDRTaskList();
+}
+
+function deleteDRTask(id) {
+  const d = getDRData();
+  const bucket = _drEnsureToday(d);
+  bucket.tasks = bucket.tasks.filter(t=>t.id!==id);
+  saveDRData(d);
+  renderDRTaskList();
+}
+
+function enableDRNotifications() {
+  if(!('Notification' in window)) { toast('This browser doesn\'t support notifications', '⚠️'); return; }
+  // A user gesture click is also our best chance to unlock the AudioContext for the alarm sound
+  try { const ctx = window._drAudioCtx || (window._drAudioCtx = new (window.AudioContext||window.webkitAudioContext)()); if(ctx.state==='suspended') ctx.resume(); } catch(e) {}
+  Notification.requestPermission().then(() => { updateDRNotifButton(); toast(Notification.permission==='granted' ? 'Notifications enabled ✅' : 'Notifications blocked — you\'ll still see in-app toasts', Notification.permission==='granted'?'🔔':'⚠️'); });
+}
+
+function updateDRNotifButton() {
+  const btn = document.getElementById('dr-notif-btn');
+  if(!btn || !('Notification' in window)) return;
+  if(Notification.permission === 'granted') { btn.textContent = '🔔 Notifications On'; btn.classList.remove('btn-secondary'); btn.classList.add('btn-green'); }
+  else { btn.textContent = '🔔 Enable Notifications'; btn.classList.remove('btn-green'); btn.classList.add('btn-secondary'); }
+}
+
+function updateDREngineStatus() {
+  const el = document.getElementById('dr-engine-status');
+  if(!el) return;
+  const d = getDRData();
+  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  const alarmTxt = (d.wakeEnabled && d.wakeTime) ? `Alarm set for ${d.wakeTime} EAT` : 'Wake-up alarm is off';
+  el.innerHTML = `🟢 Planning robot active — checking every 20s while this tab is open · ${alarmTxt} · Notifications: ${perm}`;
+}
+
+function _drBeep(freq, duration, when) {
+  try {
+    const ctx = window._drAudioCtx || (window._drAudioCtx = new (window.AudioContext||window.webkitAudioContext)());
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.frequency.value = freq;
+    osc.connect(gain); gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime + when);
+    osc.start(ctx.currentTime + when);
+    osc.stop(ctx.currentTime + when + duration/1000);
+  } catch(e) { /* AudioContext blocked until a user gesture — notifications/toasts still fire */ }
+}
+function playDRAlarmSound() { [0,0.3,0.6].forEach((w,i)=>_drBeep([660,880,1046][i],220,w)); }
+function playDRReminderSound() { _drBeep(740,150,0); }
+
+function sendDRNotification(title, body) {
+  toast(body, '🤖');
+  if('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification(title, { body, tag:'daily-robot' }); } catch(e) {}
+  }
+}
+
+function _drTaskSummaryHtml(bucket) {
+  return bucket.tasks.length ? bucket.tasks.slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''))
+    .map(t => `<div style="padding:6px 0;border-bottom:1px solid var(--border2);font-size:13px">${t.time?`<b style="color:var(--accent)">${_drEsc(t.time)}</b> — `:''}${_drEsc(t.title)}</div>`).join('')
+    : '<div style="color:var(--text3);font-size:12px">Nothing on the plan yet — add something below.</div>';
+}
+
+function showDRPlanModal(isAlarm) {
+  const d = getDRData();
+  const bucket = _drEnsureToday(d);
+  saveDRData(d);
+  openModal(isAlarm ? '⏰ Good morning! Time to plan your day' : '☀️ Plan My Day', `
+    <div style="margin-bottom:14px;font-size:13px;color:var(--text2)">${isAlarm?"Your wake-up alarm just went off. ":''}Here's today's plan (${fmtDate(today())}):</div>
+    <div id="dr-modal-summary" style="max-height:220px;overflow-y:auto;margin-bottom:14px">${_drTaskSummaryHtml(bucket)}</div>
+    <div style="display:flex;gap:8px">
+      <input type="time" id="dr-modal-time" style="width:110px"/>
+      <input type="text" id="dr-modal-title" placeholder="Add a task for today…" style="flex:1" onkeydown="if(event.key==='Enter')addDRTaskFromModal()"/>
+      <button class="btn btn-secondary btn-sm" onclick="addDRTaskFromModal()">➕</button>
+    </div>
+  `);
+  const actionBtn = document.getElementById('modal-action');
+  actionBtn.style.display = 'flex';
+  actionBtn.textContent = "Let's go! 🚀";
+  actionBtn.onclick = () => closeModal();
+}
+
+function addDRTaskFromModal() {
+  const time = document.getElementById('dr-modal-time').value;
+  const title = document.getElementById('dr-modal-title').value.trim();
+  if(!title) return;
+  const d = getDRData();
+  const bucket = _drEnsureToday(d);
+  bucket.tasks.push({ id:'dr'+Date.now()+Math.random().toString(36).slice(2,7), time, title, done:false, source:'manual' });
+  saveDRData(d);
+  document.getElementById('dr-modal-title').value = '';
+  document.getElementById('dr-modal-time').value = '';
+  document.getElementById('dr-modal-summary').innerHTML = _drTaskSummaryHtml(bucket);
+  if(document.getElementById('page-daily-robot')?.classList.contains('active')) renderDRTaskList();
+}
+
+function triggerDRPlanNow() { showDRPlanModal(false); }
+
+function _drEngineTick() {
+  if(!currentRole) return;
+  const d = getDRData();
+  let changed = !d.days[today()]; // a fresh day bucket needs persisting even if nothing fires below
+  const bucket = _drEnsureToday(d);
+  const nowT = nowNairobiTime();
+
+  if(d.wakeEnabled && d.wakeTime && nowT === d.wakeTime && !bucket.alarmFired) {
+    bucket.alarmFired = true; changed = true;
+    playDRAlarmSound();
+    sendDRNotification('⏰ Wake up! Time to plan your day', `It's ${d.wakeTime} — let's map out today.`);
+    showDRPlanModal(true);
+  }
+
+  bucket.tasks.forEach(t => {
+    if(!t.done && t.time && t.time === nowT && !bucket.remindersFired.includes(t.id)) {
+      bucket.remindersFired.push(t.id); changed = true;
+      playDRReminderSound();
+      sendDRNotification('🤖 Reminder', t.title);
+    }
+  });
+
+  if(changed) saveDRData(d);
+  if(document.getElementById('page-daily-robot')?.classList.contains('active')) { renderDRTaskList(); updateDREngineStatus(); }
+}
+
+function startDailyRobotEngine() {
+  clearInterval(_drEngineTimer);
+  _drEngineTick();
+  _drEngineTimer = setInterval(_drEngineTick, 20000);
+}
 
 // ════════════════════════════════════════════════════════════════
 //  TEAM CHAT
@@ -8759,6 +9082,7 @@ function startSession(role, cred) {
   startChatNotifyWatcher();
   setTimeout(updateAlertsBadge, 500);
   setTimeout(() => checkPasswordExpiry(role), 3000);
+  startDailyRobotEngine();
   init();
 }
 
@@ -8767,12 +9091,12 @@ function applyRoleRestrictions(role) {
 
   const tlOnlyPages = ['payroll','payroll-full','pay-history','weekly','monthly','quarterly'];
 
-  const kingsPages = ['dashboard','team-dash-kings',
+  const kingsPages = ['dashboard','daily-robot','team-dash-kings',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
     'wfh','wfh-operator','meeting','qa-portal-kings','mgmt-shifts'];
 
-  const swatPages = ['dashboard','team-dash-swat',
+  const swatPages = ['dashboard','daily-robot','team-dash-swat',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
     'wfh','wfh-operator','meeting','qa-portal-swat','mgmt-shifts'];
@@ -8814,6 +9138,7 @@ function confirmLogout() {
 
 function doLogout() {
   localStorage.removeItem('aifi_session');
+  clearInterval(_drEngineTimer);
   closeModal();
   // Reset login form
   document.getElementById('login-password').value = '';
