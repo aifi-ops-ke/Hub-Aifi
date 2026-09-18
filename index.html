@@ -1171,6 +1171,8 @@ function _dbRefreshPage(key) {
     'tl-portal':['daily_plans','dr_entries','tl_plans','tl_reports','qa_reports'],
     'qa-portal-kings':['daily_plans','dr_entries','qa_reports'],
     'qa-portal-swat':['daily_plans','dr_entries','qa_reports'],
+    'qa-portal-pauline':['daily_plans','dr_entries','qa_reports'],
+    'qa-portal-kelvin':['daily_plans','dr_entries','qa_reports'],
     'audit-links':['audit_links'],
   };
 
@@ -1199,6 +1201,8 @@ function _dbRefreshPage(key) {
       else if(page==='tl-portal')           initTLPortal();
       else if(page==='qa-portal-kings')  initQAPortal('kings');
       else if(page==='qa-portal-swat')   initQAPortal('swat');
+      else if(page==='qa-portal-pauline') initQAPortal('pauline');
+      else if(page==='qa-portal-kelvin')  initQAPortal('kelvin');
       else if(page==='audit-links')       initAuditLinks();
       else if(page==='weekly'||page==='monthly'||page==='quarterly') setTimeout(initReportSelects,80);
       else if(page==='errors')          renderErrors();
@@ -1444,12 +1448,12 @@ function _dbRefreshPage(key) {
       </div>
       <div class="login-role-btn" id="role-btn-pauline" onclick="selectRole('pauline')" style="border-color:rgba(0,212,160,0.3)">
         <div class="login-role-icon">🔵</div>
-        <div class="login-role-name" style="font-size:10px">QA (Kings &amp; SWAT)</div>
+        <div class="login-role-name" style="font-size:10px">Team Masterminds</div>
         <div class="login-role-desc">Pauline</div>
       </div>
       <div class="login-role-btn" id="role-btn-kelvin" onclick="selectRole('kelvin')" style="border-color:rgba(160,100,255,0.3)">
         <div class="login-role-icon">🟣</div>
-        <div class="login-role-name" style="font-size:10px">QA (Kings &amp; SWAT)</div>
+        <div class="login-role-name" style="font-size:10px">The Tag Team</div>
         <div class="login-role-desc">Kelvin</div>
       </div>
       <div class="login-role-btn" id="role-btn-operator" onclick="selectRole('operator')" style="border-color:rgba(0,212,160,0.3)">
@@ -1551,6 +1555,12 @@ function _dbRefreshPage(key) {
     </div>
     <div class="nav-item" onclick="nav('qa-portal-swat')" style="background:rgba(160,100,255,0.06);border:1px solid rgba(160,100,255,0.15)" id="nav-qa-swat">
       <span class="nav-icon">🟣</span><span style="font-weight:800">SWAT QA Portal</span>
+    </div>
+    <div class="nav-item" onclick="nav('qa-portal-pauline')" style="background:rgba(0,212,160,0.06);border:1px solid rgba(0,212,160,0.15)" id="nav-qa-pauline">
+      <span class="nav-icon">🔵</span><span style="font-weight:800">Team Masterminds QA</span>
+    </div>
+    <div class="nav-item" onclick="nav('qa-portal-kelvin')" style="background:rgba(160,100,255,0.06);border:1px solid rgba(160,100,255,0.15)" id="nav-qa-kelvin">
+      <span class="nav-icon">🟣</span><span style="font-weight:800">The Tag Team QA</span>
     </div>
     <div class="nav-item" onclick="nav('audit-links')" style="background:rgba(255,170,68,0.08);border:1px solid rgba(255,170,68,0.2)">
       <span class="nav-icon">🔗</span><span style="font-weight:800">Internal Audits</span>
@@ -2148,6 +2158,48 @@ function _dbRefreshPage(key) {
       <div id="swat-section-plan"><div id="swat-daily-work-content"></div></div>
       <div id="swat-section-myteam" style="display:none"><div id="swat-myteam-content"></div></div>
       <div id="swat-section-perf" style="display:none"><div id="swat-perf-content"></div></div>
+    </div>
+
+    <!-- ════════════════ TEAM MASTERMINDS QA PORTAL (Pauline) ════════════════ -->
+    <div class="page" id="page-qa-portal-pauline">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#00d4a0,#00b4d8);display:flex;align-items:center;justify-content:center;font-size:22px">🔵</div>
+          <div>
+            <h1 style="margin:0">Team Masterminds QA Portal</h1>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px">Pauline Safari · Daily planning, plan review and audit tracking</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
+        <button id="pauline-tab-plan" class="btn btn-primary" onclick="switchQATab('pauline','plan')" style="font-size:12px">📅 Daily Work</button>
+        <button id="pauline-tab-myteam" class="btn btn-secondary" onclick="switchQATab('pauline','myteam')" style="font-size:12px">👥 My Team</button>
+        <button id="pauline-tab-perf" class="btn btn-secondary" onclick="switchQATab('pauline','perf')" style="font-size:12px">📊 Performance</button>
+      </div>
+      <div id="pauline-section-plan"><div id="pauline-daily-work-content"></div></div>
+      <div id="pauline-section-myteam" style="display:none"><div id="pauline-myteam-content"></div></div>
+      <div id="pauline-section-perf" style="display:none"><div id="pauline-perf-content"></div></div>
+    </div>
+
+    <!-- ════════════════ THE TAG TEAM QA PORTAL (Kelvin) ════════════════ -->
+    <div class="page" id="page-qa-portal-kelvin">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#a855f7);display:flex;align-items:center;justify-content:center;font-size:22px">🟣</div>
+          <div>
+            <h1 style="margin:0">The Tag Team QA Portal</h1>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px">Kelvin Nderitu · Daily planning, plan review and audit tracking</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
+        <button id="kelvin-tab-plan" class="btn btn-primary" onclick="switchQATab('kelvin','plan')" style="font-size:12px">📅 Daily Work</button>
+        <button id="kelvin-tab-myteam" class="btn btn-secondary" onclick="switchQATab('kelvin','myteam')" style="font-size:12px">👥 My Team</button>
+        <button id="kelvin-tab-perf" class="btn btn-secondary" onclick="switchQATab('kelvin','perf')" style="font-size:12px">📊 Performance</button>
+      </div>
+      <div id="kelvin-section-plan"><div id="kelvin-daily-work-content"></div></div>
+      <div id="kelvin-section-myteam" style="display:none"><div id="kelvin-myteam-content"></div></div>
+      <div id="kelvin-section-perf" style="display:none"><div id="kelvin-perf-content"></div></div>
     </div>
 
     <!-- ════════════════ ERRORS & QA ════════════════ -->
@@ -2990,6 +3042,88 @@ function _dbRefreshPage(key) {
       <div class="card">
         <div class="card-header"><div class="card-title">📅 Daily Plans & Reports</div></div>
         <div id="sdash-plans"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE: TEAM MASTERMINDS DASHBOARD (Pauline)
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-team-dash-pauline">
+      <div class="page-header">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--grad-kings);display:flex;align-items:center;justify-content:center;font-size:22px">🔵</div>
+          <div>
+            <h1 style="margin:0">Team Masterminds Dashboard</h1>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px">QA Lead: Pauline Safari · Real-time team overview</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="mdash-date" onchange="renderQADashboard('pauline')" style="width:160px"/></div>
+        <button class="btn btn-secondary" onclick="renderQADashboard('pauline')">↺ Refresh</button>
+      </div>
+      <div class="kpi-grid" id="mdash-kpis" style="margin-bottom:20px"></div>
+      <div class="grid-2" style="margin-bottom:20px">
+        <div class="card" id="mdash-attendance-card">
+          <div class="card-header"><div class="card-title">📋 Attendance Today</div></div>
+          <div id="mdash-attendance"></div>
+        </div>
+        <div class="card" id="mdash-errors-card">
+          <div class="card-header"><div class="card-title">🔍 Recent Errors</div></div>
+          <div id="mdash-errors"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📊 Production — Team Masterminds</div></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Operator</th><th>Cases</th><th>AHT</th><th>Occ%</th><th>Abandoned%</th><th>Reported%</th><th>Log Time</th></tr></thead>
+          <tbody id="mdash-prod-tbody"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📅 Daily Plans & Reports</div></div>
+        <div id="mdash-plans"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE: THE TAG TEAM DASHBOARD (Kelvin)
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-team-dash-kelvin">
+      <div class="page-header">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--grad-swat);display:flex;align-items:center;justify-content:center;font-size:22px">🟣</div>
+          <div>
+            <h1 style="margin:0">The Tag Team Dashboard</h1>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px">QA Lead: Kelvin Nderitu · Real-time team overview</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="tdash-date" onchange="renderQADashboard('kelvin')" style="width:160px"/></div>
+        <button class="btn btn-secondary" onclick="renderQADashboard('kelvin')">↺ Refresh</button>
+      </div>
+      <div class="kpi-grid" id="tdash-kpis" style="margin-bottom:20px"></div>
+      <div class="grid-2" style="margin-bottom:20px">
+        <div class="card" id="tdash-attendance-card">
+          <div class="card-header"><div class="card-title">📋 Attendance Today</div></div>
+          <div id="tdash-attendance"></div>
+        </div>
+        <div class="card" id="tdash-errors-card">
+          <div class="card-header"><div class="card-title">🔍 Recent Errors</div></div>
+          <div id="tdash-errors"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📊 Production — The Tag Team</div></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Operator</th><th>Cases</th><th>AHT</th><th>Occ%</th><th>Abandoned%</th><th>Reported%</th><th>Log Time</th></tr></thead>
+          <tbody id="tdash-prod-tbody"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📅 Daily Plans & Reports</div></div>
+        <div id="tdash-plans"></div>
       </div>
     </div>
 
@@ -5195,7 +5329,6 @@ const OPERATOR_ROSTER = [
   { id:'mark.obara', type:'PT', team:'kings' },
   { id:'alfred.korir', type:'FT', team:'kings' },
   { id:'adhiambo.vivian', type:'FT', team:'kings' },
-  { id:'pauline.safari', type:'QA', team:'kings' },
   { id:'sila.juma', type:'FT', team:'kings' },
   { id:'stacy.wanjiku', type:'FT', team:'kings' },
   { id:'noah.njiri', type:'FT', team:'kings' },
@@ -5215,7 +5348,6 @@ const OPERATOR_ROSTER = [
   { id:'fortune.masereto', type:'PT', team:'swat' },
   { id:'francis.ndeta', type:'FT', team:'swat' },
   { id:'kelvin.matekwa', type:'FT', team:'swat' },
-  { id:'kelvin.nderitu', type:'QA', team:'swat' },
   { id:'martin.karanu', type:'FT', team:'swat' },
   { id:'maureen.kaara', type:'FT', team:'swat' },
   { id:'rachael.gitau', type:'FT', team:'swat' },
@@ -5232,6 +5364,8 @@ const OPERATOR_ROSTER = [
   { id:'john.paul.kimongo',   type:'TL', team:'mgmt' },
   { id:'john.kingori',         type:'QA', team:'mgmt' },
   { id:'rosemary.nyaleso',     type:'QA', team:'mgmt' },
+  { id:'pauline.safari',       type:'QA', team:'mgmt' },
+  { id:'kelvin.nderitu',       type:'QA', team:'mgmt' },
 
   // ── Trainees (added 2026-09-06, team TBD — paid KES 500/day stipend via
   //    the existing TR-type branch in calcPay() until training ends) ────
@@ -5464,7 +5598,8 @@ async function saveAndVerify(key, val) {
 // ════════════════════════════════════════════════════════════════
 
 const PAGE_TITLES = {
-  'dashboard':'Dashboard','tl-portal':'Supervisor Portal','qa-portal-kings':'Kings QA Portal','qa-portal-swat':'SWAT QA Portal','audit-links':'Internal Audits',
+  'dashboard':'Dashboard','tl-portal':'Supervisor Portal','qa-portal-kings':'Kings QA Portal','qa-portal-swat':'SWAT QA Portal',
+  'qa-portal-pauline':'Team Masterminds QA Portal','qa-portal-kelvin':'The Tag Team QA Portal','audit-links':'Internal Audits',
   'attendance':'Attendance','production':'Production','errors':'Errors & QA','payroll':'Payroll',
   'leave':'Leave Tracker','schedule':'Shift Schedule',
   'weekly':'Weekly Report','monthly':'Monthly Report','quarterly':'Quarterly Report',
@@ -5480,6 +5615,8 @@ const PAGE_TITLES = {
   'team-perf-swat':'Team SWAT — Performance Tracker',
   'team-dash-kings':'🔵 Team Kings Dashboard',
   'team-dash-swat':'🟣 Team SWAT Dashboard',
+  'team-dash-pauline':'🔵 Team Masterminds Dashboard',
+  'team-dash-kelvin':'🟣 The Tag Team Dashboard',
 };
 
 function nav(page) {
@@ -5517,6 +5654,10 @@ function nav(page) {
   if(page==='team-dash') { initTeamDash(); }
   if(page==='qa-portal-kings') { initQAPortal('kings'); }
   if(page==='qa-portal-swat')  { initQAPortal('swat'); }
+  if(page==='qa-portal-pauline') { initQAPortal('pauline'); }
+  if(page==='qa-portal-kelvin')  { initQAPortal('kelvin'); }
+  if(page==='team-dash-pauline') { renderQADashboard('pauline'); }
+  if(page==='team-dash-kelvin')  { renderQADashboard('kelvin'); }
   if(page==='daily-report') { applyDRRoleVisibility(); refreshDRView(); }
   if(page==='daily-plan') { refreshDPView(); }
   if(page==='team-perf-kings') { renderTeamPerf('kings'); }
@@ -6821,12 +6962,14 @@ function switchQATab(team, tab) {
   if(tab==='perf')   renderQAPortalPerfForTeam(team);
 }
 
+const QA_PORTAL_COLOR = { kings:'var(--accent)', swat:'var(--violet)', pauline:'var(--accent)', kelvin:'var(--violet)' };
+
 function renderQAPortalSection(team) {
   const container = document.getElementById(`${team}-daily-work-content`);
   if(!container) return;
   const person = team;
-  const NAMES = { kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA' };
-  const color  = team==='kings' ? 'var(--accent)' : 'var(--violet)';
+  const NAMES = { kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA', pauline:'Pauline Safari — Team Masterminds', kelvin:'Kelvin Nderitu — The Tag Team' };
+  const color  = QA_PORTAL_COLOR[team] || 'var(--accent)';
 
   const dp = (load('daily_plans')||[]).find(p => p.person===person && p.date===nairobiDateStr() && !p.isAchieved);
   const dr = (load('dr_entries')||[]).find(r => r.person===person && r.date===nairobiDateStr());
@@ -6900,7 +7043,7 @@ function renderQAPortalHistory(team) {
   const plans  = (load('daily_plans')||[]).filter(p=>p.person===team&&!p.isAchieved&&(filter?p.date===filter:true)).sort((a,b)=>b.date.localeCompare(a.date));
   const reviews= [...(load('dr_entries')||[]), ...(load('qa_reports')||[])].filter(r=>r.person===team&&(filter?r.date===filter:true)).sort((a,b)=>b.date.localeCompare(a.date));
   const achs   = (load('daily_plans')||[]).filter(p=>p.person===team&&p.isAchieved&&(filter?p.date===filter:true)).sort((a,b)=>b.date.localeCompare(a.date));
-  const color  = team==='kings'?'var(--accent)':'var(--violet)';
+  const color  = QA_PORTAL_COLOR[team] || 'var(--accent)';
   const dates  = [...new Set([...plans,...reviews,...achs].map(e=>e.date))].sort((a,b)=>b.localeCompare(a));
   if(!dates.length){el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px">No submissions yet.</div>';return;}
   el.innerHTML = dates.map(date=>{
@@ -8568,10 +8711,10 @@ const DEFAULT_CREDS = {
   admin:  { hash: btoa('Gidraph@Admin2026!'), name: 'Gidraph',           role: 'Admin',      displayRole: 'Admin',         icon: '👑', badge: 'tl'    },
   kings:  { hash: btoa('Kings@QA2026!'),      name: 'Kingori',           role: 'Kings QA',   displayRole: 'Kings QA',      icon: '🔵', badge: 'kings' },
   swat:   { hash: btoa('Swat@Ros2026!'),      name: 'Rosemary Nyaleso',  role: 'SWAT QA',    displayRole: 'SWAT QA',       icon: '🟣', badge: 'swat'  },
-  // Independent QA leads — each gets everything Kingori (Kings QA) and Nyaleso (SWAT QA) have,
-  // across both teams, via their own personal login (see applyRoleRestrictions()).
-  pauline:{ hash: btoa('Pauline@QA2026!'),    name: 'Pauline Safari',    role: 'QA',         displayRole: 'QA (Kings & SWAT)', icon: '🔵', badge: 'kings' },
-  kelvin: { hash: btoa('Kelvin@QA2026!'),     name: 'Kelvin Nderitu',    role: 'QA',         displayRole: 'QA (Kings & SWAT)', icon: '🟣', badge: 'swat'  },
+  // Independent QA leads with their own teams — same rights as Kingori/Nyaleso
+  // (own QA portal + dashboard) but scoped to their own team, not Kings/SWAT.
+  pauline:{ hash: btoa('Pauline@QA2026!'),    name: 'Pauline Safari',    role: 'QA',         displayRole: 'Team Masterminds QA', icon: '🔵', badge: 'kings' },
+  kelvin: { hash: btoa('Kelvin@QA2026!'),     name: 'Kelvin Nderitu',    role: 'QA',         displayRole: 'The Tag Team QA',      icon: '🟣', badge: 'swat'  },
 };
 
 // Load saved custom passwords (if user changed them), else use defaults
@@ -8777,21 +8920,26 @@ function startSession(role, cred) {
   // Auto-navigate QA to their team dashboard
   if(role === 'kings') setTimeout(() => nav('qa-portal-kings'), 400);
   if(role === 'swat')  setTimeout(() => nav('qa-portal-swat'),  400);
-  if(role === 'pauline') setTimeout(() => nav('qa-portal-kings'), 400);
-  if(role === 'kelvin')  setTimeout(() => nav('qa-portal-swat'),  400);
+  if(role === 'pauline') setTimeout(() => nav('qa-portal-pauline'), 400);
+  if(role === 'kelvin')  setTimeout(() => nav('qa-portal-kelvin'),  400);
   if(role === 'tl')    setTimeout(() => nav('tl-portal'),  400);
   // Show team-specific dashboard nav item
   const kNav = document.getElementById('nav-team-dash-kings');
   const sNav = document.getElementById('nav-team-dash-swat');
-  if(kNav) kNav.style.display = (role==='kings'||role==='tl'||role==='admin'||role==='pauline'||role==='kelvin') ? 'flex' : 'none';
-  if(sNav) sNav.style.display = (role==='swat' ||role==='tl'||role==='admin'||role==='pauline'||role==='kelvin') ? 'flex' : 'none';
+  if(kNav) kNav.style.display = (role==='kings'||role==='tl'||role==='admin') ? 'flex' : 'none';
+  if(sNav) sNav.style.display = (role==='swat' ||role==='tl'||role==='admin') ? 'flex' : 'none';
 
-  // Show/hide QA portal nav items based on role
-  const kingsNav = document.getElementById('nav-qa-kings');
-  const swatNav  = document.getElementById('nav-qa-swat');
-  if(role === 'kings') { if(swatNav) swatNav.style.display='none'; }
-  else if(role === 'swat') { if(kingsNav) kingsNav.style.display='none'; }
-  // TL, Admin, Pauline and Kelvin see both
+  // Show/hide QA portal nav items based on role — each QA lead sees only their
+  // own team's portal; TL/Admin see all four.
+  const kingsNav   = document.getElementById('nav-qa-kings');
+  const swatNav    = document.getElementById('nav-qa-swat');
+  const paulineNav = document.getElementById('nav-qa-pauline');
+  const kelvinNav  = document.getElementById('nav-qa-kelvin');
+  const isSupervisorRole = role === 'tl' || role === 'admin';
+  if(kingsNav)   kingsNav.style.display   = (role === 'kings'   || isSupervisorRole) ? 'flex' : 'none';
+  if(swatNav)    swatNav.style.display    = (role === 'swat'    || isSupervisorRole) ? 'flex' : 'none';
+  if(paulineNav) paulineNav.style.display = (role === 'pauline' || isSupervisorRole) ? 'flex' : 'none';
+  if(kelvinNav)  kelvinNav.style.display  = (role === 'kelvin'  || isSupervisorRole) ? 'flex' : 'none';
 
   toast(`Welcome, ${cred.name}! 👋`, cred.icon);
   startChatNotifyWatcher();
@@ -8815,11 +8963,23 @@ function applyRoleRestrictions(role) {
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
     'wfh','wfh-operator','meeting','qa-portal-swat','mgmt-shifts'];
 
-  // Pauline and Kelvin are independent QA leads with everything Kingori (kings) and
-  // Nyaleso (swat) have combined — union of both teams' pages, not just one.
+  // Pauline (Team Masterminds) and Kelvin (The Tag Team) are independent QA
+  // leads with their own team, NOT access to Kings/SWAT's team-dash or QA portal.
+  const paulinePages = ['dashboard','team-dash-pauline',
+    'attendance','attendance-full','production','errors','leave','schedule',
+    'call-reports','team-dash','team-perf-kings','team-perf-swat',
+    'wfh','wfh-operator','meeting','qa-portal-pauline','mgmt-shifts'];
+
+  const kelvinPages = ['dashboard','team-dash-kelvin',
+    'attendance','attendance-full','production','errors','leave','schedule',
+    'call-reports','team-dash','team-perf-kings','team-perf-swat',
+    'wfh','wfh-operator','meeting','qa-portal-kelvin','mgmt-shifts'];
+
   const allowedPages = role==='kings' ? kingsPages
     : role==='swat' ? swatPages
-    : [...new Set([...kingsPages, ...swatPages])];
+    : role==='pauline' ? paulinePages
+    : role==='kelvin' ? kelvinPages
+    : kingsPages;
 
   document.querySelectorAll('.nav-item').forEach(item => {
     const onclick = item.getAttribute('onclick') || '';
@@ -8904,11 +9064,11 @@ function openChangePassword() {
           <input type="password" id="cp-swat" placeholder="Leave blank to keep current" class="login-input" style="width:100%"/>
         </div>
         <div class="form-group" style="margin:0">
-          <label>🔵 QA — Pauline (Kings &amp; SWAT) Password</label>
+          <label>🔵 Team Masterminds QA (Pauline) Password</label>
           <input type="password" id="cp-pauline" placeholder="Leave blank to keep current" class="login-input" style="width:100%"/>
         </div>
         <div class="form-group" style="margin:0">
-          <label>🟣 QA — Kelvin (Kings &amp; SWAT) Password</label>
+          <label>🟣 The Tag Team QA (Kelvin) Password</label>
           <input type="password" id="cp-kelvin" placeholder="Leave blank to keep current" class="login-input" style="width:100%"/>
         </div>
       </div>
@@ -15981,14 +16141,22 @@ function restrictDRFilterByRole() {
 // ════════════════════════════════════════════════════════════════
 // QA TEAM DASHBOARD — Kings & SWAT
 // ════════════════════════════════════════════════════════════════
+const TEAM_DASH_META = {
+  kings:   { prefix:'k', color:'var(--accent)', label:'Team Kings' },
+  swat:    { prefix:'s', color:'var(--violet)',  label:'Team SWAT' },
+  pauline: { prefix:'m', color:'var(--accent)', label:'Team Masterminds' },
+  kelvin:  { prefix:'t', color:'var(--violet)',  label:'The Tag Team' },
+};
+
 function renderQADashboard(team) {
-  const prefix  = team==='kings' ? 'k' : 's';
+  const meta    = TEAM_DASH_META[team] || TEAM_DASH_META.kings;
+  const prefix  = meta.prefix;
   const dateEl  = document.getElementById(prefix+'dash-date');
   if(dateEl && !dateEl.value) dateEl.value = today();
   const date    = dateEl?.value || today();
   const TEAM_OPS = OPERATOR_ROSTER.filter(o=>o.team===team);
-  const teamColor= team==='kings' ? 'var(--accent)' : 'var(--violet)';
-  const teamLabel= team==='kings' ? 'Team Kings' : 'Team SWAT';
+  const teamColor= meta.color;
+  const teamLabel= meta.label;
 
   // ── Attendance ──────────────────────────────────────────────
   const att      = loadObj('att');
@@ -16010,7 +16178,7 @@ function renderQADashboard(team) {
   const internalErrs= teamErrors.filter(e=>e.type==='internal').length;
 
   // ── Plans/Reports ────────────────────────────────────────────
-  const myPerson = team==='kings' ? 'kings' : 'swat';
+  const myPerson = team;
   const plans    = load('daily_plans').filter(p=>p.person===myPerson&&p.date===date);
   const reports  = load('dr_entries').filter(r=>(r.person||r.section)===myPerson&&r.date===date);
 
