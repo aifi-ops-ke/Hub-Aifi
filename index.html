@@ -645,6 +645,8 @@
   .login-role-btn.active-tl       { border-color: var(--tl);     background: rgba(255,215,0,0.08); }
   .login-role-btn.active-kings    { border-color: var(--accent);  background: rgba(0,200,150,0.08); }
   .login-role-btn.active-swat     { border-color: var(--orange);  background: rgba(255,124,42,0.08); }
+  .login-role-btn.active-pauline  { border-color: var(--accent);  background: rgba(0,200,150,0.08); }
+  .login-role-btn.active-kelvin   { border-color: var(--orange);  background: rgba(255,124,42,0.08); }
   .login-role-btn.active-operator { border-color: var(--accent);  background: rgba(0,212,160,0.12); box-shadow:0 0 12px rgba(0,212,160,0.15); }
   .login-role-icon { font-size: 20px; margin-bottom: 4px; }
   .login-role-name { font-size: 11px; font-weight: 700; color: var(--text); }
@@ -1439,6 +1441,16 @@ function _dbRefreshPage(key) {
         <div class="login-role-icon">🟣</div>
         <div class="login-role-name">SWAT QA</div>
         <div class="login-role-desc">Rosemary</div>
+      </div>
+      <div class="login-role-btn" id="role-btn-pauline" onclick="selectRole('pauline')" style="border-color:rgba(0,212,160,0.3)">
+        <div class="login-role-icon">🔵</div>
+        <div class="login-role-name" style="font-size:10px">QA (Kings &amp; SWAT)</div>
+        <div class="login-role-desc">Pauline</div>
+      </div>
+      <div class="login-role-btn" id="role-btn-kelvin" onclick="selectRole('kelvin')" style="border-color:rgba(160,100,255,0.3)">
+        <div class="login-role-icon">🟣</div>
+        <div class="login-role-name" style="font-size:10px">QA (Kings &amp; SWAT)</div>
+        <div class="login-role-desc">Kelvin</div>
       </div>
       <div class="login-role-btn" id="role-btn-operator" onclick="selectRole('operator')" style="border-color:rgba(0,212,160,0.3)">
         <div class="login-role-icon">🏠</div>
@@ -4378,7 +4390,6 @@ const WFH_OP_CREDS_DEFAULT = {
   'melody.mapenzi': 'Melody0212',
   'dennis.sangolo': 'Dennis6332',
   'joy.mackenzie': 'Joy2966',
-  'ivy.njerese': 'Ivy1713',
   'aisha.adhiambo': 'Aisha9656',
   'christopher.wanyama2': 'Christopher8720',
   'gibson.majimbo': 'Gibson3229',
@@ -4389,7 +4400,6 @@ const WFH_OP_CREDS_DEFAULT = {
   'faith.mutinda': 'Faith7403',
   'fortune.masereto': 'Fortune9598',
   'francis.ndeta': 'Francis0765',
-  'benson.ngugi': 'Benson2614',
   'kelvin.matekwa': 'Kelvin4982',
   'kelvin.nderitu': 'Kelvin5198',
   'martin.karanu': 'Martin2661',
@@ -4403,8 +4413,6 @@ const WFH_OP_CREDS_DEFAULT = {
   'sheillah.aluoch': 'Sheillah2396',
   'simon.lukoye': 'Simon4512',
   'wario.sora': 'Wario3522',
-  'rachael.hamada': 'Hamada4471',
-  'ignatious.kahindi': 'Ignatious6029',
   'yassir.khalid': 'Yassir0629',
 
   // ── Trainees added 2026-09-06 to OPERATOR_ROSTER but never given a login —
@@ -5194,11 +5202,10 @@ const OPERATOR_ROSTER = [
   { id:'melody.mapenzi', type:'FT', team:'kings' },
   { id:'dennis.sangolo', type:'FT', team:'kings' },
   { id:'joy.mackenzie', type:'FT', team:'kings' },
-  { id:'ivy.njerese', type:'PT', team:'kings' },
   { id:'aisha.adhiambo', type:'PT', team:'kings' },
   { id:'christopher.wanyama2', type:'PT', team:'kings' },
   { id:'gibson.majimbo', type:'FT', team:'kings' },
-  { id:'synthiakane.otieno', type:'TR', team:'kings' },
+  { id:'synthiakane.otieno', type:'FT', team:'kings' },
 
   // ── Team SWAT (QA: Rosemary Nyaleso) ──────────────────────────────
   { id:'christine.mwanza', type:'FT', team:'swat' },
@@ -5207,7 +5214,6 @@ const OPERATOR_ROSTER = [
   { id:'faith.mutinda', type:'FT', team:'swat' },
   { id:'fortune.masereto', type:'PT', team:'swat' },
   { id:'francis.ndeta', type:'FT', team:'swat' },
-  { id:'benson.ngugi', type:'PT', team:'swat' },
   { id:'kelvin.matekwa', type:'FT', team:'swat' },
   { id:'kelvin.nderitu', type:'QA', team:'swat' },
   { id:'martin.karanu', type:'FT', team:'swat' },
@@ -5216,14 +5222,12 @@ const OPERATOR_ROSTER = [
   { id:'rading.yvonne2', type:'PT', team:'swat' },
   { id:'rickson.macharia', type:'FT', team:'swat' },
   { id:'ruth.dube', type:'PT', team:'swat' },
-  { id:'rachael.hamada', type:'PT', team:'swat' },
   { id:'samuel.githae', type:'PT', team:'swat' },
   { id:'samuel.hinga', type:'FT', team:'swat' },
   { id:'sheillah.aluoch', type:'FT', team:'swat' },
   { id:'simon.lukoye', type:'FT', team:'swat' },
   { id:'wario.sora', type:'FT', team:'swat' },
   { id:'yassir.khalid', type:'FT', team:'swat' },
-  { id:'ignatious.kahindi', type:'PT', team:'swat' },
   // ── Management ─────────────────────────────────────────────────────
   { id:'john.paul.kimongo',   type:'TL', team:'mgmt' },
   { id:'john.kingori',         type:'QA', team:'mgmt' },
@@ -5321,7 +5325,6 @@ const LEAVE_SEED = {
   'kelvin.matekwa': { name:'Kelvin Matekwa', role:'DA', allocated:13, taken:10, remaining:3, monthly:{Jan:2, Feb:0, Mar:1, Apr:0, May:4, Jun:3} },
   'stacy.wanjiku': { name:'Stacy Wanjiku', role:'DA', allocated:17, taken:12, remaining:5, monthly:{Jan:5, Feb:0, Mar:3, Apr:1, May:2, Jun:1} },
   'noah.njiri': { name:'Noah Njiri', role:'DA', allocated:14, taken:11, remaining:3, monthly:{Jan:3, Feb:1, Mar:1, Apr:2, May:3, Jun:1} },
-  'benson.ngugi': { name:'Benson Ngugi', role:'DA', allocated:11, taken:11, remaining:0, monthly:{Jan:3, Feb:0, Mar:0, Apr:8, May:0} },
   'melody.mapenzi': { name:'Melody Mapenzi', role:'DA', allocated:13, taken:9, remaining:4, monthly:{Jan:2, Feb:1, Mar:0, Apr:0, May:3, Jun:3} },
   'martin.karanu': { name:'Martin Karanu', role:'DA', allocated:14, taken:9, remaining:5, monthly:{Jan:1, Feb:2, Mar:0, Apr:0, May:4, Jun:2} },
   'rachael.gitau': { name:'Rachael Gitau', role:'DA', allocated:11, taken:7, remaining:4, monthly:{Jan:0, Feb:0, Mar:2, Apr:1, May:3, Jun:1} },
@@ -5331,7 +5334,6 @@ const LEAVE_SEED = {
   'emmily.vannesa': { name:'Emily Vanessa', role:'DA', allocated:13, taken:6, remaining:7, monthly:{Jan:1, Feb:1, Mar:0, Apr:3, May:0, Jun:1} },
   'simon.lukoye': { name:'Simon Lukoye', role:'DA', allocated:14, taken:10, remaining:4, monthly:{Jan:2, Feb:0, Mar:1, Apr:3, May:2, Jun:2} },
   'rickson.macharia': { name:'Rickson Macharia', role:'DA', allocated:14, taken:14, remaining:0, monthly:{Jan:2, Feb:1, Mar:1, Apr:10, May:0} },
-  'ivy.njerese': { name:'Ivy Njerese', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
   'sheillah.aluoch': { name:'Sheillah Aluoch', role:'DA', allocated:6, taken:4, remaining:2, monthly:{Jan:0, Feb:0, Mar:0, Apr:0, May:2, Jun:2} },
   'aisha.adhiambo': { name:'Aisha Adhiambo', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
   'christopher.wanyama': { name:'Christopher Wanyama', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
@@ -5342,7 +5344,7 @@ const LEAVE_SEED = {
   'wario.sora': { name:'Wario Sora', role:'DA', allocated:6, taken:6, remaining:0, monthly:{Jan:0, Feb:1, Mar:0, Apr:0, May:3, Jun:2} },
   'ruth.dube': { name:'Ruth Dube', role:'DA', allocated:0, taken:0, remaining:0, monthly:{Jan:0, Feb:0, Mar:0, Apr:0} },
   // ── Trainees (not in 2026 leave tracker yet) ──────────────────
-  'synthiakane.otieno': { name:'Synthiakane Otieno', role:'TR',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
+  'synthiakane.otieno': { name:'Synthiakane Otieno', role:'DA',  allocated:0,  taken:0,  remaining:0,  monthly:{Jan:0,Feb:0,Mar:0,Apr:0,May:0} },
 };
 
 // Merge seeded data with any live changes from Supabase
@@ -5377,12 +5379,11 @@ function opToLeaveKey(op) {
     'rachael.gitau':'rachael.gitau','samuel.hinga':'samuel.hinga',
     'dennis.sangolo':'dennis.sangolo','joy.mackenzie':'joy.mackenzie',
     'emmily.vannesa':'emmily.vannesa','simon.lukoye':'simon.lukoye',
-    'rickson.macharia':'rickson.macharia','ivy.njerese':'ivy.njerese',
+    'rickson.macharia':'rickson.macharia',
     'sheillah.aluoch':'sheillah.aluoch','aisha.adhiambo':'aisha.adhiambo',
     'christopher.wanyama':'christopher.wanyama','gibson.majimbo':'gibson.majimbo',
     'fortune.masereto':'fortune.masereto','samuel.githae':'samuel.githae',
     'rading.yvonne':'rading.yvonne','wario.sora':'wario.sora','ruth.dube':'ruth.dube',
-    'benson.ngugi':'benson.ngugi',
   };
   return MAP[op] || null;
 }
@@ -8567,6 +8568,10 @@ const DEFAULT_CREDS = {
   admin:  { hash: btoa('Gidraph@Admin2026!'), name: 'Gidraph',           role: 'Admin',      displayRole: 'Admin',         icon: '👑', badge: 'tl'    },
   kings:  { hash: btoa('Kings@QA2026!'),      name: 'Kingori',           role: 'Kings QA',   displayRole: 'Kings QA',      icon: '🔵', badge: 'kings' },
   swat:   { hash: btoa('Swat@Ros2026!'),      name: 'Rosemary Nyaleso',  role: 'SWAT QA',    displayRole: 'SWAT QA',       icon: '🟣', badge: 'swat'  },
+  // Independent QA leads — each gets everything Kingori (Kings QA) and Nyaleso (SWAT QA) have,
+  // across both teams, via their own personal login (see applyRoleRestrictions()).
+  pauline:{ hash: btoa('Pauline@QA2026!'),    name: 'Pauline Safari',    role: 'QA',         displayRole: 'QA (Kings & SWAT)', icon: '🔵', badge: 'kings' },
+  kelvin: { hash: btoa('Kelvin@QA2026!'),     name: 'Kelvin Nderitu',    role: 'QA',         displayRole: 'QA (Kings & SWAT)', icon: '🟣', badge: 'swat'  },
 };
 
 // Load saved custom passwords (if user changed them), else use defaults
@@ -8585,7 +8590,7 @@ var lockoutUntil = 0;
 function selectRole(role) {
   selectedRole = role;
   // Update role button styles
-  ['tl','admin','kings','swat','operator'].forEach(r => {
+  ['tl','admin','kings','swat','pauline','kelvin','operator'].forEach(r => {
     const btn = document.getElementById('role-btn-'+r);
     if(btn) btn.className = 'login-role-btn' + (r===role ? ' active-'+r : '');
   });
@@ -8772,19 +8777,21 @@ function startSession(role, cred) {
   // Auto-navigate QA to their team dashboard
   if(role === 'kings') setTimeout(() => nav('qa-portal-kings'), 400);
   if(role === 'swat')  setTimeout(() => nav('qa-portal-swat'),  400);
+  if(role === 'pauline') setTimeout(() => nav('qa-portal-kings'), 400);
+  if(role === 'kelvin')  setTimeout(() => nav('qa-portal-swat'),  400);
   if(role === 'tl')    setTimeout(() => nav('tl-portal'),  400);
   // Show team-specific dashboard nav item
   const kNav = document.getElementById('nav-team-dash-kings');
   const sNav = document.getElementById('nav-team-dash-swat');
-  if(kNav) kNav.style.display = (role==='kings'||role==='tl'||role==='admin') ? 'flex' : 'none';
-  if(sNav) sNav.style.display = (role==='swat' ||role==='tl'||role==='admin') ? 'flex' : 'none';
+  if(kNav) kNav.style.display = (role==='kings'||role==='tl'||role==='admin'||role==='pauline'||role==='kelvin') ? 'flex' : 'none';
+  if(sNav) sNav.style.display = (role==='swat' ||role==='tl'||role==='admin'||role==='pauline'||role==='kelvin') ? 'flex' : 'none';
 
   // Show/hide QA portal nav items based on role
   const kingsNav = document.getElementById('nav-qa-kings');
   const swatNav  = document.getElementById('nav-qa-swat');
   if(role === 'kings') { if(swatNav) swatNav.style.display='none'; }
   else if(role === 'swat') { if(kingsNav) kingsNav.style.display='none'; }
-  // TL and Admin see both
+  // TL, Admin, Pauline and Kelvin see both
 
   toast(`Welcome, ${cred.name}! 👋`, cred.icon);
   startChatNotifyWatcher();
@@ -8808,7 +8815,11 @@ function applyRoleRestrictions(role) {
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
     'wfh','wfh-operator','meeting','qa-portal-swat','mgmt-shifts'];
 
-  const allowedPages = role==='kings' ? kingsPages : swatPages;
+  // Pauline and Kelvin are independent QA leads with everything Kingori (kings) and
+  // Nyaleso (swat) have combined — union of both teams' pages, not just one.
+  const allowedPages = role==='kings' ? kingsPages
+    : role==='swat' ? swatPages
+    : [...new Set([...kingsPages, ...swatPages])];
 
   document.querySelectorAll('.nav-item').forEach(item => {
     const onclick = item.getAttribute('onclick') || '';
@@ -8892,6 +8903,14 @@ function openChangePassword() {
           <label>🟣 SWAT QA (Rosemary) Password</label>
           <input type="password" id="cp-swat" placeholder="Leave blank to keep current" class="login-input" style="width:100%"/>
         </div>
+        <div class="form-group" style="margin:0">
+          <label>🔵 QA — Pauline (Kings &amp; SWAT) Password</label>
+          <input type="password" id="cp-pauline" placeholder="Leave blank to keep current" class="login-input" style="width:100%"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>🟣 QA — Kelvin (Kings &amp; SWAT) Password</label>
+          <input type="password" id="cp-kelvin" placeholder="Leave blank to keep current" class="login-input" style="width:100%"/>
+        </div>
       </div>
       <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;margin-bottom:10px">Operator Passwords</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:300px;overflow-y:auto;padding-right:4px">
@@ -8974,10 +8993,14 @@ function savePasswords() {
   const adminPw = document.getElementById('cp-admin')?.value;
   const kingsPw = document.getElementById('cp-kings')?.value;
   const swatPw  = document.getElementById('cp-swat')?.value;
+  const paulinePw = document.getElementById('cp-pauline')?.value;
+  const kelvinPw  = document.getElementById('cp-kelvin')?.value;
   if(tlPw)    { creds.tl    = btoa(tlPw);    changed++; }
   if(adminPw) { creds.admin = btoa(adminPw);  changed++; }
   if(kingsPw) { creds.kings = btoa(kingsPw);  changed++; }
   if(swatPw)  { creds.swat  = btoa(swatPw);   changed++; }
+  if(paulinePw) { creds.pauline = btoa(paulinePw); changed++; }
+  if(kelvinPw)  { creds.kelvin  = btoa(kelvinPw);  changed++; }
   save('creds', creds);
 
   // Record change dates for monthly reminder
@@ -8986,6 +9009,8 @@ function savePasswords() {
   if(adminPw) history['admin'] = nowNairobi();
   if(kingsPw) history['kings'] = nowNairobi();
   if(swatPw)  history['swat']  = nowNairobi();
+  if(paulinePw) history['pauline'] = nowNairobi();
+  if(kelvinPw)  history['kelvin']  = nowNairobi();
 
   // Operator passwords
   document.querySelectorAll('[data-opid]').forEach(input => {
@@ -9195,7 +9220,6 @@ const NAME_TO_ID = {
   'Ruth Dube':'ruth.dube',
   'Fortune Masereto':'fortune.masereto',
   'Samuel Githae':'samuel.githae',
-  'Ivy Njerese':'ivy.njerese',
   'Rading Yvonne':'rading.yvonne',
   'Aisha Adhiambo':'aisha.adhiambo',
   'Christopher Wanyama':'christopher.wanyama',
@@ -9591,7 +9615,8 @@ function renderAttendanceRegister() {
     const t = getEmpType(name);
     if(typeF && t !== typeF) return false;
     if(search && !name.toLowerCase().includes(search)) return false;
-    return name !== 'Rehema Mustafa' && name !== 'Ignatious Kahindi'; // removed from team
+    const removedFromTeam = ['Rehema Mustafa', 'Ignatious Kahindi', 'Ivy Njerese', 'Benson Ngugi', 'Rachael Hamada'];
+    return !removedFromTeam.includes(name); // removed from team
   });
 
   // KPIs for this month
