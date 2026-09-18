@@ -7829,7 +7829,7 @@ function computeBulkPayroll(month) {
     { name:'Rosemary Nyaleso',  role:'QA', paidDays:'', base:40000, transportAllowance:3000, transportDeduction:0, errorDeductions:0 },
   ];
 
-  OPERATORS.forEach(op => {
+  OPERATORS.filter(op => getOpTeam(op) !== 'mgmt').forEach(op => {
     const empType = getOpType(op);
     const { paidDays, absentDays } = attendanceDays(op);
     const isTrainee = empType === 'TR';
