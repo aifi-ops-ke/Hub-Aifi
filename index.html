@@ -17527,6 +17527,21 @@ async function wfhCheckInV2() {
   const precheckPanel = document.getElementById('wfh-precheckin-panel');
   if(precheckPanel) { precheckPanel.style.opacity='0.5'; precheckPanel.style.pointerEvents='none'; }
   toast(operatorLabel(opId)+' — remote shift started ✓ (v2)','▶️');
+
+  // Checking in on the Hub does NOT confirm identity inside the AIFI
+  // extension — those are two separate steps. If an operator skips this
+  // one, the extension never sends submission activity for them, and
+  // they show up on "Who's Working Now" flagged "No submission Xm+"
+  // even while genuinely working, because there's nothing to measure.
+  // This reminder closes that gap without requiring any extension
+  // install/update — the extension is already on their machine.
+  openModal('🧩 One more step', `
+    <div style="font-size:13px;line-height:1.6;color:var(--text2)">
+      <p style="margin-bottom:10px">You're checked in. Before you start, open the <b>AIFI Hub Monitor</b> extension icon in Chrome and make sure <b>${operatorLabel(opId)}</b> is selected as your name.</p>
+      <p style="margin-bottom:10px">This only takes a second, and you only need to do it if it's not already selected — the extension is already installed, nothing to download. Without it, your case submissions won't be tracked and you may show as "No submission" even while working.</p>
+      <button class="btn" onclick="closeModal()" style="width:100%">Got it</button>
+    </div>
+  `);
 }
 
 function startWFHTimerV2() {
