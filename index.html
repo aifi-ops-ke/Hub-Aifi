@@ -8004,7 +8004,17 @@ function computeBulkPayroll(month) {
     { name:'Rosemary Nyaleso',  role:'QA', paidDays:'', base:40000, transportAllowance:3000, transportDeduction:0, errorDeductions:0 },
   ];
 
-  OPERATORS.filter(op => getOpTeam(op) !== 'mgmt').forEach(op => {
+  // Pauline Safari and Kelvin Nderitu became independent QA leads and moved
+  // to team:'mgmt' (2026-09-19), but per JP's decision that same day they're
+  // still paid as regular day-rate operators through September — their fixed
+  // management salary (to be added above, once JP gives the figures) only
+  // starts from October's payroll. Without this, the mgmt-exclusion below
+  // would drop them from the export entirely this month (no day-rate row,
+  // no fixed row either).
+  const TRANSITIONING_MGMT_OPS = ['pauline.safari', 'kelvin.nderitu'];
+  const stillOnDayRate = op => TRANSITIONING_MGMT_OPS.includes(op) && month < '2026-10';
+
+  OPERATORS.filter(op => getOpTeam(op) !== 'mgmt' || stillOnDayRate(op)).forEach(op => {
     const empType = getOpType(op);
     const { paidDays, absentDays } = attendanceDays(op);
     const isTrainee = empType === 'TR';
