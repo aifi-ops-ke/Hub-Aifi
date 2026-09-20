@@ -156,6 +156,40 @@
   }
   .nav-item .nav-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
 
+  /* ── Per-section sidebar accent colours ─────────────────────────
+     Each nav-section cycles a different brand colour instead of every
+     section using the same teal hover/active state — sections are
+     consecutive siblings in source order (Overview, Operations,
+     HR & Finance, Payroll & Attendance, Critical, Remote Work,
+     Reports & Data), so :nth-of-type maps 1:1 without touching markup.
+     nav-items that already set their own inline background (a few
+     highlighted ones like Supervisor Portal, Critical Reports) keep
+     that as their resting state — inline styles win over these rules
+     when NOT hovered/active, same as before this change. ── */
+  .nav-section:nth-of-type(2) .nav-label { background: linear-gradient(90deg, var(--teal), #0077b6); -webkit-background-clip: text; }
+  .nav-section:nth-of-type(2) .nav-item:hover { background: linear-gradient(90deg,rgba(0,200,224,0.1),rgba(0,200,224,0.05)); border-color: rgba(0,200,224,0.15); }
+  .nav-section:nth-of-type(2) .nav-item.active { background: linear-gradient(90deg,rgba(0,200,224,0.18),rgba(0,200,224,0.08)); color: var(--teal); border-color: rgba(0,200,224,0.35); box-shadow: 0 0 14px rgba(0,200,224,0.1), inset 0 0 0 1px rgba(0,200,224,0.08); }
+
+  .nav-section:nth-of-type(3) .nav-label { background: linear-gradient(90deg, var(--gold), #d4a017); -webkit-background-clip: text; }
+  .nav-section:nth-of-type(3) .nav-item:hover { background: linear-gradient(90deg,rgba(245,197,24,0.1),rgba(245,197,24,0.05)); border-color: rgba(245,197,24,0.15); }
+  .nav-section:nth-of-type(3) .nav-item.active { background: linear-gradient(90deg,rgba(245,197,24,0.18),rgba(245,197,24,0.08)); color: var(--gold); border-color: rgba(245,197,24,0.35); box-shadow: 0 0 14px rgba(245,197,24,0.1), inset 0 0 0 1px rgba(245,197,24,0.08); }
+
+  .nav-section:nth-of-type(4) .nav-label { background: linear-gradient(90deg, var(--violet), #8b5cf6); -webkit-background-clip: text; }
+  .nav-section:nth-of-type(4) .nav-item:hover { background: linear-gradient(90deg,rgba(180,138,247,0.1),rgba(180,138,247,0.05)); border-color: rgba(180,138,247,0.15); }
+  .nav-section:nth-of-type(4) .nav-item.active { background: linear-gradient(90deg,rgba(180,138,247,0.18),rgba(180,138,247,0.08)); color: var(--violet); border-color: rgba(180,138,247,0.35); box-shadow: 0 0 14px rgba(180,138,247,0.1), inset 0 0 0 1px rgba(180,138,247,0.08); }
+
+  .nav-section:nth-of-type(5) .nav-label { background: linear-gradient(90deg, var(--red), #dc2626); -webkit-background-clip: text; }
+  .nav-section:nth-of-type(5) .nav-item:hover { background: linear-gradient(90deg,rgba(255,94,110,0.1),rgba(255,94,110,0.05)); border-color: rgba(255,94,110,0.15); }
+  .nav-section:nth-of-type(5) .nav-item.active { background: linear-gradient(90deg,rgba(255,94,110,0.18),rgba(255,94,110,0.08)); color: var(--red); border-color: rgba(255,94,110,0.35); box-shadow: 0 0 14px rgba(255,94,110,0.1), inset 0 0 0 1px rgba(255,94,110,0.08); }
+
+  .nav-section:nth-of-type(6) .nav-label { background: linear-gradient(90deg, var(--orange), #e85d04); -webkit-background-clip: text; }
+  .nav-section:nth-of-type(6) .nav-item:hover { background: linear-gradient(90deg,rgba(255,133,52,0.1),rgba(255,133,52,0.05)); border-color: rgba(255,133,52,0.15); }
+  .nav-section:nth-of-type(6) .nav-item.active { background: linear-gradient(90deg,rgba(255,133,52,0.18),rgba(255,133,52,0.08)); color: var(--orange); border-color: rgba(255,133,52,0.35); box-shadow: 0 0 14px rgba(255,133,52,0.1), inset 0 0 0 1px rgba(255,133,52,0.08); }
+
+  .nav-section:nth-of-type(7) .nav-label { background: linear-gradient(90deg, var(--amber), #e67e22); -webkit-background-clip: text; }
+  .nav-section:nth-of-type(7) .nav-item:hover { background: linear-gradient(90deg,rgba(255,170,68,0.1),rgba(255,170,68,0.05)); border-color: rgba(255,170,68,0.15); }
+  .nav-section:nth-of-type(7) .nav-item.active { background: linear-gradient(90deg,rgba(255,170,68,0.18),rgba(255,170,68,0.08)); color: var(--amber); border-color: rgba(255,170,68,0.35); box-shadow: 0 0 14px rgba(255,170,68,0.1), inset 0 0 0 1px rgba(255,170,68,0.08); }
+
   .sidebar-role {
     flex-shrink: 0;
     padding: 14px 16px;
@@ -251,6 +285,16 @@
     background:var(--grad-brand);
   }
   .kpi-card:hover { transform:translateY(-2px); box-shadow:var(--glow); border-color:var(--border2); }
+  /* Auto-colour KPI cards that don't set an explicit .green/.amber/.red/
+     .teal/.purple class, so a stats row shows a spread of colours instead
+     of uniform teal. :nth-of-type resets per row's own container, and the
+     explicit classes below still win (same specificity, later in source
+     order beats this). */
+  .kpi-card:nth-of-type(5n+1)::before { background: var(--grad-brand); }
+  .kpi-card:nth-of-type(5n+2)::before { background: linear-gradient(135deg,#ff8534,#e85d04); }
+  .kpi-card:nth-of-type(5n+3)::before { background: linear-gradient(135deg,#b48af7,#8b5cf6); }
+  .kpi-card:nth-of-type(5n+4)::before { background: linear-gradient(135deg,#00c8e0,#0077b6); }
+  .kpi-card:nth-of-type(5n+5)::before { background: linear-gradient(135deg,#f5c518,#d4a017); }
   .kpi-card.green::before  { background: linear-gradient(135deg,#00c896,#00956e); }
   .kpi-card.amber::before  { background: linear-gradient(135deg,#ff9f43,#e67e22); }
   .kpi-card.red::before    { background: var(--grad-red); }
