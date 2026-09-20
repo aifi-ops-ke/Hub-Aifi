@@ -1242,12 +1242,8 @@ function _dbRefreshPage(key) {
       else if(page==='production')      renderProd();
       else if(page==='heatmap')         renderHeatmap();
       else if(page==='alerts')          renderAlerts();
-      else if(page==='tl-portal')           initTLPortal();
-      else if(page==='qa-portal-kings')  initQAPortal('kings');
-      else if(page==='qa-portal-swat')   initQAPortal('swat');
       else if(page==='qa-portal-pauline') initQAPortal('pauline');
       else if(page==='qa-portal-kelvin')  initQAPortal('kelvin');
-      else if(page==='audit-links')       initAuditLinks();
       else if(page==='weekly'||page==='monthly'||page==='quarterly') setTimeout(initReportSelects,80);
       else if(page==='errors')          renderErrors();
       else if(page==='leave')           { renderLeave(); renderLeaveBalanceGrid(); }
@@ -1703,6 +1699,21 @@ function _dbRefreshPage(key) {
     </div>
     <div class="nav-item" onclick="nav('call-reports')">
       <span class="nav-icon">📞</span><span>Call Reports</span>
+    </div>
+    <div class="nav-item" onclick="nav('team-dash')">
+      <span class="nav-icon">🏆</span><span>Team Dashboard</span>
+    </div>
+    <div class="nav-item" id="nav-team-dash-kings" onclick="nav('team-dash-kings')">
+      <span class="nav-icon">🔵</span><span>Kings Dashboard</span>
+    </div>
+    <div class="nav-item" id="nav-team-dash-swat" onclick="nav('team-dash-swat')">
+      <span class="nav-icon">🟣</span><span>SWAT Dashboard</span>
+    </div>
+    <div class="nav-item" id="nav-team-dash-pauline" onclick="nav('team-dash-pauline')">
+      <span class="nav-icon">🔵</span><span>Team Masterminds Dashboard</span>
+    </div>
+    <div class="nav-item" id="nav-team-dash-kelvin" onclick="nav('team-dash-kelvin')">
+      <span class="nav-icon">🟣</span><span>The Tag Team Dashboard</span>
     </div>
     <div class="nav-item" onclick="nav('team-perf-kings')">
       <span class="nav-icon">🔵</span><span>Kings Performance</span>
@@ -5715,6 +5726,8 @@ function nav(page) {
   if(page==='leave') { renderLeave(); renderLeaveBalanceGrid(); }
   if(page==='dashboard') { renderNotifs(); updateNavBadges(); renderDashProdKPIs(); renderDashPerfChart(); renderDailyBoard(); }
   if(page==='critical-reports') { renderCriticalReports(); }
+  if(page==='tl-portal') { initTLPortal(); }
+  if(page==='audit-links') { initAuditLinks(); }
   if(page==='team-chat') { initChatPage('chat-container-tl'); }
   if(page==='call-reports') { renderCallReports(); }
   if(page==='team-dash') { initTeamDash(); }
@@ -5722,6 +5735,8 @@ function nav(page) {
   if(page==='qa-portal-swat')  { initQAPortal('swat'); }
   if(page==='qa-portal-pauline') { initQAPortal('pauline'); }
   if(page==='qa-portal-kelvin')  { initQAPortal('kelvin'); }
+  if(page==='team-dash-kings')   { renderQADashboard('kings'); }
+  if(page==='team-dash-swat')    { renderQADashboard('swat'); }
   if(page==='team-dash-pauline') { renderQADashboard('pauline'); }
   if(page==='team-dash-kelvin')  { renderQADashboard('kelvin'); }
   if(page==='daily-report') { applyDRRoleVisibility(); refreshDRView(); }
@@ -9099,8 +9114,12 @@ function startSession(role, cred) {
   // Show team-specific dashboard nav item
   const kNav = document.getElementById('nav-team-dash-kings');
   const sNav = document.getElementById('nav-team-dash-swat');
+  const mNav = document.getElementById('nav-team-dash-pauline');
+  const tNav = document.getElementById('nav-team-dash-kelvin');
   if(kNav) kNav.style.display = (role==='kings'||role==='tl'||role==='admin') ? 'flex' : 'none';
   if(sNav) sNav.style.display = (role==='swat' ||role==='tl'||role==='admin') ? 'flex' : 'none';
+  if(mNav) mNav.style.display = (role==='pauline'||role==='tl'||role==='admin') ? 'flex' : 'none';
+  if(tNav) tNav.style.display = (role==='kelvin' ||role==='tl'||role==='admin') ? 'flex' : 'none';
 
   // Show/hide QA portal nav items based on role — each QA lead sees only their
   // own team's portal; TL/Admin see all four.
@@ -11611,7 +11630,6 @@ async function submitEOD() {
   }
   logWFHEntry(opId,'checkout',{notes:'Checked out. Total hours: '+(sess?.totalHours||'–')});
   clearInterval(_wfhTimerInterval); clearInterval(_wfhIdleInterval);
-  stopHeartbeat();
   // Lock out: remove from approved, clear session heartbeat, clear status
   const today_co = today();
   const coTime   = nowNairobi();
@@ -12513,6 +12531,7 @@ let _cursorLastMove  = Date.now();
 let _cursorIdleTimer = null;
 let _cursorAwayActive= false;
 let _cursorAwayStart = null;
+let _tabHiddenAt      = null;
 
 function startCursorIdleTracking() {
   if(window._cursorTrackingActive) return;
@@ -12624,36 +12643,6 @@ function startCursorIdleTracking() {
 
 // ── State ────────────────────────────────────────────────────────
 // ── Supabase helpers ─────────────────────────────────────────────
-
-async function saveSubmitLog(opId, submitType, cases, aht, occ) {
-  try {
-    const res = await fetch(_SUPA_URL + '/rest/v1/wfh_submit_log', {
-      method: 'POST',
-      headers: {
-        'apikey': _SUPA_KEY,
-        'Authorization': 'Bearer ' + _SUPA_KEY,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({ op_id:opId, date:today(), submit_type:submitType, cases:cases||0, aht:aht||null, occ:occ||null })
-    });
-    if(res.ok || res.status === 201) {
-      console.log('✅ Submit logged to Supabase:', submitType, cases, 'cases');
-    } else {
-      const err = await res.text();
-      console.error('❌ Submit log failed:', res.status, err);
-    }
-  } catch(e) { console.error('Submit log error:', e); }
-}
-
-
-async function fetchSubmitLog(date) {
-  try {
-    const r = await fetch(_SUPA_URL + '/rest/v1/wfh_submit_log?date=eq.' + date + '&order=submitted_at.asc&limit=500',
-      { headers: _SUPA_HDR });
-    return await r.json();
-  } catch(e) { return []; }
-}
 
 // ── Operator: start tab visibility monitoring ─────────────────────
 
@@ -15331,7 +15320,7 @@ function renderTeamPerf(team) {
     const rScore = latest.reported  || 0;
     const totalScore = Math.round((qScore+aScore+rScore)/3);
     const sCol = totalScore>=85?'var(--green)':totalScore>=65?'var(--amber)':'var(--red)';
-    const status = totalScore>=85?'✅ Good':'< 65'?'🔴 Coach':'⚠️ Watch';
+    const status = totalScore>=85?'✅ Good':totalScore>=65?'⚠️ Watch':'🔴 Coach';
 
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:10px 12px">
@@ -15480,26 +15469,6 @@ function renderTeamPerfAggregate(team, view) {
       </table>
     </div>`;
 }
-
-function testFirebase() {
-  // Write a test value to Firebase and read it back
-  const testKey = 'aifi_test_' + Date.now();
-  const testVal = { from: localStorage.getItem('aifi_session') ? JSON.parse(localStorage.getItem('aifi_session')).name : 'unknown', at: nowNairobi() };
-  _db.ref('test_ping').set(testVal)
-    .then(() => {
-      toast('✅ Firebase write OK — connection is working!', '🔥');
-      const dot = document.getElementById('sb-status');
-      if(dot) dot.style.background = '#22d3a0';
-    })
-    .catch(e => {
-      toast('❌ Firebase write FAILED: ' + e.message + ' — Check database rules!', '🔴');
-      const dot = document.getElementById('sb-status');
-      if(dot) dot.style.background = '#f87171';
-    });
-}
-
-
-
 
 
 // ════════════════════════════════════════════════════════════════
