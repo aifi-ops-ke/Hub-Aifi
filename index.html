@@ -6348,7 +6348,8 @@ function myChatIdentity() {
   if(_opHubId) {
     return { id: _opHubId, name: operatorLabel(_opHubId), role: 'Operator' };
   }
-  const role = currentRole === 'tl' ? 'Team Lead' : currentRole === 'admin' ? 'Admin' : currentRole === 'kings' ? 'Kings QA' : 'SWAT QA';
+  const role = currentRole === 'tl' ? 'Team Lead' : currentRole === 'admin' ? 'Admin' : currentRole === 'kings' ? 'Kings QA'
+    : currentRole === 'swat' ? 'SWAT QA' : currentRole === 'pauline' ? 'Team Masterminds QA' : currentRole === 'kelvin' ? 'The Tag Team QA' : 'SWAT QA';
   return { id: currentRole, name: currentUserName || role, role };
 }
 
@@ -6357,12 +6358,14 @@ function canDeleteAnyMessage() {
 }
 
 function chatPeopleDirectory() {
-  // Everyone a person could possibly DM: TL, Admin, both QAs, and every operator on the roster
+  // Everyone a person could possibly DM: TL, Admin, all four QAs, and every operator on the roster
   const leadership = [
     { id:'tl', name:'John Paul Kimongo', role:'Team Lead' },
     { id:'admin', name:'Gidraph', role:'Admin' },
     { id:'kings', name:'Kingori', role:'Kings QA' },
     { id:'swat', name:'Rosemary Nyaleso', role:'SWAT QA' },
+    { id:'pauline', name:'Pauline Safari', role:'Team Masterminds QA' },
+    { id:'kelvin', name:'Kelvin Nderitu', role:'The Tag Team QA' },
   ];
   const operators = OPERATOR_ROSTER.map(o => ({ id:o.id, name:operatorLabel(o.id), role:'Operator' }));
   return [...leadership, ...operators].filter(p => p.id !== _myChatId);
@@ -6487,8 +6490,8 @@ function renderChatUI(containerId) {
         </div>
       </div>
     </div>`;
-  // Default to the team channel (or leadership for TL/Admin/QA) on first open
-  const defaultConvo = _opHubId ? 'team' : (_currentChatTab || 'leadership');
+  // Default to the team channel for operators, leadership channel for TL/Admin/QA
+  const defaultConvo = _opHubId ? 'team' : 'leadership';
   openConvo(defaultConvo);
 }
 
@@ -9126,24 +9129,24 @@ function applyRoleRestrictions(role) {
   const kingsPages = ['dashboard','team-dash-kings',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator','meeting','qa-portal-kings','mgmt-shifts'];
+    'wfh','wfh-operator','meeting','qa-portal-kings','mgmt-shifts','team-chat'];
 
   const swatPages = ['dashboard','team-dash-swat',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator','meeting','qa-portal-swat','mgmt-shifts'];
+    'wfh','wfh-operator','meeting','qa-portal-swat','mgmt-shifts','team-chat'];
 
   // Pauline (Team Masterminds) and Kelvin (The Tag Team) are independent QA
   // leads with their own team, NOT access to Kings/SWAT's team-dash or QA portal.
   const paulinePages = ['dashboard','team-dash-pauline',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator','meeting','qa-portal-pauline','mgmt-shifts'];
+    'wfh','wfh-operator','meeting','qa-portal-pauline','mgmt-shifts','team-chat'];
 
   const kelvinPages = ['dashboard','team-dash-kelvin',
     'attendance','attendance-full','production','errors','leave','schedule',
     'call-reports','team-dash','team-perf-kings','team-perf-swat',
-    'wfh','wfh-operator','meeting','qa-portal-kelvin','mgmt-shifts'];
+    'wfh','wfh-operator','meeting','qa-portal-kelvin','mgmt-shifts','team-chat'];
 
   const allowedPages = role==='kings' ? kingsPages
     : role==='swat' ? swatPages
