@@ -7252,7 +7252,7 @@ function renderQAPortalHistory(team) {
 async function saveQAPortalPlan(team) {
   const date = document.getElementById(`${team}-dp-date`)?.value;
   if(!date){toast('Please select a date','⚠️');return;}
-  const NAMES={kings:'Kingori — Kings QA',swat:'Rosemary Nyaleso — SWAT QA'};
+  const NAMES={kings:'Kingori — Kings QA',swat:'Rosemary Nyaleso — SWAT QA',pauline:'Pauline Safari — Team Masterminds',kelvin:'Kelvin Nderitu — The Tag Team'};
   const entry={id:Date.now(),person:team,name:NAMES[team],date,
     internalAudits:+document.getElementById(`${team}-dp-internal`)?.value||0,
     globalAudits:+document.getElementById(`${team}-dp-global`)?.value||0,
@@ -7273,7 +7273,7 @@ async function saveQAPortalPlan(team) {
 async function saveQAPortalReview(team) {
   const date=document.getElementById(`${team}-dr-date`)?.value;
   if(!date){toast('Please select a date','⚠️');return;}
-  const NAMES={kings:'Kingori — Kings QA',swat:'Rosemary Nyaleso — SWAT QA'};
+  const NAMES={kings:'Kingori — Kings QA',swat:'Rosemary Nyaleso — SWAT QA',pauline:'Pauline Safari — Team Masterminds',kelvin:'Kelvin Nderitu — The Tag Team'};
   const entry={id:Date.now(),person:team,name:NAMES[team],section:team,date,type:'report',
     internalDone:+document.getElementById(`${team}-dr-internal`)?.value||0,
     globalDone:+document.getElementById(`${team}-dr-global`)?.value||0,
@@ -7295,7 +7295,7 @@ async function saveQAPortalReview(team) {
 async function saveQAPortalAchieved(team) {
   const date=document.getElementById(`${team}-ach-date`)?.value;
   if(!date){toast('Please select a date','⚠️');return;}
-  const NAMES={kings:'Kingori — Kings QA',swat:'Rosemary Nyaleso — SWAT QA'};
+  const NAMES={kings:'Kingori — Kings QA',swat:'Rosemary Nyaleso — SWAT QA',pauline:'Pauline Safari — Team Masterminds',kelvin:'Kelvin Nderitu — The Tag Team'};
   const entry={id:Date.now(),person:team,name:NAMES[team],date,isAchieved:true,
     internalDone:+document.getElementById(`${team}-ach-internal`)?.value||0,
     globalDone:+document.getElementById(`${team}-ach-global`)?.value||0,
@@ -7622,24 +7622,34 @@ function renderTLTeamsView() {
         <div class="kpi-card"><div class="kpi-label">Operators</div><div class="kpi-value">${teamProd.length}</div></div>`;
     }
   });
-  // QA plans & reports submitted today
+  // QA plans & reports submitted today — all four QA teams (Kings, SWAT, Team Masterminds, The Tag Team)
   const qaEl = document.getElementById('tl-qa-submissions');
   if(qaEl) {
-    const qaPlan  = (load('daily_plans')||[]).filter(p => p.date === date && (p.person==='kings'||p.person==='swat') && !p.isAchieved);
-    const qaAch   = (load('daily_plans')||[]).filter(p => p.date === date && p.isAchieved && (p.person==='kings'||p.person==='swat'));
-    if(!qaPlan.length && !qaAch.length) {
+    const QA_TEAMS = ['kings','swat','pauline','kelvin'];
+    const QA_NAMES_TODAY = { kings:'Kingori — Kings QA', swat:'Rosemary Nyaleso — SWAT QA', pauline:'Pauline Safari — Team Masterminds', kelvin:'Kelvin Nderitu — The Tag Team' };
+    const qaPlan  = (load('daily_plans')||[]).filter(p => p.date === date && QA_TEAMS.includes(p.person) && !p.isAchieved);
+    const qaAch   = (load('daily_plans')||[]).filter(p => p.date === date && p.isAchieved && QA_TEAMS.includes(p.person));
+    const qaRev   = (load('dr_entries')||[]).filter(r => r.date === date && QA_TEAMS.includes(r.person));
+    if(!qaPlan.length && !qaAch.length && !qaRev.length) {
       qaEl.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px">No QA plans or reports for this date.</div>';
     } else {
-      qaEl.innerHTML = [...qaPlan, ...qaAch].map(p => `
+      qaEl.innerHTML = [...qaPlan, ...qaRev, ...qaAch].map(p => {
+        const kind = p.isAchieved ? 'achieved' : (p.achieved!==undefined||p.notAchieved!==undefined||p.reasons!==undefined) ? 'review' : 'plan';
+        const label = kind==='achieved' ? '✅ Achieved' : kind==='review' ? '📝 Report' : '📅 Plan';
+        const color = kind==='achieved' ? 'var(--green)' : kind==='review' ? 'var(--teal)' : 'var(--accent)';
+        const body = kind==='achieved'
+          ? `<div style="font-size:12px">Internal Done: <b>${p.internalDone||0}</b> · Global Done: <b>${p.globalDone||0}</b>${p.achievedNotes?` · ${p.achievedNotes}`:''}</div>`
+          : kind==='review'
+          ? `<div style="font-size:12px">${p.achieved?`<div>✅ ${p.achieved}</div>`:''}${p.notAchieved?`<div style="color:var(--red)">✗ ${p.notAchieved}</div>`:''}${p.reasons?`<div style="color:var(--amber)">! ${p.reasons}</div>`:''}${!p.achieved&&!p.notAchieved&&!p.reasons?'<span style="color:var(--text3)">No details submitted.</span>':''}</div>`
+          : `<div style="font-size:12px">Internal: <b>${p.internalAudits||0}</b> · Global: <b>${p.globalAudits||0}</b>${p.objectives?`<br><span style="color:var(--text3)">${p.objectives}</span>`:''}</div>`;
+        return `
         <div style="padding:12px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2)">
-          <div style="font-size:11px;font-weight:800;color:${p.isAchieved?'var(--green)':'var(--accent)'};text-transform:uppercase;margin-bottom:6px">
-            ${p.isAchieved ? '✅ Achieved' : '📅 Plan'} · ${p.person==='kings'?'Kingori':'Rosemary'}
+          <div style="font-size:11px;font-weight:800;color:${color};text-transform:uppercase;margin-bottom:6px">
+            ${label} · ${QA_NAMES_TODAY[p.person]||p.person}
           </div>
-          ${p.isAchieved
-            ? `<div style="font-size:12px">Internal Done: <b>${p.internalDone||0}</b> · Global Done: <b>${p.globalDone||0}</b>${p.achievedNotes?` · ${p.achievedNotes}`:''}</div>`
-            : `<div style="font-size:12px">Internal: <b>${p.internalAudits||0}</b> · Global: <b>${p.globalAudits||0}</b>${p.objectives?`<br><span style="color:var(--text3)">${p.objectives}</span>`:''}</div>`
-          }
-        </div>`).join('');
+          ${body}
+        </div>`;
+      }).join('');
     }
   }
 }
@@ -15604,7 +15614,8 @@ function buildNotifCard(n, compact) {
   const TYPE_ICON  = { plan:'📅', report:'📝', call_report:'📞', achieved:'✅', tab_flag:'🚩' };
   const TYPE_LABEL = { plan:'Daily Plan', report:'Daily Report', call_report:'Call Report', achieved:'Completed Audits', tab_flag:'Tab Switch Flag' };
   const sc = n.status==='Approved'?'var(--green)':n.status==='Rejected'?'var(--red)':'var(--amber)';
-  const name = n.name || (n.person==='kings'?'Kingori':n.person==='swat'?'Rosemary Nyaleso':'Team Lead');
+  const NOTIF_QA_NAMES = { kings:'Kingori', swat:'Rosemary Nyaleso', pauline:'Pauline Safari', kelvin:'Kelvin Nderitu', tl:'Team Lead' };
+  const name = n.name || NOTIF_QA_NAMES[n.person] || 'Team Lead';
   const isApprovable = n.type==='report';
 
   // Tab switch flags get a special compact card
