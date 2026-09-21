@@ -3494,6 +3494,8 @@ function _dbRefreshPage(key) {
         </div>
         <div style="display:flex;gap:8px;padding-top:4px;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="openWFHApprovalV2()">✅ Approve for WFH</button>
+          <button class="btn btn-secondary" onclick="tlRequestSpotCheck()">📷 Request Spot Check</button>
+          <button class="btn btn-secondary" onclick="openWFHFlagModal()">🚩 Flag Operator</button>
           <button class="btn btn-secondary" onclick="renderWFHMonitorV2()">↺ Refresh</button>
           <button class="btn" style="background:linear-gradient(135deg,#00c896,#00b4d8);color:#fff;padding:7px 15px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:700" onclick="openDailyExportModal()">📥 Export</button>
         </div>
@@ -3505,6 +3507,12 @@ function _dbRefreshPage(key) {
       <div style="margin-bottom:14px">
         <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">✅ Approved Today — <span id="approved-today-count-v2">0</span></div>
         <div id="approved-today-list-v2" style="display:flex;flex-wrap:wrap;gap:6px;min-height:20px;align-items:flex-start"></div>
+      </div>
+
+      <!-- Flags & Breaches -->
+      <div id="wfh-breaches-wrap-v2" style="margin-bottom:14px;display:none">
+        <div style="font-size:11px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">🚩 Flags & Breaches Today — <span id="wfh-breaches-count-v2">0</span></div>
+        <div id="wfh-breaches-list-v2" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
 
       <div class="kpi-grid" id="wfh-kpi-row-v2" style="margin-bottom:16px"></div>
@@ -10665,8 +10673,12 @@ function openWFHApproval() {
 }
 
 
-function openWFHFlagModal() {
-  const approved = getApproved();
+async function openWFHFlagModal() {
+  // Uses the v2 approved list (same source as the Approve-for-WFH modal) —
+  // the old getApproved()/_approvedCache pair is only ever populated by the
+  // operator-side v1 flow, so on a fresh TL session it's empty and this
+  // modal's operator dropdown would have nothing to pick from.
+  const approved = await dbGetApprovedV2();
   const opOpts = approved.map(op=>`<option value="${op}">${operatorLabel(op)}</option>`).join('');
   openModal('🚩 Flag an Operator', `
     <div class="form-group"><label>Operator</label>
@@ -10690,15 +10702,18 @@ function openWFHFlagModal() {
   `);
   document.getElementById('modal-action').style.display='flex';
   document.getElementById('modal-action').textContent='🚩 Submit Flag';
-  document.getElementById('modal-action').onclick = () => {
+  document.getElementById('modal-action').onclick = async () => {
     const opId = document.getElementById('flag-op-sel').value;
     const reason = document.getElementById('flag-reason').value;
     const notes  = document.getElementById('flag-notes').value;
     if(!opId) { toast('Select an operator','⚠️'); return; }
-    logWFHBreach(opId, `🚩 TL Flag: ${reason}${notes?' — '+notes:''}`);
-    logWFHEntry(opId,'flag',{notes:`TL flagged: ${reason}. ${notes}`});
+    // logWFHBreach/logWFHEntry wrote to the retired v1 localStorage key and
+    // v1 SQL table respectively — invisible to the v2 WFH Monitor that's
+    // actually on screen. dbLogBreachV2/dbInsertLogV2 are what v2 reads.
+    await dbLogBreachV2(opId, `🚩 TL Flag: ${reason}${notes?' — '+notes:''}`);
+    await dbInsertLogV2(opId,'flag',{notes:`TL flagged: ${reason}. ${notes}`});
     closeModal();
-    renderWFHMonitor();
+    renderWFHMonitorV2();
     toast('Operator flagged — visible in breach log','🚩');
   };
 }
@@ -12382,8 +12397,8 @@ async function tlViewOperatorCam(opId) {
 
 // ── TL: Request Spot Check (forces operator to take snapshot) ────
 
-function tlRequestSpotCheck() {
-  const approved = getApproved();
+async function tlRequestSpotCheck() {
+  const approved = await dbGetApprovedV2();
   if(!approved.length){ toast('No operators approved for WFH today','⚠️'); return; }
   const boxes = approved.map(op=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer">
     <input type="checkbox" value="${op}" checked style="width:14px;height:14px;accent-color:var(--accent)"/>
@@ -16896,6 +16911,27 @@ async function dbGetBreachesV2(date) {
   } catch(e) { console.error('dbGetBreachesV2 error:', e); return []; }
 }
 
+// dbGetBreachesV2 had no caller anywhere — breaches were being written
+// (auto-flagged at check-in for poor internet/unsuitable workspace, and
+// via TL's "Flag Operator") but never displayed anywhere in the v2 UI.
+// Wired into the WFH Monitor's own refresh cycle below.
+async function renderWFHBreachesV2(date) {
+  const wrap  = document.getElementById('wfh-breaches-wrap-v2');
+  const list  = document.getElementById('wfh-breaches-list-v2');
+  const count = document.getElementById('wfh-breaches-count-v2');
+  if(!wrap || !list) return;
+  const breaches = await dbGetBreachesV2(date);
+  if(count) count.textContent = breaches.length;
+  wrap.style.display = breaches.length ? 'block' : 'none';
+  if(!breaches.length) return;
+  list.innerHTML = breaches.map(b => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,94,110,0.06);border:1px solid rgba(255,94,110,0.25);border-radius:8px;font-size:12px">
+      <span style="font-family:'DM Mono',monospace;color:var(--text3);flex-shrink:0">${nairobiTimestampToTimeStr(b.time)}</span>
+      <span style="font-weight:700;color:var(--text);flex-shrink:0">${operatorLabel(b.opId)}</span>
+      <span style="color:var(--text2)">${b.message}</span>
+    </div>`).join('');
+}
+
 // ── Submit log ─────────────────────────────────────────────────────
 // Parallel lightweight record mirroring v1's wfh_submit_log — kept for
 // parity since v1's reporting tooling reads from this table specifically,
@@ -17664,6 +17700,7 @@ async function renderWFHMonitorV2() {
   renderShiftActivityV2(sessions, approved, logs);
   renderApprovedTodayV2(sessions, approved);
   renderQATrackingV2();
+  renderWFHBreachesV2(date);
 
   const lrEl = document.getElementById('wfh-last-refresh-v2');
   if(lrEl) lrEl.textContent = '↺ ' + nairobiTimestampToTimeStr(nowNairobi());
@@ -17792,6 +17829,7 @@ let _wfhOnBreakV2      = false;
 let _wfhBreakStartV2   = null;
 let _wfhTimerIntervalV2= null;
 let _wfhRefreshIntervalV2 = null;
+let _wfhIdlePollIntervalV2 = null;
 
 async function wfhCheckInV2() {
   const opId = document.getElementById('wfh-op-self').value;
@@ -17909,6 +17947,21 @@ function startWFHTimerV2() {
     const el  = document.getElementById('wfh-session-timer');
     if(el && _wfhSessionStartV2) el.textContent = wfhElapsedV2(_wfhSessionStartV2, bMs);
   }, 1000);
+
+  // Idle time only grows with the clock, not with operator action, so it
+  // needs its own tick independent of refreshOpLiveViewV2's action-triggered
+  // calls — otherwise the idle warning/timer-flash never appears while an
+  // operator genuinely goes quiet. Also polls for a TL-requested spot check
+  // (opCheckSpotRequest), which pre-cutover only ever ran inside the retired
+  // v1 startWFHTimer's equivalent interval and never got ported to v2.
+  clearInterval(_wfhIdlePollIntervalV2);
+  _wfhIdlePollIntervalV2 = setInterval(()=>{
+    const opId = document.getElementById('wfh-op-self')?.value;
+    if(opId) {
+      refreshOpLiveViewV2(opId);
+      opCheckSpotRequest();
+    }
+  }, 60000);
 }
 
 function wfhElapsedV2(startIso, breakMs=0) {
@@ -18056,6 +18109,7 @@ async function submitEODV2() {
 
   await dbInsertLogV2(opId, 'checkout', { notes:'Checked out. Total hours: '+(totalHours||'–') });
   clearInterval(_wfhTimerIntervalV2);
+  clearInterval(_wfhIdlePollIntervalV2);
 
   // Full-shift (9h+) lockout — same rule as v1: requires the TL to
   // explicitly unlock re-login (Approve Operators modal) before this
