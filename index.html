@@ -320,12 +320,31 @@
     margin-bottom: 20px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(0,212,160,0.04);
     transition: border-color 0.22s, box-shadow 0.22s, transform 0.15s;
+    position: relative;
   }
   .card:hover {
     border-color: rgba(0,212,160,0.22);
     box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,212,160,0.07);
     transform: translateY(-1px);
   }
+  /* Colored top accent on every card, same idea as the KPI cards' — every
+     page's "display part" was plain teal-bordered panels with zero color
+     variety. :nth-of-type cycles per parent container, so a page with
+     several stacked cards gets a spread of colors instead of one repeated
+     accent; rounded to match the card's own corners rather than clipping
+     the whole card with overflow:hidden, which some cards rely on staying
+     off (dropdowns, sticky table headers, horizontal-scroll tables). */
+  .card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--grad-brand);
+  }
+  .card:nth-of-type(5n+1)::before { background: var(--grad-brand); }
+  .card:nth-of-type(5n+2)::before { background: linear-gradient(135deg,#ff8534,#e85d04); }
+  .card:nth-of-type(5n+3)::before { background: linear-gradient(135deg,#b48af7,#8b5cf6); }
+  .card:nth-of-type(5n+4)::before { background: linear-gradient(135deg,#00c8e0,#0077b6); }
+  .card:nth-of-type(5n+5)::before { background: linear-gradient(135deg,#f5c518,#d4a017); }
 
   /* ── Operator Hub tile menu ── */
   .ophub-tile-grid {
@@ -2423,7 +2442,7 @@ function _dbRefreshPage(key) {
 
       <!-- PASTE TAB -->
       <div id="prod-tab-paste">
-        <div class="card" style="margin-bottom:16px;border-top:3px solid var(--accent)">
+        <div class="card" style="margin-bottom:16px">
           <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:14px">
             <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="paste-date" style="width:160px"/></div>
             <div class="form-group" style="margin:0"><label>Team</label>
@@ -2459,7 +2478,7 @@ function _dbRefreshPage(key) {
 
       <!-- MANUAL ENTRY TAB -->
       <div id="prod-tab-manual" style="display:none">
-        <div class="card" style="max-width:640px;border-top:3px solid #ff8534">
+        <div class="card" style="max-width:640px">
           <div class="card-header"><div class="card-title">✏️ Add Entry</div></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div class="form-group" style="margin:0"><label>Operator</label><select id="prod-operator" style="width:100%"></select></div>
@@ -2481,7 +2500,7 @@ function _dbRefreshPage(key) {
 
       <!-- LOG TAB -->
       <div id="prod-tab-log" style="display:none">
-        <div class="card" style="margin-bottom:16px;border-top:3px solid #00c8e0">
+        <div class="card" style="margin-bottom:16px">
           <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
             <div class="form-group" style="margin:0"><label>Date</label><input type="date" id="prod-filter-date" onchange="renderProd()" style="width:160px"/></div>
             <div class="form-group" style="margin:0"><label>Team</label>
@@ -2496,7 +2515,7 @@ function _dbRefreshPage(key) {
           </div>
         </div>
         <div class="kpi-row" id="prod-kpi-row" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px"></div>
-        <div class="card" style="overflow-x:auto;border-top:3px solid #f5c518">
+        <div class="card" style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:11px">
             <thead>
               <tr style="text-align:left;color:var(--text3);font-size:9px;text-transform:uppercase">
