@@ -320,12 +320,31 @@
     margin-bottom: 20px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(0,212,160,0.04);
     transition: border-color 0.22s, box-shadow 0.22s, transform 0.15s;
+    position: relative;
   }
   .card:hover {
     border-color: rgba(0,212,160,0.22);
     box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,212,160,0.07);
     transform: translateY(-1px);
   }
+  /* Colored top accent on every card, same idea as the KPI cards' — every
+     page's "display part" was plain teal-bordered panels with zero color
+     variety. :nth-of-type cycles per parent container, so a page with
+     several stacked cards gets a spread of colors instead of one repeated
+     accent; rounded to match the card's own corners rather than clipping
+     the whole card with overflow:hidden, which some cards rely on staying
+     off (dropdowns, sticky table headers, horizontal-scroll tables). */
+  .card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--grad-brand);
+  }
+  .card:nth-of-type(5n+1)::before { background: var(--grad-brand); }
+  .card:nth-of-type(5n+2)::before { background: linear-gradient(135deg,#ff8534,#e85d04); }
+  .card:nth-of-type(5n+3)::before { background: linear-gradient(135deg,#b48af7,#8b5cf6); }
+  .card:nth-of-type(5n+4)::before { background: linear-gradient(135deg,#00c8e0,#0077b6); }
+  .card:nth-of-type(5n+5)::before { background: linear-gradient(135deg,#f5c518,#d4a017); }
 
   /* ── Operator Hub tile menu ── */
   .ophub-tile-grid {
@@ -479,9 +498,15 @@
 
   /* ── TABS ────────────────────────────────────────────── */
   .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--surface2); padding: 4px; border-radius: 9px; width: fit-content; }
-  .tab { padding: 7px 16px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text3); transition: all 0.15s; }
+  .tab { padding: 7px 16px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text3); transition: all 0.15s; border-bottom: 2px solid transparent; }
   .tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
   .tab:hover:not(.active) { color: var(--text2); }
+  /* Colorful active-tab accent, cycling the same palette used on KPI cards */
+  .tab.active:nth-child(5n+1) { border-bottom-color: var(--accent); color: var(--accent); }
+  .tab.active:nth-child(5n+2) { border-bottom-color: #ff8534; color: #ff8534; }
+  .tab.active:nth-child(5n+3) { border-bottom-color: #b48af7; color: #b48af7; }
+  .tab.active:nth-child(5n+4) { border-bottom-color: #00c8e0; color: #00c8e0; }
+  .tab.active:nth-child(5n+5) { border-bottom-color: #f5c518; color: #f5c518; }
 
   /* ── ALERT ────────────────────────────────────────────── */
   .alert { padding: 12px 16px; border-radius: 8px; font-size: 12.5px; margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px; }
@@ -2428,8 +2453,8 @@ function _dbRefreshPage(key) {
               </select>
             </div>
             <div style="margin-left:auto;display:flex;gap:8px">
-              <button class="btn btn-secondary btn-sm" onclick="setPreset('aifi')">AIFI Preset</button>
-              <button class="btn btn-secondary btn-sm" onclick="setPreset('simple')">Simple Preset</button>
+              <button class="btn btn-secondary btn-sm" style="border-color:rgba(0,200,224,0.4);color:#00c8e0" onclick="setPreset('aifi')">AIFI Preset</button>
+              <button class="btn btn-secondary btn-sm" style="border-color:rgba(180,138,247,0.4);color:#b48af7" onclick="setPreset('simple')">Simple Preset</button>
             </div>
           </div>
           <div id="col-mapper" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
