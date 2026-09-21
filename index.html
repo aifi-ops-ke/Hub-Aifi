@@ -887,6 +887,8 @@
     padding: 10px 24px;
     align-items: center;
     justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
     position: sticky; top: 0; z-index: 50;
     backdrop-filter: blur(12px);
   }
@@ -1041,6 +1043,18 @@
     background:rgba(220,30,50,0.88); color:#fff;
     text-align:center; padding:8px; font-size:12px; font-weight:700;
     display:none;
+  }
+
+  /* Sub-section grouping inside the Hourly Log / EOD forms and the
+     Shift Setup card — breaks a long field list into scannable groups
+     without touching any field id or JS logic. */
+  .wfh-subsection {
+    background:var(--surface2); border:1px solid var(--border2); border-radius:10px;
+    padding:14px; margin-bottom:12px;
+  }
+  .wfh-subsection-title {
+    font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em;
+    margin-bottom:10px; display:flex; align-items:center; gap:6px;
   }
 
   .wfh-checklist { display:flex; flex-direction:column; gap:6px; }
@@ -3609,82 +3623,95 @@ function _dbRefreshPage(key) {
         <p>Your remote workspace. Complete ALL fields every hour — your TL monitors in real time. Missing submissions, low proof quality, and idle time are all tracked and flagged.</p>
       </div>
 
+      <!-- Quick-jump nav — long page, one tap to any section -->
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('wfh-section-setup').scrollIntoView({behavior:'smooth',block:'start'})">📋 Setup</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('wfh-section-webcam').scrollIntoView({behavior:'smooth',block:'start'})">📷 Webcam</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('wfh-section-live').scrollIntoView({behavior:'smooth',block:'start'})">🎯 Live Session</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('wfh-hourly-form-card').scrollIntoView({behavior:'smooth',block:'start'})">⏱ Hourly Log</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('wfh-eod-form-card').scrollIntoView({behavior:'smooth',block:'start'})">📝 End of Shift</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('wfh-my-logs').scrollIntoView({behavior:'smooth',block:'start'})">📋 My Logs</button>
+      </div>
+
       <div class="wfh-hero">
-        <!-- Identity & pre-checkin -->
-        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
-          <div class="form-group" style="margin:0;flex:2;min-width:200px">
-            <label>Your Name</label>
-            <select id="wfh-op-self" onchange="onWFHOperatorSelectV2()" style="width:100%"></select>
+        <!-- Shift Setup: identity + pre-check-in -->
+        <div class="card" id="wfh-section-setup">
+          <div class="card-header"><div><div class="card-title">📋 Shift Setup</div><div class="card-sub">Confirm who you are and verify your setup before checking in</div></div></div>
+
+          <div class="wfh-subsection" style="background:transparent;border:none;padding:0;margin-bottom:14px">
+            <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+              <div class="form-group" style="margin:0;flex:2;min-width:200px">
+                <label>Your Name</label>
+                <select id="wfh-op-self" onchange="onWFHOperatorSelectV2()" style="width:100%"></select>
+              </div>
+              <div class="form-group" style="margin:0;flex:1;min-width:110px">
+                <label>Date</label>
+                <input type="date" id="wfh-op-date" readonly style="width:100%;background:var(--surface3);color:var(--text3)"/>
+              </div>
+              <div class="form-group" style="margin:0;flex:1;min-width:110px">
+                <label>Shift (UTC)</label>
+                <input type="text" id="wfh-op-shift" placeholder="e.g. 0300" style="width:100%;font-family:'DM Mono',monospace"/>
+              </div>
+              <div class="form-group" style="margin:0;flex:1;min-width:130px">
+                <label>📍 Location</label>
+                <input type="text" id="wfh-op-location" value="Westlands" readonly style="background:var(--surface3);color:var(--text3);font-weight:700"/>
+              </div>
+            </div>
           </div>
-          <div class="form-group" style="margin:0;flex:1;min-width:110px">
-            <label>Date</label>
-            <input type="date" id="wfh-op-date" readonly style="width:100%;background:var(--surface3);color:var(--text3)"/>
-          </div>
-          <div class="form-group" style="margin:0;flex:1;min-width:110px">
-            <label>Shift (UTC)</label>
-            <input type="text" id="wfh-op-shift" placeholder="e.g. 0300" style="width:100%;font-family:'DM Mono',monospace"/>
-          </div>
-          <div class="form-group" style="margin:0;flex:1;min-width:130px">
-            <label>📍 Location</label>
-            <input type="text" id="wfh-op-location" value="Westlands" readonly style="background:var(--surface3);color:var(--text3);font-weight:700"/>
+
+          <!-- Pre-check-in panel -->
+          <div id="wfh-precheckin-panel" style="padding:14px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px">
+            <div class="wfh-subsection-title" style="color:var(--orange);margin-bottom:10px">⚡ Pre-Check-In Verification — Required Before Starting</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
+              <div class="form-group" style="margin:0">
+                <label>Internet Quality <span style="color:var(--red)">*</span></label>
+                <select id="wfh-pre-internet">
+                  <option value="">— Select —</option>
+                  <option value="excellent">Excellent (stable, fast)</option>
+                  <option value="good">Good (minor lag)</option>
+                  <option value="poor">Poor (frequent drops)</option>
+                  <option value="mobile">Mobile data fallback</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Workspace Environment <span style="color:var(--red)">*</span></label>
+                <select id="wfh-pre-env">
+                  <option value="">— Select —</option>
+                  <option value="quiet">Quiet — fully dedicated</option>
+                  <option value="managed">Manageable noise</option>
+                  <option value="noisy">Noisy — distractions</option>
+                  <option value="unsuitable">Unsuitable — cannot focus</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Power Supply <span style="color:var(--red)">*</span></label>
+                <select id="wfh-pre-power">
+                  <option value="">— Select —</option>
+                  <option value="stable">Stable mains</option>
+                  <option value="backup">On backup / UPS</option>
+                  <option value="unstable">Unstable ⚠️</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>All Work Tools Ready? <span style="color:var(--red)">*</span></label>
+                <select id="wfh-pre-tools">
+                  <option value="">— Select —</option>
+                  <option value="yes">Yes — all operational ✅</option>
+                  <option value="partial">Partial — minor issues</option>
+                  <option value="no">No — waiting for access</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group" style="margin:10px 0 0">
+              <label>Workspace Setup Description <span style="color:var(--red)">*</span> — Be specific, TL reads this</label>
+              <textarea id="wfh-pre-workspace" placeholder="Describe your exact setup right now — device, seating, room, background, lighting. e.g. 'Sitting at desk in bedroom, HP Pavilion laptop, phone on silent, door closed, window to left, quiet'" style="min-height:55px;font-size:12px"></textarea>
+            </div>
           </div>
         </div>
 
-        <!-- Pre-check-in panel -->
-        <div id="wfh-precheckin-panel" style="margin-bottom:16px;padding:14px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px">
-          <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚡ Pre-Check-In Verification — Required Before Starting</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
-            <div class="form-group" style="margin:0">
-              <label>Internet Quality <span style="color:var(--red)">*</span></label>
-              <select id="wfh-pre-internet">
-                <option value="">— Select —</option>
-                <option value="excellent">Excellent (stable, fast)</option>
-                <option value="good">Good (minor lag)</option>
-                <option value="poor">Poor (frequent drops)</option>
-                <option value="mobile">Mobile data fallback</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label>Workspace Environment <span style="color:var(--red)">*</span></label>
-              <select id="wfh-pre-env">
-                <option value="">— Select —</option>
-                <option value="quiet">Quiet — fully dedicated</option>
-                <option value="managed">Manageable noise</option>
-                <option value="noisy">Noisy — distractions</option>
-                <option value="unsuitable">Unsuitable — cannot focus</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label>Power Supply <span style="color:var(--red)">*</span></label>
-              <select id="wfh-pre-power">
-                <option value="">— Select —</option>
-                <option value="stable">Stable mains</option>
-                <option value="backup">On backup / UPS</option>
-                <option value="unstable">Unstable ⚠️</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label>All Work Tools Ready? <span style="color:var(--red)">*</span></label>
-              <select id="wfh-pre-tools">
-                <option value="">— Select —</option>
-                <option value="yes">Yes — all operational ✅</option>
-                <option value="partial">Partial — minor issues</option>
-                <option value="no">No — waiting for access</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group" style="margin:10px 0 0">
-            <label>Workspace Setup Description <span style="color:var(--red)">*</span> — Be specific, TL reads this</label>
-            <textarea id="wfh-pre-workspace" placeholder="Describe your exact setup right now — device, seating, room, background, lighting. e.g. 'Sitting at desk in bedroom, HP Pavilion laptop, phone on silent, door closed, window to left, quiet'" style="min-height:55px;font-size:12px"></textarea>
-          </div>
-        </div>
-
-        <!-- Timer -->
-        <!-- ── WEBCAM WIDGET ── -->
-        <div style="margin-bottom:16px">
-          <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;text-align:center">
-            📷 Webcam — Required for WFH Shifts
-          </div>
+        <!-- Webcam -->
+        <div class="card" id="wfh-section-webcam">
+          <div class="card-header"><div><div class="card-title">📷 Webcam Verification</div><div class="card-sub">Required for WFH shifts — presence is checked every 5 minutes, no images are saved</div></div></div>
 
           <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;justify-content:center">
             <!-- Video feed -->
@@ -3724,35 +3751,41 @@ function _dbRefreshPage(key) {
           </div>
         </div>
 
-        <div class="wfh-timer" id="wfh-session-timer">00:00:00</div>
-        <div style="font-size:13px;color:var(--text3);text-align:center;margin:6px 0 4px" id="wfh-session-status-text">Not checked in</div>
-        <div style="font-size:11px;color:var(--orange);text-align:center;font-weight:700;margin-bottom:16px" id="wfh-next-log-timer"></div>
+        <!-- Live Session: timer, actions, status -->
+        <div class="card" id="wfh-section-live">
+          <div class="card-header"><div><div class="card-title">🎯 Live Session</div><div class="card-sub">Check in to start your shift timer and unlock the hourly log below</div></div></div>
 
-        <!-- Action buttons -->
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:16px">
-          <button class="btn btn-green" id="wfh-checkin-btn" onclick="wfhCheckInV2()" style="font-size:14px;padding:11px 36px">▶ Check In — Start Shift</button>
-          <button class="btn btn-danger" id="wfh-checkout-btn" onclick="confirmCheckoutV2()" style="font-size:14px;padding:11px 36px;display:none">⏹ End Shift & Submit EOD</button>
-          <button class="btn btn-secondary" id="wfh-break-btn" onclick="wfhToggleBreakV2()" style="display:none">☕ Take Break</button>
-          <button class="btn btn-secondary" id="wfh-join-meet-btn" onclick="openJoinMeetingFromPortal()" style="display:none;background:linear-gradient(135deg,#00b4d8,#0096c7);color:#fff;border:none">📹 Join Meeting</button>
-          <button class="btn btn-secondary" onclick="window.open('https://meet.google.com/bcn-jytq-xiv','_blank')" style="font-size:14px;padding:11px 24px;background:rgba(0,180,216,0.1);border:1px solid rgba(0,180,216,0.3);color:var(--text)">📞 Join Team Call</button>
-        </div>
+          <div class="wfh-timer" id="wfh-session-timer">00:00:00</div>
+          <div style="font-size:13px;color:var(--text3);text-align:center;margin:6px 0 4px" id="wfh-session-status-text">Not checked in</div>
+          <div style="font-size:11px;color:var(--orange);text-align:center;font-weight:700;margin-bottom:16px" id="wfh-next-log-timer"></div>
 
-        <!-- ── STATUS SELECTOR (always visible) ── -->
-        <div id="wfh-status-bar" style="margin-bottom:14px">
-          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;text-align:center;margin-bottom:8px">📍 Set Your Current Status — TL sees this instantly</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center" id="wfh-status-buttons">
-            <button onclick="setOperatorStatus('working')"      id="sb-working"      class="status-btn status-working">🟢 Working</button>
-            <button onclick="setOperatorStatus('meeting')"      id="sb-meeting"      class="status-btn">📹 In Meeting</button>
-            <button onclick="setOperatorStatus('break')"        id="sb-break"        class="status-btn">☕ Short Break</button>
-            <button onclick="setOperatorStatus('lunch')"        id="sb-lunch"        class="status-btn">🍽️ Lunch Break</button>
-            <button onclick="setOperatorStatus('floor_support')" id="sb-floor_support" class="status-btn">🤝 Floor Support</button>
-            <button onclick="setOperatorStatus('training')"     id="sb-training"     class="status-btn">📚 Training</button>
+          <!-- Action buttons -->
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:16px">
+            <button class="btn btn-green" id="wfh-checkin-btn" onclick="wfhCheckInV2()" style="font-size:14px;padding:11px 36px">▶ Check In — Start Shift</button>
+            <button class="btn btn-danger" id="wfh-checkout-btn" onclick="confirmCheckoutV2()" style="font-size:14px;padding:11px 36px;display:none">⏹ End Shift & Submit EOD</button>
+            <button class="btn btn-secondary" id="wfh-break-btn" onclick="wfhToggleBreakV2()" style="display:none">☕ Take Break</button>
+            <button class="btn btn-secondary" id="wfh-join-meet-btn" onclick="openJoinMeetingFromPortal()" style="display:none;background:linear-gradient(135deg,#00b4d8,#0096c7);color:#fff;border:none">📹 Join Meeting</button>
+            <button class="btn btn-secondary" onclick="window.open('https://meet.google.com/bcn-jytq-xiv','_blank')" style="font-size:14px;padding:11px 24px;background:rgba(0,180,216,0.1);border:1px solid rgba(0,180,216,0.3);color:var(--text)">📞 Join Team Call</button>
           </div>
-          <div id="wfh-status-since" style="font-size:10px;color:var(--text3);text-align:center;margin-top:6px;font-family:'DM Mono',monospace"></div>
+
+          <!-- ── STATUS SELECTOR (always visible) ── -->
+          <div id="wfh-status-bar">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;text-align:center;margin-bottom:8px">📍 Set Your Current Status — TL sees this instantly</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center" id="wfh-status-buttons">
+              <button onclick="setOperatorStatus('working')"      id="sb-working"      class="status-btn status-working">🟢 Working</button>
+              <button onclick="setOperatorStatus('meeting')"      id="sb-meeting"      class="status-btn">📹 In Meeting</button>
+              <button onclick="setOperatorStatus('break')"        id="sb-break"        class="status-btn">☕ Short Break</button>
+              <button onclick="setOperatorStatus('lunch')"        id="sb-lunch"        class="status-btn">🍽️ Lunch Break</button>
+              <button onclick="setOperatorStatus('floor_support')" id="sb-floor_support" class="status-btn">🤝 Floor Support</button>
+              <button onclick="setOperatorStatus('training')"     id="sb-training"     class="status-btn">📚 Training</button>
+            </div>
+            <div id="wfh-status-since" style="font-size:10px;color:var(--text3);text-align:center;margin-top:6px;font-family:'DM Mono',monospace"></div>
+          </div>
         </div>
 
-        <!-- Live session stats -->
-        <div id="wfh-session-info" style="display:none">
+        <!-- Today's Progress: live stats + checklist -->
+        <div class="card" id="wfh-session-info" style="display:none">
+          <div class="card-header"><div><div class="card-title">📊 Today's Progress</div><div class="card-sub">Updates automatically as you check in, log, and submit</div></div></div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:10px;margin-bottom:14px">
             <div style="background:var(--surface);border:1px solid rgba(0,200,150,0.25);border-radius:8px;padding:10px;text-align:center">
               <div style="font-size:20px;font-weight:800;color:var(--green);font-family:'DM Mono',monospace" id="wfh-session-cases">0</div>
@@ -3804,131 +3837,139 @@ function _dbRefreshPage(key) {
           <div id="wfh-next-log-due" style="font-size:11px;color:var(--orange);font-family:'DM Mono',monospace;font-weight:700"></div>
         </div>
 
-        <div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">📈 Production Numbers</div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Cases Done This Hour <span style="color:var(--red)">*</span></label>
-            <input type="number" id="wfh-hourly-cases" placeholder="e.g. 80" min="0"/>
-          </div>
-          <div class="form-group">
-            <label>AHT — seconds <span style="color:var(--red)">*</span></label>
-            <input type="number" id="wfh-hourly-aht" placeholder="e.g. 22.5" step="0.1"/>
-          </div>
-          <div class="form-group">
-            <label>Occupancy % <span style="color:var(--red)">*</span></label>
-            <input type="number" id="wfh-hourly-occ" placeholder="e.g. 82" min="0" max="100"/>
-          </div>
-          <div class="form-group">
-            <label>Cases in Queue Now</label>
-            <input type="number" id="wfh-hourly-open" placeholder="Open/queued" min="0"/>
-          </div>
-          <div class="form-group">
-            <label>Quality Issues</label>
-            <select id="wfh-hourly-quality">
-              <option value="none">None — clean ✅</option>
-              <option value="minor">Minor — self-corrected</option>
-              <option value="escalated">Escalated to QA</option>
-              <option value="dispute">In dispute</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Current Case / Task Ref</label>
-            <input type="text" id="wfh-hourly-caseref" placeholder="Case ID / batch ref"/>
-          </div>
-        </div>
-
-        <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 8px">🖥️ Work State Right Now</div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Current Task <span style="color:var(--red)">*</span></label>
-            <select id="wfh-hourly-activity">
-              <option>Processing cases</option>
-              <option>On a session / call</option>
-              <option>Global audit (QA)</option>
-              <option>Internal audit (QA)</option>
-              <option>Calibration session</option>
-              <option>Floor support / coaching</option>
-              <option>Admin / reporting</option>
-              <option>Waiting — low volume</option>
-              <option>Training</option>
-              <option>Break</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Tool Status <span style="color:var(--red)">*</span></label>
-            <select id="wfh-hourly-tool">
-              <option value="ok">All working ✅</option>
-              <option value="slow">Slow / lagging ⚠️</option>
-              <option value="down">Tool outage 🔴</option>
-              <option value="internet">Internet issues 📶</option>
-              <option value="power">Power issue ⚡</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Internet Right Now <span style="color:var(--red)">*</span></label>
-            <select id="wfh-hourly-net">
-              <option value="stable">Stable ✅</option>
-              <option value="slow">Slow / lagging ⚠️</option>
-              <option value="dropping">Frequent drops 🔴</option>
-              <option value="mobile">On mobile data</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Workspace Right Now <span style="color:var(--red)">*</span></label>
-            <select id="wfh-hourly-env">
-              <option value="ok">Quiet — focused ✅</option>
-              <option value="noise">Background noise ⚠️</option>
-              <option value="distracted">Distractions present</option>
-              <option value="disrupted">Work disrupted 🔴</option>
-            </select>
+        <div class="wfh-subsection">
+          <div class="wfh-subsection-title" style="color:var(--accent)">📈 Production Numbers</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Cases Done This Hour <span style="color:var(--red)">*</span></label>
+              <input type="number" id="wfh-hourly-cases" placeholder="e.g. 80" min="0"/>
+            </div>
+            <div class="form-group">
+              <label>AHT — seconds <span style="color:var(--red)">*</span></label>
+              <input type="number" id="wfh-hourly-aht" placeholder="e.g. 22.5" step="0.1"/>
+            </div>
+            <div class="form-group">
+              <label>Occupancy % <span style="color:var(--red)">*</span></label>
+              <input type="number" id="wfh-hourly-occ" placeholder="e.g. 82" min="0" max="100"/>
+            </div>
+            <div class="form-group">
+              <label>Cases in Queue Now</label>
+              <input type="number" id="wfh-hourly-open" placeholder="Open/queued" min="0"/>
+            </div>
+            <div class="form-group">
+              <label>Quality Issues</label>
+              <select id="wfh-hourly-quality">
+                <option value="none">None — clean ✅</option>
+                <option value="minor">Minor — self-corrected</option>
+                <option value="escalated">Escalated to QA</option>
+                <option value="dispute">In dispute</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Current Case / Task Ref</label>
+              <input type="text" id="wfh-hourly-caseref" placeholder="Case ID / batch ref"/>
+            </div>
           </div>
         </div>
 
-        <div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 8px">🧠 Self-Assessment</div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Focus Level (1–5) <span style="color:var(--red)">*</span></label>
-            <select id="wfh-hourly-focus">
-              <option value="5">5 — Fully focused 🔥</option>
-              <option value="4">4 — Good</option>
-              <option value="3">3 — Average</option>
-              <option value="2">2 — Struggling ⚠️</option>
-              <option value="1">1 — Very distracted 🔴</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Energy Level (1–5) <span style="color:var(--red)">*</span></label>
-            <select id="wfh-hourly-energy">
-              <option value="5">5 — High ⚡</option>
-              <option value="4">4 — Good</option>
-              <option value="3">3 — Average</option>
-              <option value="2">2 — Tired ⚠️</option>
-              <option value="1">1 — Very fatigued 🔴</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Breaks Taken This Hour</label>
-            <select id="wfh-hourly-breaks">
-              <option value="0">None</option>
-              <option value="1">1 short (≤5 min)</option>
-              <option value="2">2 short breaks</option>
-              <option value="long">1 long (>10 min)</option>
-            </select>
+        <div class="wfh-subsection">
+          <div class="wfh-subsection-title" style="color:var(--orange)">🖥️ Work State Right Now</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Current Task <span style="color:var(--red)">*</span></label>
+              <select id="wfh-hourly-activity">
+                <option>Processing cases</option>
+                <option>On a session / call</option>
+                <option>Global audit (QA)</option>
+                <option>Internal audit (QA)</option>
+                <option>Calibration session</option>
+                <option>Floor support / coaching</option>
+                <option>Admin / reporting</option>
+                <option>Waiting — low volume</option>
+                <option>Training</option>
+                <option>Break</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Tool Status <span style="color:var(--red)">*</span></label>
+              <select id="wfh-hourly-tool">
+                <option value="ok">All working ✅</option>
+                <option value="slow">Slow / lagging ⚠️</option>
+                <option value="down">Tool outage 🔴</option>
+                <option value="internet">Internet issues 📶</option>
+                <option value="power">Power issue ⚡</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Internet Right Now <span style="color:var(--red)">*</span></label>
+              <select id="wfh-hourly-net">
+                <option value="stable">Stable ✅</option>
+                <option value="slow">Slow / lagging ⚠️</option>
+                <option value="dropping">Frequent drops 🔴</option>
+                <option value="mobile">On mobile data</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Workspace Right Now <span style="color:var(--red)">*</span></label>
+              <select id="wfh-hourly-env">
+                <option value="ok">Quiet — focused ✅</option>
+                <option value="noise">Background noise ⚠️</option>
+                <option value="distracted">Distractions present</option>
+                <option value="disrupted">Work disrupted 🔴</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.07em;margin:12px 0 8px">📸 Proof of Work <span style="color:var(--red)">*</span></div>
-        <div class="form-grid">
-          <div class="form-group span-2">
-            <label>Screen / Dashboard Stats Right Now <span style="color:var(--red)">*</span></label>
-            <textarea id="wfh-hourly-proof" placeholder="Paste the exact numbers from your screen — tool stats, case count, queue, AHT shown in system, occupancy. Example: 'Dashboard: 83 cases done, AHT 21.4s, Occ 79%, 12 in queue. Queue wait: 00:45. Currently on case #4521'" style="min-height:65px;font-size:12px;font-family:'DM Mono',monospace"></textarea>
+        <div class="wfh-subsection">
+          <div class="wfh-subsection-title" style="color:var(--teal)">🧠 Self-Assessment</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Focus Level (1–5) <span style="color:var(--red)">*</span></label>
+              <select id="wfh-hourly-focus">
+                <option value="5">5 — Fully focused 🔥</option>
+                <option value="4">4 — Good</option>
+                <option value="3">3 — Average</option>
+                <option value="2">2 — Struggling ⚠️</option>
+                <option value="1">1 — Very distracted 🔴</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Energy Level (1–5) <span style="color:var(--red)">*</span></label>
+              <select id="wfh-hourly-energy">
+                <option value="5">5 — High ⚡</option>
+                <option value="4">4 — Good</option>
+                <option value="3">3 — Average</option>
+                <option value="2">2 — Tired ⚠️</option>
+                <option value="1">1 — Very fatigued 🔴</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Breaks Taken This Hour</label>
+              <select id="wfh-hourly-breaks">
+                <option value="0">None</option>
+                <option value="1">1 short (≤5 min)</option>
+                <option value="2">2 short breaks</option>
+                <option value="long">1 long (>10 min)</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:0">
-          <label>Update for Team Lead</label>
-          <textarea id="wfh-hourly-notes" placeholder="What did you accomplish? Any escalations, challenges, or wins your TL needs to know about right now..." style="min-height:50px"></textarea>
+        <div class="wfh-subsection" style="margin-bottom:14px">
+          <div class="wfh-subsection-title" style="color:var(--amber)">📸 Proof of Work <span style="color:var(--red)">*</span></div>
+          <div class="form-grid">
+            <div class="form-group span-2">
+              <label>Screen / Dashboard Stats Right Now <span style="color:var(--red)">*</span></label>
+              <textarea id="wfh-hourly-proof" placeholder="Paste the exact numbers from your screen — tool stats, case count, queue, AHT shown in system, occupancy. Example: 'Dashboard: 83 cases done, AHT 21.4s, Occ 79%, 12 in queue. Queue wait: 00:45. Currently on case #4521'" style="min-height:65px;font-size:12px;font-family:'DM Mono',monospace"></textarea>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:0;margin-top:10px">
+            <label>Update for Team Lead</label>
+            <textarea id="wfh-hourly-notes" placeholder="What did you accomplish? Any escalations, challenges, or wins your TL needs to know about right now..." style="min-height:50px"></textarea>
+          </div>
         </div>
+
         <button class="btn btn-primary" onclick="submitHourlyLogV2()" style="width:100%;padding:13px;margin-top:14px;font-size:14px;font-weight:800">📤 Submit Hourly Log</button>
       </div>
 
@@ -4047,14 +4088,54 @@ function _dbRefreshPage(key) {
       <div style="font-size:10px;color:var(--accent)">IMPACT OUTSOURCING LIMITED</div>
     </div>
   </div>
+  <!-- Quick nav — lets operators reach their other tools without losing
+       their WFH check-in session, which lives in Supabase, not on this
+       page; wfh-op-mode stays active on every one of these pages so the
+       simple, sidebar-free chrome persists throughout. -->
+  <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+    <button onclick="wfhOpNavTo('wfh-operator')" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">🏠 Station</button>
+    <button onclick="wfhOpNavTo('wfh-leave')" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">🏖️ Leave</button>
+    <button onclick="wfhOpNavTo('ophub-production')" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">📊 Production</button>
+    <button onclick="wfhOpNavTo('ophub-attendance')" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">✅ Attendance</button>
+    <button onclick="wfhOpNavTo('ophub-shift')" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">📅 Shifts</button>
+    <button onclick="wfhOpNavTo('ophub-chat')" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">💬 Chat</button>
+  </div>
   <div style="display:flex;align-items:center;gap:12px">
     <div style="font-size:12px;color:var(--text3)" id="wfh-op-header-name"></div>
     <button onclick="exitWFHMode()" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">← Exit</button>
   </div>
+</div>
 
-      <!-- ── Apply for Leave ─────────────────────────────────── -->
-      <div class="card" style="margin-top:20px;max-width:720px;margin-left:auto;margin-right:auto">
-        <div class="card-title" style="margin-bottom:14px">🏖️ Apply for Leave</div>
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: WFH OPERATOR — APPLY FOR LEAVE (reachable without
+         losing your WFH check-in session — see wfh-op-header above)
+    ════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-wfh-leave">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <h1>🏖️ Apply for Leave</h1>
+          <p>Check your balance and apply for time off — your Team Lead reviews every request.</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="wfhOpNavTo('wfh-operator')">← Back to Station</button>
+      </div>
+
+      <div class="card" style="max-width:720px;margin-left:auto;margin-right:auto">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
+            <div id="wfh-bal-annual" style="font-size:20px;font-weight:900;color:var(--green)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">ANNUAL LEFT</div>
+          </div>
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
+            <div id="wfh-bal-sick" style="font-size:20px;font-weight:900;color:var(--amber)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">SICK LEFT</div>
+          </div>
+          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
+            <div id="wfh-bal-other" style="font-size:20px;font-weight:900;color:var(--violet)">—</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">OTHER LEFT</div>
+          </div>
+        </div>
+
+        <div class="card-title" style="margin-bottom:14px">📝 New Application</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
           <div class="form-group" style="margin:0">
             <label>Leave Type</label>
@@ -4084,24 +4165,12 @@ function _dbRefreshPage(key) {
         </div>
         <button class="btn btn-green" style="width:100%;margin-bottom:8px" onclick="submitWFHLeave()">📤 Submit Leave Application</button>
         <div id="wfh-leave-msg" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px"></div>
-        <div style="margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
-            <div id="wfh-bal-annual" style="font-size:20px;font-weight:900;color:var(--green)">—</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px">ANNUAL LEFT</div>
-          </div>
-          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
-            <div id="wfh-bal-sick" style="font-size:20px;font-weight:900;color:var(--amber)">—</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px">SICK LEFT</div>
-          </div>
-          <div style="text-align:center;background:var(--surface2);border-radius:8px;padding:10px">
-            <div id="wfh-bal-other" style="font-size:20px;font-weight:900;color:var(--violet)">—</div>
-            <div style="font-size:9px;color:var(--text3);margin-top:2px">OTHER LEFT</div>
-          </div>
-        </div>
-        <div id="wfh-my-leaves" style="margin-top:12px;font-size:12px;color:var(--text3)"></div>
-      </div>
 
-</div>
+        <div class="card-title" style="margin:18px 0 10px">📋 My Applications</div>
+        <div id="wfh-my-leaves" style="font-size:12px;color:var(--text3)"></div>
+      </div>
+    </div>
+
     <!-- ═══════════════════════════════════════════════════════
          PAGE: LEAVE PORTAL (standalone, no WFH login needed)
     ════════════════════════════════════════════════════════ -->
@@ -4246,7 +4315,7 @@ function _dbRefreshPage(key) {
           <h1 style="margin:0">💬 Team Chat</h1>
           <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Everyone on the project can see this channel</p>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="closeChatChannel();nav('ophub-menu')">← Back</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeChatChannel();ophubBack()">← Back</button>
       </div>
       <div style="height:3px;width:64px;background:linear-gradient(90deg,#00d4a0,#00f0b5);border-radius:3px;margin:14px 0 20px"></div>
       <div id="chat-container-ophub"></div>
@@ -4261,7 +4330,7 @@ function _dbRefreshPage(key) {
           <h1 style="margin:0">📊 My Production</h1>
           <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your daily case counts, AHT, and occupancy</p>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
+        <button class="btn btn-secondary btn-sm" onclick="ophubBack()">← Back</button>
       </div>
       <div style="height:3px;width:64px;background:linear-gradient(90deg,#00c8e0,#0077b6);border-radius:3px;margin:14px 0 24px"></div>
 
@@ -4296,7 +4365,7 @@ function _dbRefreshPage(key) {
           <h1 style="margin:0">✅ My Attendance</h1>
           <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your attendance record</p>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
+        <button class="btn btn-secondary btn-sm" onclick="ophubBack()">← Back</button>
       </div>
       <div style="height:3px;width:64px;background:linear-gradient(90deg,#b48af7,#8a5cf6);border-radius:3px;margin:14px 0 24px"></div>
 
@@ -4319,7 +4388,7 @@ function _dbRefreshPage(key) {
           <h1 style="margin:0">📅 My Shift Plan</h1>
           <p style="margin:4px 0 0;color:var(--text3);font-size:13px">Your upcoming shifts, next 14 days</p>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="nav('ophub-menu')">← Back</button>
+        <button class="btn btn-secondary btn-sm" onclick="ophubBack()">← Back</button>
       </div>
       <div style="height:3px;width:64px;background:linear-gradient(90deg,#ff5e6e,#e8475a);border-radius:3px;margin:14px 0 24px"></div>
 
@@ -5165,6 +5234,31 @@ function ophubGo(dest) {
   if(dest === 'chat')       { nav('ophub-chat'); initChatPage('chat-container-ophub'); return; }
 }
 
+// Navigation for operators reached via the direct WFH-only login (wfh-op-mode),
+// which has no _opHubId — mirrors ophubGo() above but resolves the operator
+// from the WFH station's own known id instead. Checking in/out, hourly logs
+// etc. are all saved server-side, so moving between these pages never
+// interrupts an active WFH session — wfh-op-mode stays on throughout.
+function wfhOpNavTo(dest) {
+  const opId = document.getElementById('wfh-op-self')?.value || localStorage.getItem('wfh_op_id');
+  if(!opId) { toast('Select your name on the WFH Station first','⚠️'); nav('wfh-operator'); return; }
+  if(dest === 'wfh-operator')     { nav('wfh-operator'); initWFHOperator(); return; }
+  if(dest === 'wfh-leave')        { nav('wfh-leave'); loadWFHLeaveBalance(opId); return; }
+  if(dest === 'ophub-production') { nav('ophub-production'); renderOpHubProduction(opId); return; }
+  if(dest === 'ophub-attendance') { nav('ophub-attendance'); renderOpHubAttendance(opId); return; }
+  if(dest === 'ophub-shift')      { nav('ophub-shift');      renderOpHubShift(opId);      return; }
+  if(dest === 'ophub-chat')       { nav('ophub-chat'); initChatPage('chat-container-ophub'); return; }
+}
+
+// "← Back" on the shared ophub-* pages (production/attendance/shift/chat):
+// return to the WFH Station when reached from wfh-op-mode, or to the
+// Operator Hub tile menu when reached from there — same pages, two entry
+// points, each should come back to where it came from.
+function ophubBack() {
+  if(document.body.classList.contains('wfh-op-mode')) { wfhOpNavTo('wfh-operator'); }
+  else { nav('ophub-menu'); }
+}
+
 // ── My Production (read-only) ──────────────────────────────────────
 function renderOpHubProduction(opId) {
   const kpiEl = document.getElementById('ophub-prod-kpis');
@@ -5684,7 +5778,7 @@ const PAGE_TITLES = {
   'payroll-full':'Full Payroll Data','pay-history':'📊 Pay History','attendance-full':'Attendance Register',
   'wfh':'WFH Monitor — Remote Oversight','wfh-operator':'WFH Operator Portal',
   'leave-portal':'🏖️ Leave Portal',
-  'ophub-menu':'🧭 Operator Hub',
+  'ophub-menu':'🧭 Operator Hub', 'wfh-leave':'🏖️ Apply for Leave',
   'ophub-production':'📊 My Production',
   'ophub-attendance':'✅ My Attendance',
   'ophub-shift':'📅 My Shift Plan',
@@ -6359,9 +6453,27 @@ const CHAT_GROUP_CHANNELS = {
 function chatStoreKey(convoId) { return 'chat_' + convoId; }
 function dmConvoId(idA, idB) { return 'dm:' + [idA, idB].sort().join(':'); }
 
+// An operator reached via the direct WFH-only login (wfh-op-mode) has no
+// _opHubId — that's only set by the Operator Hub tile-menu login. Without
+// this fallback, myChatIdentity() would fall through to the currentRole
+// branch below and misattribute their messages to whatever role/TL was
+// last active in this browser tab.
+function wfhModeOpId() {
+  if(!document.body.classList.contains('wfh-op-mode')) return null;
+  return document.getElementById('wfh-op-self')?.value || localStorage.getItem('wfh_op_id') || null;
+}
+
+// True for anyone chatting as an operator — via the Operator Hub tile
+// login (_opHubId) or the direct WFH-only login (wfh-op-mode) — as
+// opposed to TL/Admin/QA leadership.
+function isOperatorChatUser() {
+  return !!(_opHubId || wfhModeOpId());
+}
+
 function myChatIdentity() {
-  if(_opHubId) {
-    return { id: _opHubId, name: operatorLabel(_opHubId), role: 'Operator' };
+  const opId = _opHubId || wfhModeOpId();
+  if(opId) {
+    return { id: opId, name: operatorLabel(opId), role: 'Operator' };
   }
   const role = currentRole === 'tl' ? 'Team Lead' : currentRole === 'admin' ? 'Admin' : currentRole === 'kings' ? 'Kings QA'
     : currentRole === 'swat' ? 'SWAT QA' : currentRole === 'pauline' ? 'Team Masterminds QA' : currentRole === 'kelvin' ? 'The Tag Team QA' : 'SWAT QA';
@@ -6369,7 +6481,7 @@ function myChatIdentity() {
 }
 
 function canDeleteAnyMessage() {
-  return !_opHubId && (currentRole === 'tl' || currentRole === 'admin');
+  return !_opHubId && !wfhModeOpId() && (currentRole === 'tl' || currentRole === 'admin');
 }
 
 function chatPeopleDirectory() {
@@ -6439,7 +6551,7 @@ function chatSidebarHTML(activeConvoId) {
   return `
   <div style="width:220px;border-right:1px solid var(--border);padding:12px 8px;display:flex;flex-direction:column;height:100%;overflow-y:auto">
     <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;padding:6px 12px 4px">Channels</div>
-    ${_opHubId ? groupItem('team', CHAT_GROUP_CHANNELS.team) : Object.entries(CHAT_GROUP_CHANNELS).map(([id,cfg])=>groupItem(id,cfg)).join('')}
+    ${isOperatorChatUser() ? groupItem('team', CHAT_GROUP_CHANNELS.team) : Object.entries(CHAT_GROUP_CHANNELS).map(([id,cfg])=>groupItem(id,cfg)).join('')}
     <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;padding:14px 12px 4px">Direct Messages</div>
     ${dms.map(dmItem).join('') || `<div style="font-size:11px;color:var(--text3);padding:8px 12px">No conversations yet</div>`}
     <div onclick="openNewDMPicker()" style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;cursor:pointer;color:var(--accent);font-size:12px;font-weight:700;margin-top:4px"
@@ -6506,7 +6618,7 @@ function renderChatUI(containerId) {
       </div>
     </div>`;
   // Default to the team channel for operators, leadership channel for TL/Admin/QA
-  const defaultConvo = _opHubId ? 'team' : 'leadership';
+  const defaultConvo = isOperatorChatUser() ? 'team' : 'leadership';
   openConvo(defaultConvo);
 }
 
@@ -6637,7 +6749,7 @@ function startChatNotifyWatcher() {
 }
 function checkForNewChatMessages(silent) {
   const identity = myChatIdentity();
-  const myConvos = ['team', ...(_opHubId ? [] : ['leadership']),
+  const myConvos = ['team', ...(isOperatorChatUser() ? [] : ['leadership']),
     ...chatPeopleDirectory().map(p => dmConvoId(identity.id, p.id))];
   myConvos.forEach(convoId => {
     const msgs = load(chatStoreKey(convoId));
@@ -16916,6 +17028,97 @@ function wfhIdleMinutesV2(opId, logsForDate, sess) {
   return Math.floor((Date.now() - lastTs) / 60000);
 }
 
+// ── Operator-facing live view (v2) ──────────────────────────────────
+// The WFH Operator Station's own live stats, compliance checklist, and
+// "My Submissions Today" list were never wired up after the v1→v2
+// cutover — onWFHOperatorSelectV2/wfhCheckInV2/submitHourlyLogV2/
+// wfhToggleBreakV2/submitEODV2 only ever touched the session/buttons,
+// so those three panels stayed frozen at their empty HTML defaults all
+// day regardless of what the operator actually submitted. These render
+// functions are v2 equivalents of the old (v1) renderOpChecklist /
+// renderMyLogs / updateOpLiveStats / checkIdleWarning, reading from
+// wfh_logs_v2 via dbGetLogsV2 instead of the retired v1 tables.
+function renderOpChecklistV2(opId, logsForDate, sess) {
+  const el = document.getElementById('wfh-op-checklist');
+  if(!el) return;
+  const hourly   = logsForDate.filter(l => l.opId===opId && l.type==='hourly');
+  const elapsed  = sess?.checkIn ? (Date.now()-parseNairobiTs(sess.checkIn))/3600000 : 0;
+  const expected = Math.max(0, Math.floor(elapsed));
+  const hasEOD   = logsForDate.some(l => l.opId===opId && l.type==='eod');
+  const idle     = wfhIdleMinutesV2(opId, logsForDate, sess);
+
+  const items = [
+    { label:'Check-in completed', done: !!sess?.checkIn, missed:false },
+    { label:`Hourly logs: ${hourly.length}/${Math.max(1,expected)} submitted`, done:hourly.length>=Math.max(1,expected), missed:hourly.length<Math.max(1,expected)&&elapsed>1 },
+    { label:'Proof of work attached in latest log', done:logsForDate.some(l=>l.opId===opId&&l.proof&&l.proof.trim().length>5), missed:false },
+    { label:'No idle flags', done: idle<60, missed: idle>=60 },
+    { label:'EOD report submitted', done: hasEOD, missed:false },
+  ];
+  el.innerHTML = items.map(it=>`
+    <div class="wfh-check-item ${it.done?'done':it.missed?'missed':''}">
+      <span class="wfh-check-icon">${it.done?'✅':it.missed?'❌':'⬜'}</span>
+      <span>${it.label}</span>
+    </div>`).join('');
+}
+
+function renderMyLogsV2(opId, logsForDate) {
+  const el = document.getElementById('wfh-my-logs');
+  if(!el) return;
+  const logs = logsForDate.filter(l => l.opId===opId);
+  if(!logs.length) { el.innerHTML='<div style="color:var(--text3);font-size:12px">No logs yet.</div>'; return; }
+  const dotClass  = {checkin:'checkin',checkout:'checkout',hourly:'hourly',break:'break',resume:'resume',idle:'idle',eod:'eod'};
+  const typeLabel = {checkin:'Checked In',checkout:'Checked Out',hourly:'Hourly Log',break:'Break',resume:'Resumed',idle:'Idle',eod:'EOD'};
+  el.innerHTML = [...logs].reverse().map(l=>`
+    <div class="wfh-tl-item">
+      <div class="wfh-tl-dot ${dotClass[l.type]||'hourly'}"></div>
+      <div class="wfh-tl-time">${l.timeStr}</div>
+      <div class="wfh-tl-name">${typeLabel[l.type]||l.type}</div>
+      <div class="wfh-tl-text">${(l.type==='hourly'||l.type==='eod')?`Cases: <strong style="color:var(--green)">${l.cases||0}</strong> · AHT: ${l.aht||'–'}s · Occ: ${l.occ||'–'}%${l.notes?' — '+l.notes:''}`:l.notes||''}
+      ${l.proof?`<div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;background:var(--surface3);padding:3px 7px;border-radius:4px;margin-top:3px">${l.proof}</div>`:''}</div>
+    </div>`).join('');
+}
+
+function updateOpLiveStatsV2(opId, logsForDate, sess) {
+  const hourly = logsForDate.filter(l => l.opId===opId && l.type==='hourly');
+  const casesEl = document.getElementById('wfh-session-cases');
+  const logsEl  = document.getElementById('wfh-session-logs');
+  if(casesEl) casesEl.textContent = hourly.reduce((s,l)=>s+(+l.cases||0),0);
+  if(logsEl)  logsEl.textContent  = hourly.length;
+
+  const score   = wfhComplianceScoreV2(opId, logsForDate, sess);
+  const scoreEl = document.getElementById('wfh-score-live');
+  if(scoreEl) { scoreEl.textContent = score===null ? '–' : score+'%'; scoreEl.style.color = scoreColorV2(score); }
+
+  const idleEl = document.getElementById('wfh-idle-display');
+  if(idleEl) idleEl.textContent = wfhIdleMinutesV2(opId, logsForDate, sess)+'m';
+
+  const breakEl = document.getElementById('wfh-break-display');
+  if(breakEl) breakEl.textContent = sess?.breakCount || 0;
+}
+
+function checkIdleWarningV2(opId, logsForDate, sess) {
+  const idle   = wfhIdleMinutesV2(opId, logsForDate, sess);
+  const warnEl = document.getElementById('wfh-idle-warning');
+  const timer  = document.getElementById('wfh-session-timer');
+  if(warnEl) warnEl.style.display = idle>=60 ? 'block' : 'none';
+  if(timer)  timer.classList.toggle('idle-flash', idle>=60 && !_wfhOnBreakV2);
+}
+
+// Single entry point used after every state-changing action (check-in,
+// hourly submit, break toggle, EOD) so the three panels above never go
+// stale relative to what was just saved.
+async function refreshOpLiveViewV2(opId) {
+  if(!opId) return;
+  const normId = normalizeOpId(opId);
+  const [sessions, logs] = await Promise.all([dbGetSessionsV2(), dbGetLogsV2()]);
+  const sess = sessions[normId] || null;
+  _logsCacheV2 = logs;
+  renderOpChecklistV2(normId, logs, sess);
+  renderMyLogsV2(normId, logs);
+  updateOpLiveStatsV2(normId, logs, sess);
+  checkIdleWarningV2(normId, logs, sess);
+}
+
 // ════════════════════════════════════════════════════════════════
 // QA TRACKING (added 2026-06-28) — mirrors operator v2 data layer
 // above, but for qa_sessions_v2 / qa_audit_logs_v2. Kingori ('kings')
@@ -17680,6 +17883,8 @@ async function wfhCheckInV2() {
   const precheckPanel = document.getElementById('wfh-precheckin-panel');
   if(precheckPanel) { precheckPanel.style.opacity='0.5'; precheckPanel.style.pointerEvents='none'; }
   toast(operatorLabel(opId)+' — remote shift started ✓ (v2)','▶️');
+  showSessionUIV2(opId, { checkIn: _wfhSessionStartV2, status:'online', breakCount:0 });
+  refreshOpLiveViewV2(opId);
 
   // Checking in on the Hub does NOT confirm identity inside the AIFI
   // extension — those are two separate steps. If an operator skips this
@@ -17738,13 +17943,22 @@ async function wfhToggleBreakV2() {
     await dbSaveSessionV2(opId, { ...sess, status:'idle', breakCount });
     await dbInsertLogV2(opId, 'break', { notes:`Break #${breakCount} started` });
     toast('Break started — remember to resume your shift','☕');
+    const breakBtn = document.getElementById('wfh-break-btn');
+    if(breakBtn) breakBtn.textContent = '▶ Resume Shift';
+    const statusText = document.getElementById('wfh-session-status-text');
+    if(statusText) statusText.textContent = '☕ On break — remember to resume';
   } else {
     const bMs = Date.now()-new Date(_wfhBreakStartV2).getTime();
     _wfhTotalBreakV2 += bMs; _wfhOnBreakV2 = false; _wfhBreakStartV2 = null;
     await dbSaveSessionV2(opId, { ...sess, status:'online', totalBreakMs:_wfhTotalBreakV2 });
     await dbInsertLogV2(opId, 'resume', { notes:`Break ended. Break duration: ${Math.round(bMs/60000)} mins` });
     toast('Back to work ▶️','✅');
+    const breakBtn = document.getElementById('wfh-break-btn');
+    if(breakBtn) breakBtn.textContent = '☕ Take Break';
+    const statusText = document.getElementById('wfh-session-status-text');
+    if(statusText) statusText.textContent = '🟢 Shift active — working from home';
   }
+  refreshOpLiveViewV2(opId);
 }
 
 async function submitHourlyLogV2() {
@@ -17796,6 +18010,7 @@ async function submitHourlyLogV2() {
     const el=document.getElementById(id); if(el) el.value='';
   });
   toast('✅ Hourly log submitted & saved — TL can see it now (v2)','⏱️');
+  refreshOpLiveViewV2(opId);
 }
 
 function confirmCheckoutV2() {
@@ -17851,9 +18066,11 @@ async function submitEODV2() {
 
   const eodCard = document.getElementById('wfh-eod-form-card');
   if(eodCard) eodCard.style.display = 'none';
+  showCheckinUIV2();
   const statusText = document.getElementById('wfh-session-status-text');
   if(statusText) statusText.textContent = '✅ Shift ended. Great work today!';
   toast(operatorLabel(opId)+' — EOD submitted & checked out ✓ (v2)','📝');
+  refreshOpLiveViewV2(opId);
 
   // Full End-of-Shift Summary Report, ported from v1 — the camera/face-
   // detection score card is omitted since v2 has no camera monitoring
@@ -18024,6 +18241,7 @@ async function onWFHOperatorSelectV2() {
   } else {
     showCheckinUIV2();
   }
+  refreshOpLiveViewV2(opId);
 }
 
 function showCheckinUIV2() {
