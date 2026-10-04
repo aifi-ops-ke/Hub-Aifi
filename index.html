@@ -2395,6 +2395,38 @@ function _dbRefreshPage(key) {
         </div>
       </div>
 
+      <!-- Bulk Import (TL/Admin) — paste a historical weekly error log in one go -->
+      <div id="err-bulk-view" style="display:none">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header"><div class="card-title">📥 Bulk Import (historical error log)</div></div>
+          <p style="color:var(--text3);font-size:12px;margin:-6px 0 12px">
+            Paste a weekly error log: each line is <code>Name [tab] error type [tab] QA name OR a date [tab] optional "Week N" / note</code>.
+            Rows using "Week N" (no date) use the week number carried down from the last "Week N" label seen above them,
+            offset from the start date below. Imported rows are logged with <b>KES 0 deduction</b> (visibility only, no payroll impact) —
+            use the Deduction Calculator above if a specific case needs an actual deduction applied.
+          </p>
+          <div class="form-group" style="max-width:220px"><label>Week 1 started on</label><input type="date" id="bulk-err-week1"/></div>
+          <div class="form-group"><label>Paste rows (tab-separated)</label>
+            <textarea id="bulk-err-paste" rows="10" style="width:100%;font-family:'DM Mono',monospace;font-size:11px;resize:vertical" placeholder="Jennipher&#9;Different product&#9;John&#9;Week 1&#10;Noah&#9;Different product&#9;John"></textarea>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:14px">
+            <button class="btn btn-primary" onclick="parseBulkErrors()">🔍 Parse</button>
+            <button class="btn btn-secondary" onclick="clearBulkErrors()">Clear</button>
+            <button class="btn btn-green" id="bulk-err-import-btn" style="display:none" onclick="importBulkErrors()">✅ Import Matched Rows</button>
+          </div>
+          <div id="bulk-err-result"></div>
+          <div id="bulk-err-preview" style="display:none;margin-top:14px;max-height:420px;overflow:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead><tr style="text-align:left;color:var(--text3);font-size:10px;text-transform:uppercase;position:sticky;top:0;background:var(--surface)">
+                <th style="padding:6px">Raw Name</th><th style="padding:6px">Resolved</th><th style="padding:6px">Date</th>
+                <th style="padding:6px">Type</th><th style="padding:6px">Status</th>
+              </tr></thead>
+              <tbody id="bulk-err-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- Shared history — visible to everyone, per existing renderErrors() logic -->
       <div class="card">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
@@ -16341,6 +16373,8 @@ function initErrorForm() {
   if(tlView) tlView.style.display = isTLAdmin ? 'block' : 'none';
   const calcView = document.getElementById('err-calc-view');
   if(calcView) calcView.style.display = isTLAdmin ? 'block' : 'none';
+  const bulkView = document.getElementById('err-bulk-view');
+  if(bulkView) bulkView.style.display = isTLAdmin ? 'block' : 'none';
   // QA error form operator — show all names (both teams)
   const qaOp = document.getElementById('err-operator-qa');
   if(qaOp) {
@@ -16350,6 +16384,175 @@ function initErrorForm() {
       + `<optgroup label="── Team Kings ──">${allK.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
       + `<optgroup label="── Team SWAT ──">${allS.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// BULK ERROR IMPORT — paste JP's weekly first-name error log in one go.
+// First-name-only aliases below were hand-built from the 2026-10-04 master
+// log cross-referenced against OPERATOR_ROSTER; 'departed'/'ambiguous'
+// entries (Ivy Njerese, Mark Obara, Sheillah Aluoch, Rachael Hamada — all
+// removed from the roster — plus a bare "Samuel"/"Nderitu" with no safe
+// surname match) are shown in the preview but never imported.
+// ════════════════════════════════════════════════════════════════
+const BULK_ERR_ALIAS = {
+  'jennipher':['jenipher.otieno','active'], 'jenipher':['jenipher.otieno','active'],
+  'noah':['noah.njiri','active'], 'wario':['wario.sora','active'], 'sora':['wario.sora','active'],
+  'matekwa':['kelvin.matekwa','active'], 'faith':['faith.mutinda','active'],
+  'sangolo':['dennis.sangolo','active'], 'dennis sangolo':['dennis.sangolo','active'],
+  'rading':['rading.yvonne2','active'], 'radding':['rading.yvonne2','active'],
+  'gibson':['gibson.majimbo','active'], 'hinga':['samuel.hinga','active'], 'samuel hinga':['samuel.hinga','active'],
+  'stacy':['stacy.wanjiku','active'], 'fortune':['fortune.masereto','active'], 'ernest':['ernest.maina','active'],
+  'nderitu':[null,'ambiguous'],
+  'wanyama':['christopher.wanyama2','active'],
+  'samuel g':['samuel.githae','active'], 'sanmuel g':['samuel.githae','active'], 'samuel githae':['samuel.githae','active'], 'githae':['samuel.githae','active'],
+  'richard':['richard.otieno','active'],
+  'ivy':[null,'departed'],
+  'maureen':['maureen.kaara','active'], 'simon':['simon.lukoye','active'], 'lukoye':['simon.lukoye','active'],
+  'ruth':['ruth.dube','active'], 'dube':['ruth.dube','active'],
+  'emilly':['emmily.vannesa','active'], 'emmily':['emmily.vannesa','active'], 'vannesa':['emmily.vannesa','active'], 'vannessa':['emmily.vannesa','active'], 'vanessa':['emmily.vannesa','active'],
+  'aisha':['aisha.adhiambo','active'],
+  'ndeta':['francis.ndeta','active'], 'francis ndeta':['francis.ndeta','active'], 'francis':['francis.ndeta','active'],
+  'keter':['dennis.keter','active'],
+  'mwanza':['christine.mwanza','active'], 'christine':['christine.mwanza','active'],
+  'vivian':['adhiambo.vivian','active'],
+  'melody':['melody.mapenzi','active'],
+  'sila':['sila.juma','active'],
+  'alfred':['alfred.korir','active'], 'korir':['alfred.korir','active'],
+  'mark':[null,'departed'],
+  'yassir':['yassir.khalid','active'],
+  'collins':['collins.marigu','active'],
+  'rachael':['rachael.gitau','active'],
+  'hamada':[null,'departed'],
+  'samuel':[null,'ambiguous'],
+  'sheillah':[null,'departed'], 'sheilah':[null,'departed'],
+  'synthiakane':['synthiakane.otieno','active'], 'synthia':['synthiakane.otieno','active'],
+  'rickson':['rickson.macharia','active'],
+  'joy':['joy.mackenzie','active'],
+  'karanu':['martin.karanu','active'],
+  'james':['james.maina','active'],
+  'prais':['collins.prais','active'],
+  'fridah':['fridah.waithera','active'],
+  'njoroge':['charles.njoroge','active'],
+  'beryl':['beryl.seruya','active'],
+  'halima':['halima.adan','active'],
+  'wycliff':['wycliff.areba','active'],
+  'renson':['renson.olubala','active'],
+  'samuel.githae':['samuel.githae','active'], 'ruth.dube':['ruth.dube','active'],
+};
+
+let _bulkErrParsed = [];
+
+function _bulkErrNormKey(tok) {
+  tok = String(tok||'').trim().toLowerCase().replace(/–/g,'-');
+  tok = tok.replace(/\s*-\s*.*$/, ''); // "Matekwa - Different product" -> "matekwa"
+  return tok.replace(/\s+/g,' ').trim();
+}
+
+function _bulkErrParseDate(str) {
+  const m = str.match(/(\d{1,2})[\/\\](\d{1,2})[\/\\](\d{2,4})/);
+  if(!m) return null;
+  let [, a, b, y] = m;
+  a = +a; b = +b; y = +y; if(y < 100) y += 2000;
+  // If the first number can't be a month, it must be day-first (D/M/Y); otherwise assume M/D/Y.
+  let day, mon;
+  if(a > 12) { day = a; mon = b; } else { mon = a; day = b; }
+  if(mon < 1 || mon > 12 || day < 1 || day > 31) return null;
+  return `${y}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
+function _bulkErrAddDays(isoDate, days) {
+  const d = new Date(isoDate+'T00:00:00');
+  d.setDate(d.getDate()+days);
+  return d.toISOString().slice(0,10);
+}
+
+function parseBulkErrors() {
+  const week1 = document.getElementById('bulk-err-week1').value;
+  const raw = document.getElementById('bulk-err-paste').value;
+  const lines = raw.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim());
+  let currentWeek = null;
+  const out = [];
+  lines.forEach(line => {
+    const cols = line.split('\t');
+    const nameField = cols.find(c=>c.trim()) ;
+    if(!nameField) return;
+    const idx0 = cols.indexOf(nameField);
+    const rest = cols.slice(idx0+1);
+    const key = _bulkErrNormKey(nameField);
+    const alias = BULK_ERR_ALIAS[key];
+    const desc = (rest[0]||'').trim();
+    const col3 = (rest[1]||'').trim();
+    const col4 = (rest[2]||'').trim();
+
+    const weekMatch = col4.match(/week\s*(\d+)/i) || (/^\d{1,2}$/.test(col4) ? [null, col4] : null);
+    if(weekMatch) currentWeek = +weekMatch[1];
+
+    const explicitDate = _bulkErrParseDate(col3);
+    let date = null, dateNote = '';
+    if(explicitDate) {
+      date = explicitDate;
+    } else if(week1 && currentWeek) {
+      date = _bulkErrAddDays(week1, (currentWeek-1)*7);
+      dateNote = ` (Week ${currentWeek})`;
+    }
+
+    let status, opId, resolvedName;
+    if(!alias) { status = 'unmatched'; opId = null; resolvedName = nameField.trim()+' (no match)'; }
+    else if(alias[1] !== 'active') { status = alias[1]; opId = null; resolvedName = key; }
+    else { status = date ? 'ok' : 'no-date'; opId = alias[0]; resolvedName = operatorLabel(opId); }
+
+    const type = /global/i.test(col4) ? 'global' : 'internal';
+    out.push({ raw: nameField.trim(), opId, resolvedName, date, dateNote, desc, type, status, extraNote: col4 && !weekMatch && !/global/i.test(col4) ? col4 : '' });
+  });
+  _bulkErrParsed = out;
+
+  const counts = {}; out.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
+  document.getElementById('bulk-err-result').innerHTML =
+    `<div style="font-size:12px;color:var(--text3)">Parsed ${out.length} rows — `+
+    `<b style="color:var(--green)">${counts.ok||0} ready to import</b>, `+
+    `${counts['no-date']||0} matched but missing a date (set Week 1 date and re-parse), `+
+    `${counts.departed||0} departed/no-longer-on-roster (excluded), `+
+    `${counts.ambiguous||0} ambiguous (excluded), `+
+    `${counts.unmatched||0} unrecognized name (excluded).</div>`;
+
+  const body = document.getElementById('bulk-err-preview-body');
+  const statusLabel = {ok:'✅ Ready', 'no-date':'⚠️ No date', departed:'🚫 Departed', ambiguous:'🚫 Ambiguous', unmatched:'🚫 Unmatched'};
+  body.innerHTML = out.map(r => `<tr style="border-top:1px solid var(--border2);opacity:${r.status==='ok'?1:0.55}">
+    <td style="padding:5px">${r.raw}</td><td style="padding:5px">${r.resolvedName}</td>
+    <td style="padding:5px">${(r.date||'—')+r.dateNote}</td><td style="padding:5px">${r.desc}</td>
+    <td style="padding:5px">${statusLabel[r.status]||r.status}</td></tr>`).join('');
+  document.getElementById('bulk-err-preview').style.display = 'block';
+  document.getElementById('bulk-err-import-btn').style.display = (counts.ok>0) ? 'inline-block' : 'none';
+}
+
+function clearBulkErrors() {
+  document.getElementById('bulk-err-paste').value = '';
+  document.getElementById('bulk-err-result').innerHTML = '';
+  document.getElementById('bulk-err-preview').style.display = 'none';
+  document.getElementById('bulk-err-import-btn').style.display = 'none';
+  _bulkErrParsed = [];
+}
+
+function importBulkErrors() {
+  const ready = _bulkErrParsed.filter(r=>r.status==='ok');
+  if(!ready.length) { toast('Nothing to import','⚠️'); return; }
+  const errors = load('errors');
+  ready.forEach(r => {
+    const team = getOpTeam(r.opId);
+    const qaTeam = team==='kings' ? 'Kings' : team==='swat' ? 'SWAT' : '';
+    errors.push({
+      id: Date.now() + Math.floor(Math.random()*1000),
+      date: r.date, operator: r.opId, type: r.type,
+      desc: r.desc + r.dateNote + (r.extraNote ? ` — note: ${r.extraNote}` : '') + ' (bulk-imported from historical log)',
+      qaTeam, coaching: 'Imported — historical, no coaching record',
+      deduction: 0, deductSrc: 'warning', deductLbl: 'Bulk import — no deduction (historical)',
+      sessionLink: '', loggedBy: currentRole,
+    });
+  });
+  save('errors', errors);
+  toast(`Imported ${ready.length} historical errors ✓`,'📥');
+  clearBulkErrors();
+  renderErrors(); calcDeductions();
 }
 
 // QA saves error with deduction amount only
