@@ -443,6 +443,7 @@
   .badge-red { background: rgba(240,92,92,0.12); color: var(--red); }
   .badge-purple { background: rgba(255,124,42,0.12); color: var(--swat); }
   .badge-teal { background: rgba(45,212,191,0.12); color: var(--teal); }
+  .badge-violet { background: rgba(180,138,247,0.12); color: var(--violet); }
 
   /* ── FORMS ───────────────────────────────────────────── */
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -2364,6 +2365,8 @@ function _dbRefreshPage(key) {
             <select id="err-qa-team" style="width:100%">
               <option value="Kings">Kings</option>
               <option value="SWAT">SWAT</option>
+              <option value="Masterminds">Masterminds</option>
+              <option value="The Tag Team">The Tag Team</option>
             </select>
           </div>
           <div class="form-group"><label>Description</label><textarea id="err-desc" rows="2" style="width:100%;resize:vertical" placeholder="What went wrong..."></textarea></div>
@@ -2441,6 +2444,8 @@ function _dbRefreshPage(key) {
               <option value="">All Teams</option>
               <option value="Kings">Kings</option>
               <option value="SWAT">SWAT</option>
+              <option value="Masterminds">Masterminds</option>
+              <option value="The Tag Team">The Tag Team</option>
             </select>
           </div>
         </div>
@@ -2482,6 +2487,8 @@ function _dbRefreshPage(key) {
                 <option value="">Auto-detect</option>
                 <option value="kings">Kings</option>
                 <option value="swat">SWAT</option>
+                <option value="pauline">Masterminds</option>
+                <option value="kelvin">The Tag Team</option>
               </select>
             </div>
             <div style="margin-left:auto;display:flex;gap:8px">
@@ -2540,6 +2547,8 @@ function _dbRefreshPage(key) {
                 <option value="">All Teams</option>
                 <option value="kings">Kings</option>
                 <option value="swat">SWAT</option>
+                <option value="pauline">Masterminds</option>
+                <option value="kelvin">The Tag Team</option>
               </select>
             </div>
             <button class="btn btn-secondary btn-sm" onclick="clearProdFilter()">Clear Filter</button>
@@ -5557,81 +5566,86 @@ async function doWFHLogin() {
 // ── Operator roster with employment type ──────────────────────────
 // FT = Full-Time | PT = Part-Time  (matches shift plan Batch column)
 const OPERATOR_ROSTER = [
+  // ── 4-team reshuffle, effective 2026-10-04 per JP ───────────────────
+  // Kings/SWAT/Masterminds/Tag Team, balanced by performance, FT/PT mix and
+  // gender. Historical prod/op_perf/errors rows keep whatever team they were
+  // stamped with at the time (getOpTeam() is only read at save time, never
+  // re-derived for old rows) — this change only affects data from today on.
   // ── Team Kings (QA: John Kingori) ─────────────────────────────────
-  // Roster corrected 2026-10-04 per JP: mark.obara and sheillah.aluoch
-  // (below, Team SWAT) are no longer with the company — removed.
-  { id:'richard.otieno', type:'FT', team:'kings' },
-  { id:'dennis.keter', type:'FT', team:'kings' },
-  { id:'collins.marigu', type:'FT', team:'kings' },
-  { id:'jenipher.otieno', type:'FT', team:'kings' },
-  { id:'alfred.korir', type:'FT', team:'kings' },
-  { id:'adhiambo.vivian', type:'FT', team:'kings' },
-  { id:'sila.juma', type:'FT', team:'kings' },
-  { id:'stacy.wanjiku', type:'FT', team:'kings' },
-  { id:'noah.njiri', type:'FT', team:'kings' },
-  { id:'melody.mapenzi', type:'FT', team:'kings' },
-  { id:'dennis.sangolo', type:'FT', team:'kings' },
-  { id:'joy.mackenzie', type:'FT', team:'kings' },
-  { id:'aisha.adhiambo', type:'FT', team:'kings' },
-  { id:'christopher.wanyama2', type:'FT', team:'kings' },
+  { id:'christine.mwanza', type:'FT', team:'kings' },
+  { id:'rading.yvonne2', type:'FT', team:'kings' },
   { id:'gibson.majimbo', type:'FT', team:'kings' },
-  { id:'synthiakane.otieno', type:'FT', team:'kings' },
+  { id:'christopher.wanyama2', type:'FT', team:'kings' },
+  { id:'fortune.masereto', type:'FT', team:'kings' },
+  { id:'ruth.dube', type:'PT', team:'kings' },
+  { id:'joy.mackenzie', type:'FT', team:'kings' },
+  { id:'dennis.sangolo', type:'FT', team:'kings' },
+  { id:'richard.otieno', type:'FT', team:'kings' },
+  { id:'cynthia.musyoka', type:'FT', team:'kings' },
+  { id:'renson.olubala', type:'FT', team:'kings' },
+  { id:'wycliff.areba', type:'PT', team:'kings' },
+  { id:'charles.musya', type:'PT', team:'kings' },
+  { id:'eli.kipruto', type:'PT', team:'kings' },
+  { id:'samson.ouma', type:'PT', team:'kings' },
 
-  // ── Team SWAT (QA: Rosemary Nyaleso) ──────────────────────────────
-  { id:'christine.mwanza', type:'FT', team:'swat' },
-  { id:'emmily.vannesa', type:'PT', team:'swat' },
-  { id:'ernest.maina', type:'FT', team:'swat' },
-  { id:'faith.mutinda', type:'FT', team:'swat' },
-  { id:'fortune.masereto', type:'FT', team:'swat' },
-  { id:'francis.ndeta', type:'FT', team:'swat' },
-  { id:'kelvin.matekwa', type:'FT', team:'swat' },
-  { id:'martin.karanu', type:'FT', team:'swat' },
+  // ── Team SWAT (QA: Rosemary Nyaleso) ─────────────────────────────────
   { id:'maureen.kaara', type:'FT', team:'swat' },
-  { id:'rachael.gitau', type:'FT', team:'swat' },
-  { id:'rading.yvonne2', type:'FT', team:'swat' },
-  { id:'rickson.macharia', type:'FT', team:'swat' },
-  { id:'ruth.dube', type:'PT', team:'swat' },
-  { id:'samuel.githae', type:'FT', team:'swat' },
-  { id:'samuel.hinga', type:'FT', team:'swat' },
   { id:'simon.lukoye', type:'FT', team:'swat' },
-  { id:'wario.sora', type:'FT', team:'swat' },
+  { id:'kelvin.matekwa', type:'FT', team:'swat' },
+  { id:'rickson.macharia', type:'FT', team:'swat' },
+  { id:'synthiakane.otieno', type:'FT', team:'swat' },
+  { id:'adhiambo.vivian', type:'FT', team:'swat' },
+  { id:'aisha.adhiambo', type:'FT', team:'swat' },
+  { id:'samuel.githae', type:'FT', team:'swat' },
   { id:'yassir.khalid', type:'FT', team:'swat' },
+  { id:'emmily.vannesa', type:'PT', team:'swat' },
+  { id:'mahdi.adan', type:'PT', team:'swat' },
+  { id:'kenneth.kamanu', type:'FT', team:'swat' },
+  { id:'teresa.wambui', type:'FT', team:'swat' },
+  { id:'charles.ndengwa', type:'PT', team:'swat' },
+  { id:'kelvin.karakacha', type:'PT', team:'swat' },
+  { id:'nancy.wambui', type:'PT', team:'swat' },
+
+  // ── Team Masterminds (QA: Pauline Safari) ─────────────────────────────────
+  { id:'ernest.maina', type:'FT', team:'pauline' },
+  { id:'melody.mapenzi', type:'FT', team:'pauline' },
+  { id:'sila.juma', type:'FT', team:'pauline' },
+  { id:'collins.marigu', type:'FT', team:'pauline' },
+  { id:'dennis.keter', type:'FT', team:'pauline' },
+  { id:'stacy.wanjiku', type:'FT', team:'pauline' },
+  { id:'jenipher.otieno', type:'FT', team:'pauline' },
+  { id:'james.maina', type:'PT', team:'pauline' },
+  { id:'beryl.seruya', type:'FT', team:'pauline' },
+  { id:'fridah.waithera', type:'FT', team:'pauline' },
+  { id:'charles.njoroge', type:'PT', team:'pauline' },
+  { id:'halima.adan', type:'FT', team:'pauline' },
+  { id:'devan.koki', type:'PT', team:'pauline' },
+  { id:'kaloki.kioko', type:'PT', team:'pauline' },
+  { id:'richard.mwenya', type:'PT', team:'pauline' },
+
+  // ── The Tag Team (QA: Kelvin Nderitu) ─────────────────────────────────
+  { id:'francis.ndeta', type:'FT', team:'kelvin' },
+  { id:'faith.mutinda', type:'FT', team:'kelvin' },
+  { id:'alfred.korir', type:'FT', team:'kelvin' },
+  { id:'martin.karanu', type:'FT', team:'kelvin' },
+  { id:'samuel.hinga', type:'FT', team:'kelvin' },
+  { id:'wario.sora', type:'FT', team:'kelvin' },
+  { id:'rachael.gitau', type:'FT', team:'kelvin' },
+  { id:'noah.njiri', type:'FT', team:'kelvin' },
+  { id:'abudho.tura', type:'PT', team:'kelvin' },
+  { id:'collins.prais', type:'PT', team:'kelvin' },
+  { id:'kennedy.kihingo', type:'FT', team:'kelvin' },
+  { id:'linet.awinja', type:'FT', team:'kelvin' },
+  { id:'favour.njenga', type:'PT', team:'kelvin' },
+  { id:'lavenda.minayo', type:'PT', team:'kelvin' },
+  { id:'mary.safari', type:'PT', team:'kelvin' },
+
   // ── Management ─────────────────────────────────────────────────────
   { id:'john.paul.kimongo',   type:'TL', team:'mgmt' },
   { id:'john.kingori',         type:'QA', team:'mgmt' },
   { id:'rosemary.nyaleso',     type:'QA', team:'mgmt' },
   { id:'pauline.safari',       type:'QA', team:'mgmt' },
   { id:'kelvin.nderitu',       type:'QA', team:'mgmt' },
-
-  // ── Former trainees (added 2026-09-06) — reclassified 2026-10-04 per
-  //    JP: no longer trainees, now regular FT/PT staff. Team still TBD. ──
-  { id:'kenneth.kamanu',   type:'FT', team:'unassigned' },
-  { id:'lavenda.minayo',   type:'PT', team:'unassigned' },
-  { id:'kennedy.kihingo',  type:'FT', team:'unassigned' },
-  { id:'charles.musya',    type:'PT', team:'unassigned' },
-  { id:'kaloki.kioko',     type:'PT', team:'unassigned' },
-  { id:'richard.mwenya',   type:'PT', team:'unassigned' },
-  { id:'kelvin.karakacha', type:'PT', team:'unassigned' },
-  { id:'fridah.waithera',  type:'FT', team:'unassigned' },
-  { id:'beryl.seruya',     type:'FT', team:'unassigned' },
-  { id:'linet.awinja',     type:'FT', team:'unassigned' },
-  { id:'renson.olubala',   type:'FT', team:'unassigned' },
-  { id:'mahdi.adan',       type:'PT', team:'unassigned' },
-  { id:'james.maina',      type:'PT', team:'unassigned' },
-  { id:'mary.safari',      type:'PT', team:'unassigned' },
-  { id:'abudho.tura',      type:'PT', team:'unassigned' },
-  { id:'cynthia.musyoka',  type:'FT', team:'unassigned' },
-  { id:'eli.kipruto',      type:'PT', team:'unassigned' },
-  { id:'wycliff.areba',    type:'PT', team:'unassigned' },
-  { id:'teresa.wambui',    type:'FT', team:'unassigned' },
-  { id:'charles.njoroge',  type:'PT', team:'unassigned' },
-  { id:'devan.koki',       type:'PT', team:'unassigned' },
-  { id:'halima.adan',      type:'FT', team:'unassigned' },
-  { id:'nancy.wambui',     type:'PT', team:'unassigned' },
-  { id:'samson.ouma',      type:'PT', team:'unassigned' },
-  { id:'favour.njenga',    type:'PT', team:'unassigned' },
-  { id:'charles.ndengwa',  type:'PT', team:'unassigned' },
-  { id:'collins.prais',    type:'PT', team:'unassigned' },
 ];
 // Flat array of IDs for backwards-compatible lookups
 const OPERATORS = OPERATOR_ROSTER.map(o => o.id);
@@ -5656,11 +5670,23 @@ function normalizeOpId(rawId) {
 
 function getOpType(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{type:'FT'}).type; }
 function getOpTeam(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{team:''}).team; }
-const KINGS_OPS = OPERATOR_ROSTER.filter(o=>o.team==='kings').map(o=>o.id);
-const SWAT_OPS  = OPERATOR_ROSTER.filter(o=>o.team==='swat').map(o=>o.id);
+const KINGS_OPS    = OPERATOR_ROSTER.filter(o=>o.team==='kings').map(o=>o.id);
+const SWAT_OPS     = OPERATOR_ROSTER.filter(o=>o.team==='swat').map(o=>o.id);
+const PAULINE_OPS  = OPERATOR_ROSTER.filter(o=>o.team==='pauline').map(o=>o.id); // Team Masterminds
+const KELVIN_OPS   = OPERATOR_ROSTER.filter(o=>o.team==='kelvin').map(o=>o.id);  // The Tag Team
+const TEAM_META = {
+  kings:   { label:'Kings',       qaLabel:'Kings QA',             color:'var(--accent)', badgeClass:'badge-blue',   icon:'🔵' },
+  swat:    { label:'SWAT',        qaLabel:'SWAT QA',              color:'var(--swat)',   badgeClass:'badge-purple', icon:'🟣' },
+  pauline: { label:'Masterminds', qaLabel:'Team Masterminds QA',  color:'var(--violet)', badgeClass:'badge-violet', icon:'🧠' },
+  kelvin:  { label:'The Tag Team',qaLabel:'The Tag Team QA',      color:'var(--teal)',   badgeClass:'badge-teal',   icon:'🏷️' },
+};
+function teamLabel(t) { return (TEAM_META[t]||{}).label || t || ''; }
+function teamColor(t) { return (TEAM_META[t]||{}).color || 'var(--text3)'; }
 function visibleOps() {
-  if(currentRole==='kings') return KINGS_OPS;
-  if(currentRole==='swat')  return SWAT_OPS;
+  if(currentRole==='kings')   return KINGS_OPS;
+  if(currentRole==='swat')    return SWAT_OPS;
+  if(currentRole==='pauline') return PAULINE_OPS;
+  if(currentRole==='kelvin')  return KELVIN_OPS;
   return OPERATORS;
 }
 
@@ -5968,7 +5994,7 @@ function populateSelects() {
   // prod-operator always shows ALL operators (no team split for production)
   const prodOp = document.getElementById('prod-operator');
   if(prodOp) {
-    const allOps = OPERATOR_ROSTER.filter(o=>o.team==='kings'||o.team==='swat');
+    const allOps = OPERATOR_ROSTER.filter(o=>['kings','swat','pauline','kelvin'].includes(o.team));
     prodOp.innerHTML = '<option value="">-- Select --</option>'
       + allOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('');
   }
@@ -5978,21 +6004,29 @@ function populateSelects() {
   const pool = OPERATOR_ROSTER.filter(o=>vis.includes(o.id));
   const kOps = pool.filter(o=>o.team==='kings');
   const sOps = pool.filter(o=>o.team==='swat');
+  const pOps = pool.filter(o=>o.team==='pauline');
+  const cOps = pool.filter(o=>o.team==='kelvin');
   const tOps = pool.filter(o=>o.type==='TR');
   // Build grouped options based on visible scope
   let grouped = '<option value="">-- Select --</option>';
   if(kOps.length) grouped += `<optgroup label="── Team Kings ──">${kOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
   if(sOps.length) grouped += `<optgroup label="── Team SWAT ──">${sOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
+  if(pOps.length) grouped += `<optgroup label="── Team Masterminds ──">${pOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
+  if(cOps.length) grouped += `<optgroup label="── The Tag Team ──">${cOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
 
   // err-operator: all users see all names
   const errSel = document.getElementById('err-operator');
   if(errSel) {
     const allK = OPERATOR_ROSTER.filter(o=>o.team==='kings');
     const allS = OPERATOR_ROSTER.filter(o=>o.team==='swat');
+    const allP = OPERATOR_ROSTER.filter(o=>o.team==='pauline');
+    const allC = OPERATOR_ROSTER.filter(o=>o.team==='kelvin');
     const allM = OPERATOR_ROSTER.filter(o=>o.team==='mgmt');
     errSel.innerHTML = '<option value="">-- Select Operator --</option>'
       + `<optgroup label="── Team Kings ──">${allK.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
       + `<optgroup label="── Team SWAT ──">${allS.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
+      + `<optgroup label="── Team Masterminds ──">${allP.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
+      + `<optgroup label="── The Tag Team ──">${allC.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
       + `<optgroup label="── Management ──">${allM.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
   }
   if(tOps.length && (currentRole==='tl'||currentRole==='admin')) grouped += `<optgroup label="── Trainees ──">${tOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
@@ -7205,7 +7239,7 @@ function renderProd() {
     tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;color:var(--text3)">${msg}</td></tr>`;
     return;
   }
-  const TEAM_BADGE = {kings:'<span class="badge badge-blue">Kings</span>',swat:'<span class="badge badge-purple">SWAT</span>'};
+  const TEAM_BADGE = {kings:'<span class="badge badge-blue">Kings</span>',swat:'<span class="badge badge-purple">SWAT</span>',pauline:'<span class="badge badge-violet">Masterminds</span>',kelvin:'<span class="badge badge-teal">The Tag Team</span>'};
   const mono = 'font-family:\'DM Mono\',monospace;font-size:11px';
   const pct  = v => v != null && v !== '' ? (+v).toFixed(2)+'%' : '–';
   const num  = v => v != null && v !== '' && v !== 0 ? v : '–';
@@ -7292,8 +7326,8 @@ function saveError() {
 // ════════════════════════════════════════════════════════════════
 
 function initQAPortal(team) {
-  // team is 'kings' or 'swat' — auto-detected from currentRole if not passed
-  const t = team || (currentRole === 'kings' ? 'kings' : 'swat');
+  // team is 'kings'/'swat'/'pauline'/'kelvin' — auto-detected from currentRole if not passed
+  const t = team || currentRole;
 
   // Set date fields
   ['dp','dr','ach','myteam'].forEach(key => {
@@ -8122,7 +8156,7 @@ function renderErrors() {
     <td style="font-weight:600">${operatorLabel(e.operator||'?')}</td>
     <td><span class="badge ${e.type==='global'?'badge-red':'badge-amber'}">${e.type==='global'?'🔴 Global':'🟡 Internal'}</span></td>
     <td style="font-size:11px;max-width:160px">${e.desc||'–'}</td>
-    <td><span class="badge ${e.qaTeam==='Kings'?'badge-blue':'badge-purple'}">${e.qaTeam}</span></td>
+    <td><span class="badge ${e.qaTeam==='Kings'?'badge-blue':e.qaTeam==='Masterminds'?'badge-violet':e.qaTeam==='The Tag Team'?'badge-teal':'badge-purple'}">${e.qaTeam}</span></td>
     <td style="font-size:10px;color:var(--text3)">${e.coaching||'–'}</td>
     <td style="color:${e.deduction>0?'var(--red)':'var(--amber)'};font-family:'DM Mono',monospace;font-size:11px">${e.deduction>0?'-KES '+e.deduction.toLocaleString():'⚠️ Warning'}</td>
     <td style="font-size:10px;color:${e.deduction>0?'var(--green)':'var(--text3)'}">
@@ -9417,7 +9451,7 @@ function doLogout() {
 // Operators: change via a separate self-service prompt in the Operator Hub
 function openChangePassword() {
   const isSupervisor = currentRole === 'tl' || currentRole === 'admin';
-  const isQA = currentRole === 'kings' || currentRole === 'swat';
+  const isQA = currentRole === 'kings' || currentRole === 'swat' || currentRole === 'pauline' || currentRole === 'kelvin';
 
   if(isSupervisor) {
     openModal('🔐 Password Management', `
@@ -13139,7 +13173,7 @@ function openJoinMeetingFromPortal() {
 }
 
 function openCreateMeetingModal() {
-  const code = (currentRole==='kings'?'KINGS':currentRole==='swat'?'SWAT':'ROOM') + '-' +
+  const code = (currentRole==='kings'?'KINGS':currentRole==='swat'?'SWAT':currentRole==='pauline'?'MASTERMINDS':currentRole==='kelvin'?'TAGTEAM':'ROOM') + '-' +
                Math.floor(1000+Math.random()*9000);
   openModal('📹 Create Meeting Room', `
     <div class="form-group">
@@ -16343,8 +16377,7 @@ function clearProdFilter() {
 
 function exportProdCSV() {
   let prod = load('prod');
-  if(currentRole==='kings') prod = prod.filter(p=>p.team==='kings');
-  else if(currentRole==='swat')  prod = prod.filter(p=>p.team==='swat');
+  if(['kings','swat','pauline','kelvin'].includes(currentRole)) prod = prod.filter(p=>p.team===currentRole);
   // tl and admin see all
   let csv = 'Date,Operator,Team,Cases,AHT,NormalAHT,Occ%,Abandoned%,Reported%,Refreshed%,LogTime,GlobalSessions,TotalTime\n';
   prod.forEach(p => {
@@ -16375,14 +16408,18 @@ function initErrorForm() {
   if(calcView) calcView.style.display = isTLAdmin ? 'block' : 'none';
   const bulkView = document.getElementById('err-bulk-view');
   if(bulkView) bulkView.style.display = isTLAdmin ? 'block' : 'none';
-  // QA error form operator — show all names (both teams)
+  // QA error form operator — show all names (all teams)
   const qaOp = document.getElementById('err-operator-qa');
   if(qaOp) {
     const allK = OPERATOR_ROSTER.filter(o=>o.team==='kings');
     const allS = OPERATOR_ROSTER.filter(o=>o.team==='swat');
+    const allP = OPERATOR_ROSTER.filter(o=>o.team==='pauline');
+    const allC = OPERATOR_ROSTER.filter(o=>o.team==='kelvin');
     qaOp.innerHTML = '<option value="">-- Select --</option>'
       + `<optgroup label="── Team Kings ──">${allK.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
-      + `<optgroup label="── Team SWAT ──">${allS.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
+      + `<optgroup label="── Team SWAT ──">${allS.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
+      + `<optgroup label="── Team Masterminds ──">${allP.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
+      + `<optgroup label="── The Tag Team ──">${allC.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
   }
 }
 
@@ -16566,7 +16603,7 @@ function saveErrorQA() {
   const entry = {
     id: Date.now(), date, operator: op, type,
     desc: '(Logged by QA — details visible to TL/Admin only)',
-    qaTeam:     currentRole==='kings' ? 'Kings' : 'SWAT',
+    qaTeam:     teamLabel(currentRole) || 'SWAT',
     coaching:   document.getElementById('err-coaching-qa')?.value || 'Pending coaching',
     deduction:  ded,
     deductSrc:  ded > 0 ? 'qa-set' : 'warning',
