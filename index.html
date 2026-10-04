@@ -2879,9 +2879,9 @@ function _dbRefreshPage(key) {
     <div class="page" id="page-audit-links">
       <div class="page-header">
         <h1>🔗 Internal Audits</h1>
-        <p>Paste daily audit links for Kings and SWAT QA work. Visible to Supervisor and Admin only.</p>
+        <p>Paste daily audit links for all 4 teams' QA work. Visible to Supervisor and Admin only.</p>
       </div>
-      <div class="grid-2" style="gap:20px">
+      <div class="grid-2" style="gap:20px;margin-bottom:20px">
         <!-- Kings Links -->
         <div class="card">
           <div class="card-header" style="background:linear-gradient(135deg,rgba(0,212,160,0.15),rgba(0,180,216,0.1));margin:-20px -20px 16px;padding:16px 20px;border-radius:12px 12px 0 0">
@@ -2921,6 +2921,48 @@ function _dbRefreshPage(key) {
             <textarea id="audit-swat-notes" rows="2" placeholder="Any notes about today's audit work..." style="width:100%;resize:vertical"></textarea>
           </div>
           <button class="btn" style="width:100%;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer" onclick="saveAuditLinks('swat')">💾 Save SWAT Audit Links</button>
+        </div>
+      </div>
+      <div class="grid-2" style="gap:20px">
+        <!-- Masterminds (Pauline) Links -->
+        <div class="card">
+          <div class="card-header" style="background:linear-gradient(135deg,rgba(255,133,52,0.15),rgba(255,100,20,0.1));margin:-20px -20px 16px;padding:16px 20px;border-radius:12px 12px 0 0">
+            <div class="card-title" style="color:var(--orange)">🧠 Team Masterminds QA — Audit Links</div>
+            <div class="card-sub">Paste links to cases Pauline reviewed today</div>
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="audit-pauline-date" style="width:100%"/>
+          </div>
+          <div class="form-group">
+            <label>Audit Links</label>
+            <textarea id="audit-pauline-links" rows="8" placeholder="Paste one link per line&#10;https://dat.aifi.com/case/...&#10;https://dat.aifi.com/case/...&#10;&#10;Or paste a batch of links from your audit session" style="width:100%;resize:vertical;font-family:'DM Mono',monospace;font-size:12px"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <textarea id="audit-pauline-notes" rows="2" placeholder="Any notes about today's audit work..." style="width:100%;resize:vertical"></textarea>
+          </div>
+          <button class="btn" style="width:100%;background:linear-gradient(135deg,#ff8534,#ff6414);color:#fff;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer" onclick="saveAuditLinks('pauline')">💾 Save Masterminds Audit Links</button>
+        </div>
+        <!-- The Tag Team (Kelvin) Links -->
+        <div class="card">
+          <div class="card-header" style="background:linear-gradient(135deg,rgba(0,200,224,0.15),rgba(0,160,200,0.1));margin:-20px -20px 16px;padding:16px 20px;border-radius:12px 12px 0 0">
+            <div class="card-title" style="color:var(--teal)">🏷️ The Tag Team QA — Audit Links</div>
+            <div class="card-sub">Paste links to cases Kelvin reviewed today</div>
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="audit-kelvin-date" style="width:100%"/>
+          </div>
+          <div class="form-group">
+            <label>Audit Links</label>
+            <textarea id="audit-kelvin-links" rows="8" placeholder="Paste one link per line&#10;https://dat.aifi.com/case/...&#10;https://dat.aifi.com/case/...&#10;&#10;Or paste a batch of links from your audit session" style="width:100%;resize:vertical;font-family:'DM Mono',monospace;font-size:12px"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <textarea id="audit-kelvin-notes" rows="2" placeholder="Any notes about today's audit work..." style="width:100%;resize:vertical"></textarea>
+          </div>
+          <button class="btn" style="width:100%;background:linear-gradient(135deg,#00c8e0,#00a0c8);color:#fff;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer" onclick="saveAuditLinks('kelvin')">💾 Save Tag Team Audit Links</button>
         </div>
       </div>
       <!-- History -->
@@ -7569,8 +7611,16 @@ function renderQAPortalPerfForTeam(team) {
 // INTERNAL AUDITS PORTAL
 // ════════════════════════════════════════════════════════════════
 
+const AUDIT_TEAM_META = {
+  kings:   { label:'Kings',       icon:'🔵', color:'var(--accent)' },
+  swat:    { label:'SWAT',        icon:'🟣', color:'var(--violet)' },
+  pauline: { label:'Masterminds', icon:'🧠', color:'var(--orange)' },
+  kelvin:  { label:'Tag Team',    icon:'🏷️', color:'var(--teal)' },
+};
+const AUDIT_TEAMS = ['kings','swat','pauline','kelvin'];
+
 function initAuditLinks() {
-  ['kings','swat'].forEach(team => {
+  AUDIT_TEAMS.forEach(team => {
     const el = document.getElementById(`audit-${team}-date`);
     if(el && !el.value) el.value = nairobiDateStr();
   });
@@ -7593,7 +7643,7 @@ async function saveAuditLinks(team) {
   if(idx>=0) all[idx]=entry; else all.push(entry);
   const ok = await saveAndVerify('audit_links', all);
   if(!ok){ toast('Failed to save','❌'); return; }
-  toast(`${team==='kings'?'Kings':'SWAT'} audit links saved ✓`, '🔗');
+  toast(`${AUDIT_TEAM_META[team]?.label||team} audit links saved ✓`, '🔗');
   renderAuditLinks();
 }
 
@@ -7605,33 +7655,30 @@ function renderAuditLinks() {
   if(filter) all = all.filter(e => e.date===filter);
   if(!all.length){ el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No audit links saved yet.</div>'; return; }
   const dates = [...new Set(all.map(e=>e.date))];
+  const linkCount = e => e ? e.links.split('\n').filter(l=>l.trim()).length : 0;
   el.innerHTML = dates.map(date => {
-    const kings = all.find(e=>e.team==='kings'&&e.date===date);
-    const swat  = all.find(e=>e.team==='swat' &&e.date===date);
-    const linkCount = e => e ? e.links.split('\n').filter(l=>l.trim()).length : 0;
+    const byTeam = {};
+    AUDIT_TEAMS.forEach(t => { byTeam[t] = all.find(e=>e.team===t && e.date===date); });
+    const summary = AUDIT_TEAMS.filter(t=>byTeam[t]).map(t =>
+      `${AUDIT_TEAM_META[t].icon} ${linkCount(byTeam[t])} ${AUDIT_TEAM_META[t].label} links`).join(' · ');
+    const cols = AUDIT_TEAMS.map((t,i) => {
+      const e = byTeam[t];
+      const meta = AUDIT_TEAM_META[t];
+      const borderStyle = i < AUDIT_TEAMS.length-1 ? 'border-right:1px solid var(--border2);' : '';
+      if(!e) return `<div style="padding:14px 16px;${borderStyle}color:var(--text3);font-size:12px;font-style:italic;display:flex;align-items:center">${meta.icon} No ${meta.label} links for this date</div>`;
+      return `<div style="padding:14px 16px;${borderStyle}">
+          <div style="font-size:10px;font-weight:800;color:${meta.color};text-transform:uppercase;margin-bottom:8px">${meta.icon} ${meta.label} QA — ${linkCount(e)} links</div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);white-space:pre-wrap;line-height:1.8;max-height:200px;overflow-y:auto">${e.links.split('\n').filter(l=>l.trim()).map(l=>`<a href="${l.trim()}" target="_blank" style="color:${meta.color};text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.trim()}">${l.trim()}</a>`).join('')}</div>
+          ${e.notes?`<div style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic">${e.notes}</div>`:''}
+          <div style="font-size:10px;color:var(--text3);margin-top:6px">Saved by ${e.savedBy} · ${nairobiTimestampToTimeStr(e.savedAt)}</div>
+        </div>`;
+    }).join('');
     return `<div style="border:1px solid var(--border2);border-radius:10px;margin-bottom:12px;overflow:hidden">
       <div style="background:var(--surface2);padding:12px 16px;font-weight:800;color:var(--text);font-size:13px;display:flex;justify-content:space-between;align-items:center">
         <span>${fmtDate(date)}</span>
-        <span style="font-size:11px;font-weight:400;color:var(--text3)">
-          ${kings?`🔵 ${linkCount(kings)} Kings links`:''}
-          ${kings&&swat?' · ':''}
-          ${swat?`🟣 ${linkCount(swat)} SWAT links`:''}
-        </span>
+        <span style="font-size:11px;font-weight:400;color:var(--text3)">${summary}</span>
       </div>
-      <div class="grid-2" style="gap:0">
-        ${kings?`<div style="padding:14px 16px;border-right:1px solid var(--border2)">
-          <div style="font-size:10px;font-weight:800;color:var(--accent);text-transform:uppercase;margin-bottom:8px">🔵 Kings QA — ${linkCount(kings)} links</div>
-          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);white-space:pre-wrap;line-height:1.8;max-height:200px;overflow-y:auto">${kings.links.split('\n').filter(l=>l.trim()).map(l=>`<a href="${l.trim()}" target="_blank" style="color:var(--accent);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.trim()}">${l.trim()}</a>`).join('')}</div>
-          ${kings.notes?`<div style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic">${kings.notes}</div>`:''}
-          <div style="font-size:10px;color:var(--text3);margin-top:6px">Saved by ${kings.savedBy} · ${nairobiTimestampToTimeStr(kings.savedAt)}</div>
-        </div>`:`<div style="padding:14px 16px;border-right:1px solid var(--border2);color:var(--text3);font-size:12px;font-style:italic;display:flex;align-items:center">🔵 No Kings links for this date</div>`}
-        ${swat?`<div style="padding:14px 16px">
-          <div style="font-size:10px;font-weight:800;color:var(--violet);text-transform:uppercase;margin-bottom:8px">🟣 SWAT QA — ${linkCount(swat)} links</div>
-          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);white-space:pre-wrap;line-height:1.8;max-height:200px;overflow-y:auto">${swat.links.split('\n').filter(l=>l.trim()).map(l=>`<a href="${l.trim()}" target="_blank" style="color:var(--violet);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.trim()}">${l.trim()}</a>`).join('')}</div>
-          ${swat.notes?`<div style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic">${swat.notes}</div>`:''}
-          <div style="font-size:10px;color:var(--text3);margin-top:6px">Saved by ${swat.savedBy} · ${nairobiTimestampToTimeStr(swat.savedAt)}</div>
-        </div>`:`<div style="padding:14px 16px;color:var(--text3);font-size:12px;font-style:italic;display:flex;align-items:center">🟣 No SWAT links for this date</div>`}
-      </div>
+      <div class="grid-4" style="gap:0;display:grid;grid-template-columns:repeat(4,1fr)">${cols}</div>
     </div>`;
   }).join('');
 }
