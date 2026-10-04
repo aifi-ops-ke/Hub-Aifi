@@ -5307,7 +5307,7 @@ function renderOpHubProduction(opId) {
   }
 
   const totalCases = mine.reduce((s,p)=>s+(+p.cases||0),0);
-  const avgAht     = (mine.reduce((s,p)=>s+(+p.aht||0),0)/mine.length).toFixed(2);
+  const avgAht     = (mine.reduce((s,p)=>s+(+p.normalAht||0),0)/mine.length).toFixed(2);
   const avgOcc     = (mine.reduce((s,p)=>s+(+p.occ||0),0)/mine.length).toFixed(2);
   const last       = mine[0];
 
@@ -6352,7 +6352,7 @@ function renderDashProdKPIs() {
   const totalCases  = prod.reduce((s,p) => s + (+p.cases||0), 0);
   const avgOcc      = (prod.reduce((s,p) => s + (+p.occ||0), 0) / prod.length).toFixed(2);
   const totalGlobal = prod.reduce((s,p) => s + (+p.globalSess||0), 0);
-  const avgAHT      = (prod.reduce((s,p) => s + (+p.aht||0), 0) / prod.length).toFixed(2);
+  const avgAHT      = (prod.reduce((s,p) => s + (+p.normalAht||0), 0) / prod.length).toFixed(2);
   const operators   = new Set(prod.map(p => p.operator)).size;
   const occColor    = +avgOcc >= 80 ? 'var(--green)' : +avgOcc >= 70 ? 'var(--amber)' : 'var(--red)';
 
@@ -6362,7 +6362,7 @@ function renderDashProdKPIs() {
   const prevCases  = prevProd.reduce((s,p) => s + (+p.cases||0), 0);
   const prevOcc    = prevProd.length ? (prevProd.reduce((s,p) => s + (+p.occ||0), 0) / prevProd.length) : null;
   const prevGlobal = prevProd.reduce((s,p) => s + (+p.globalSess||0), 0);
-  const prevAHT    = prevProd.length ? (prevProd.reduce((s,p) => s + (+p.aht||0), 0) / prevProd.length) : null;
+  const prevAHT    = prevProd.length ? (prevProd.reduce((s,p) => s + (+p.normalAht||0), 0) / prevProd.length) : null;
   const prevOps    = prevProd.length ? new Set(prevProd.map(p => p.operator)).size : null;
 
   function pctDelta(curr, prev) {
@@ -6397,7 +6397,7 @@ function renderDashProdKPIs() {
   const casesSeries = last8Dates.map(d => allProd.filter(p=>p.date===d).reduce((s,p)=>s+(+p.cases||0),0));
   const occSeries   = last8Dates.map(d => { const rows=allProd.filter(p=>p.date===d); return rows.length ? rows.reduce((s,p)=>s+(+p.occ||0),0)/rows.length : 0; });
   const globSeries  = last8Dates.map(d => allProd.filter(p=>p.date===d).reduce((s,p)=>s+(+p.globalSess||0),0));
-  const ahtSeries   = last8Dates.map(d => { const rows=allProd.filter(p=>p.date===d); return rows.length ? rows.reduce((s,p)=>s+(+p.aht||0),0)/rows.length : 0; });
+  const ahtSeries   = last8Dates.map(d => { const rows=allProd.filter(p=>p.date===d); return rows.length ? rows.reduce((s,p)=>s+(+p.normalAht||0),0)/rows.length : 0; });
   const opsSeries   = last8Dates.map(d => new Set(allProd.filter(p=>p.date===d).map(p=>p.operator)).size);
 
   function kpiCard({icon, value, label, color, glow, delta, deltaGoodUp, spark, sparkColor}) {
@@ -7154,7 +7154,7 @@ function renderProd() {
     const totalCases   = prod.reduce((s,p)=>s+(+p.cases||0),0);
     const avgOcc       = prod.length ? (prod.reduce((s,p)=>s+(+p.occ||0),0)/prod.length).toFixed(2) : 0;
     const totalGlobal  = prod.reduce((s,p)=>s+(+p.globalSess||0),0);
-    const avgAHT       = prod.length ? (prod.reduce((s,p)=>s+(+p.aht||0),0)/prod.length).toFixed(2) : 0;
+    const avgAHT       = prod.length ? (prod.reduce((s,p)=>s+(+p.normalAht||0),0)/prod.length).toFixed(2) : 0;
     const dates        = [...new Set(prod.map(p=>p.date))];
     const dateLabel    = dates.length===1 ? fmtDate(dates[0]) : dates.length+' dates';
     kpiRow.innerHTML=`
@@ -7758,7 +7758,7 @@ function renderTLTeamsView() {
     }
     if(kpis) {
       const totalCases = teamProd.reduce((s,p) => s+(+p.cases||0), 0);
-      const avgAHT     = teamProd.length ? (teamProd.reduce((s,p) => s+(+p.aht||0), 0)/teamProd.length).toFixed(1) : 0;
+      const avgAHT     = teamProd.length ? (teamProd.reduce((s,p) => s+(+p.normalAht||0), 0)/teamProd.length).toFixed(1) : 0;
       const avgOcc     = teamProd.length ? (teamProd.reduce((s,p) => s+(+p.occ||0), 0)/teamProd.length).toFixed(1) : 0;
       kpis.innerHTML = `
         <div class="kpi-card"><div class="kpi-label">Total Cases</div><div class="kpi-value">${totalCases.toLocaleString()}</div></div>
@@ -16474,7 +16474,7 @@ function renderQADashboard(team) {
   // ── Production ───────────────────────────────────────────────
   const prod     = load('prod').filter(p=>p.date===date && p.team===team);
   const totalCases = prod.reduce((s,p)=>s+(parseFloat(p.cases)||0),0);
-  const avgAHT   = prod.length ? (prod.reduce((s,p)=>s+(parseFloat(p.aht)||0),0)/prod.length).toFixed(1) : '–';
+  const avgAHT   = prod.length ? (prod.reduce((s,p)=>s+(parseFloat(p.normalAht)||0),0)/prod.length).toFixed(1) : '–';
 
   // ── Errors ────────────────────────────────────────────────────
   const todayErrors = load('errors').filter(e=>e.date===date);
