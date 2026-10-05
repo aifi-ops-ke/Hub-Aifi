@@ -443,6 +443,7 @@
   .badge-red { background: rgba(240,92,92,0.12); color: var(--red); }
   .badge-purple { background: rgba(255,124,42,0.12); color: var(--swat); }
   .badge-teal { background: rgba(45,212,191,0.12); color: var(--teal); }
+  .badge-violet { background: rgba(180,138,247,0.12); color: var(--violet); }
 
   /* ── FORMS ───────────────────────────────────────────── */
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -2364,6 +2365,8 @@ function _dbRefreshPage(key) {
             <select id="err-qa-team" style="width:100%">
               <option value="Kings">Kings</option>
               <option value="SWAT">SWAT</option>
+              <option value="Masterminds">Masterminds</option>
+              <option value="The Tag Team">The Tag Team</option>
             </select>
           </div>
           <div class="form-group"><label>Description</label><textarea id="err-desc" rows="2" style="width:100%;resize:vertical" placeholder="What went wrong..."></textarea></div>
@@ -2395,6 +2398,38 @@ function _dbRefreshPage(key) {
         </div>
       </div>
 
+      <!-- Bulk Import (TL/Admin) — paste a historical weekly error log in one go -->
+      <div id="err-bulk-view" style="display:none">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header"><div class="card-title">📥 Bulk Import (historical error log)</div></div>
+          <p style="color:var(--text3);font-size:12px;margin:-6px 0 12px">
+            Paste a weekly error log: each line is <code>Name [tab] error type [tab] QA name OR a date [tab] optional "Week N" / note</code>.
+            Rows using "Week N" (no date) use the week number carried down from the last "Week N" label seen above them,
+            offset from the start date below. Imported rows are logged with <b>KES 0 deduction</b> (visibility only, no payroll impact) —
+            use the Deduction Calculator above if a specific case needs an actual deduction applied.
+          </p>
+          <div class="form-group" style="max-width:220px"><label>Week 1 started on</label><input type="date" id="bulk-err-week1"/></div>
+          <div class="form-group"><label>Paste rows (tab-separated)</label>
+            <textarea id="bulk-err-paste" rows="10" style="width:100%;font-family:'DM Mono',monospace;font-size:11px;resize:vertical" placeholder="Jennipher&#9;Different product&#9;John&#9;Week 1&#10;Noah&#9;Different product&#9;John"></textarea>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:14px">
+            <button class="btn btn-primary" onclick="parseBulkErrors()">🔍 Parse</button>
+            <button class="btn btn-secondary" onclick="clearBulkErrors()">Clear</button>
+            <button class="btn btn-green" id="bulk-err-import-btn" style="display:none" onclick="importBulkErrors()">✅ Import Matched Rows</button>
+          </div>
+          <div id="bulk-err-result"></div>
+          <div id="bulk-err-preview" style="display:none;margin-top:14px;max-height:420px;overflow:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead><tr style="text-align:left;color:var(--text3);font-size:10px;text-transform:uppercase;position:sticky;top:0;background:var(--surface)">
+                <th style="padding:6px">Raw Name</th><th style="padding:6px">Resolved</th><th style="padding:6px">Date</th>
+                <th style="padding:6px">Type</th><th style="padding:6px">Status</th>
+              </tr></thead>
+              <tbody id="bulk-err-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- Shared history — visible to everyone, per existing renderErrors() logic -->
       <div class="card">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
@@ -2409,6 +2444,8 @@ function _dbRefreshPage(key) {
               <option value="">All Teams</option>
               <option value="Kings">Kings</option>
               <option value="SWAT">SWAT</option>
+              <option value="Masterminds">Masterminds</option>
+              <option value="The Tag Team">The Tag Team</option>
             </select>
           </div>
         </div>
@@ -2450,6 +2487,8 @@ function _dbRefreshPage(key) {
                 <option value="">Auto-detect</option>
                 <option value="kings">Kings</option>
                 <option value="swat">SWAT</option>
+                <option value="pauline">Masterminds</option>
+                <option value="kelvin">The Tag Team</option>
               </select>
             </div>
             <div style="margin-left:auto;display:flex;gap:8px">
@@ -2508,6 +2547,8 @@ function _dbRefreshPage(key) {
                 <option value="">All Teams</option>
                 <option value="kings">Kings</option>
                 <option value="swat">SWAT</option>
+                <option value="pauline">Masterminds</option>
+                <option value="kelvin">The Tag Team</option>
               </select>
             </div>
             <button class="btn btn-secondary btn-sm" onclick="clearProdFilter()">Clear Filter</button>
@@ -2838,9 +2879,9 @@ function _dbRefreshPage(key) {
     <div class="page" id="page-audit-links">
       <div class="page-header">
         <h1>🔗 Internal Audits</h1>
-        <p>Paste daily audit links for Kings and SWAT QA work. Visible to Supervisor and Admin only.</p>
+        <p>Paste daily audit links for all 4 teams' QA work. Visible to Supervisor and Admin only.</p>
       </div>
-      <div class="grid-2" style="gap:20px">
+      <div class="grid-2" style="gap:20px;margin-bottom:20px">
         <!-- Kings Links -->
         <div class="card">
           <div class="card-header" style="background:linear-gradient(135deg,rgba(0,212,160,0.15),rgba(0,180,216,0.1));margin:-20px -20px 16px;padding:16px 20px;border-radius:12px 12px 0 0">
@@ -2880,6 +2921,48 @@ function _dbRefreshPage(key) {
             <textarea id="audit-swat-notes" rows="2" placeholder="Any notes about today's audit work..." style="width:100%;resize:vertical"></textarea>
           </div>
           <button class="btn" style="width:100%;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer" onclick="saveAuditLinks('swat')">💾 Save SWAT Audit Links</button>
+        </div>
+      </div>
+      <div class="grid-2" style="gap:20px">
+        <!-- Masterminds (Pauline) Links -->
+        <div class="card">
+          <div class="card-header" style="background:linear-gradient(135deg,rgba(255,133,52,0.15),rgba(255,100,20,0.1));margin:-20px -20px 16px;padding:16px 20px;border-radius:12px 12px 0 0">
+            <div class="card-title" style="color:var(--orange)">🧠 Team Masterminds QA — Audit Links</div>
+            <div class="card-sub">Paste links to cases Pauline reviewed today</div>
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="audit-pauline-date" style="width:100%"/>
+          </div>
+          <div class="form-group">
+            <label>Audit Links</label>
+            <textarea id="audit-pauline-links" rows="8" placeholder="Paste one link per line&#10;https://dat.aifi.com/case/...&#10;https://dat.aifi.com/case/...&#10;&#10;Or paste a batch of links from your audit session" style="width:100%;resize:vertical;font-family:'DM Mono',monospace;font-size:12px"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <textarea id="audit-pauline-notes" rows="2" placeholder="Any notes about today's audit work..." style="width:100%;resize:vertical"></textarea>
+          </div>
+          <button class="btn" style="width:100%;background:linear-gradient(135deg,#ff8534,#ff6414);color:#fff;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer" onclick="saveAuditLinks('pauline')">💾 Save Masterminds Audit Links</button>
+        </div>
+        <!-- The Tag Team (Kelvin) Links -->
+        <div class="card">
+          <div class="card-header" style="background:linear-gradient(135deg,rgba(0,200,224,0.15),rgba(0,160,200,0.1));margin:-20px -20px 16px;padding:16px 20px;border-radius:12px 12px 0 0">
+            <div class="card-title" style="color:var(--teal)">🏷️ The Tag Team QA — Audit Links</div>
+            <div class="card-sub">Paste links to cases Kelvin reviewed today</div>
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="audit-kelvin-date" style="width:100%"/>
+          </div>
+          <div class="form-group">
+            <label>Audit Links</label>
+            <textarea id="audit-kelvin-links" rows="8" placeholder="Paste one link per line&#10;https://dat.aifi.com/case/...&#10;https://dat.aifi.com/case/...&#10;&#10;Or paste a batch of links from your audit session" style="width:100%;resize:vertical;font-family:'DM Mono',monospace;font-size:12px"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <textarea id="audit-kelvin-notes" rows="2" placeholder="Any notes about today's audit work..." style="width:100%;resize:vertical"></textarea>
+          </div>
+          <button class="btn" style="width:100%;background:linear-gradient(135deg,#00c8e0,#00a0c8);color:#fff;padding:11px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer" onclick="saveAuditLinks('kelvin')">💾 Save Tag Team Audit Links</button>
         </div>
       </div>
       <!-- History -->
@@ -5525,81 +5608,86 @@ async function doWFHLogin() {
 // ── Operator roster with employment type ──────────────────────────
 // FT = Full-Time | PT = Part-Time  (matches shift plan Batch column)
 const OPERATOR_ROSTER = [
+  // ── 4-team reshuffle, effective 2026-10-04 per JP ───────────────────
+  // Kings/SWAT/Masterminds/Tag Team, balanced by performance, FT/PT mix and
+  // gender. Historical prod/op_perf/errors rows keep whatever team they were
+  // stamped with at the time (getOpTeam() is only read at save time, never
+  // re-derived for old rows) — this change only affects data from today on.
   // ── Team Kings (QA: John Kingori) ─────────────────────────────────
-  // Roster corrected 2026-10-04 per JP: mark.obara and sheillah.aluoch
-  // (below, Team SWAT) are no longer with the company — removed.
-  { id:'richard.otieno', type:'FT', team:'kings' },
-  { id:'dennis.keter', type:'FT', team:'kings' },
-  { id:'collins.marigu', type:'FT', team:'kings' },
-  { id:'jenipher.otieno', type:'FT', team:'kings' },
-  { id:'alfred.korir', type:'FT', team:'kings' },
-  { id:'adhiambo.vivian', type:'FT', team:'kings' },
-  { id:'sila.juma', type:'FT', team:'kings' },
-  { id:'stacy.wanjiku', type:'FT', team:'kings' },
-  { id:'noah.njiri', type:'FT', team:'kings' },
-  { id:'melody.mapenzi', type:'FT', team:'kings' },
-  { id:'dennis.sangolo', type:'FT', team:'kings' },
-  { id:'joy.mackenzie', type:'FT', team:'kings' },
-  { id:'aisha.adhiambo', type:'FT', team:'kings' },
-  { id:'christopher.wanyama2', type:'FT', team:'kings' },
+  { id:'christine.mwanza', type:'FT', team:'kings' },
+  { id:'rading.yvonne2', type:'FT', team:'kings' },
   { id:'gibson.majimbo', type:'FT', team:'kings' },
-  { id:'synthiakane.otieno', type:'FT', team:'kings' },
+  { id:'christopher.wanyama2', type:'FT', team:'kings' },
+  { id:'fortune.masereto', type:'FT', team:'kings' },
+  { id:'ruth.dube', type:'PT', team:'kings' },
+  { id:'joy.mackenzie', type:'FT', team:'kings' },
+  { id:'dennis.sangolo', type:'FT', team:'kings' },
+  { id:'richard.otieno', type:'FT', team:'kings' },
+  { id:'cynthia.musyoka', type:'FT', team:'kings' },
+  { id:'renson.olubala', type:'FT', team:'kings' },
+  { id:'wycliff.areba', type:'PT', team:'kings' },
+  { id:'charles.musya', type:'PT', team:'kings' },
+  { id:'eli.kipruto', type:'PT', team:'kings' },
+  { id:'samson.ouma', type:'PT', team:'kings' },
 
-  // ── Team SWAT (QA: Rosemary Nyaleso) ──────────────────────────────
-  { id:'christine.mwanza', type:'FT', team:'swat' },
-  { id:'emmily.vannesa', type:'PT', team:'swat' },
-  { id:'ernest.maina', type:'FT', team:'swat' },
-  { id:'faith.mutinda', type:'FT', team:'swat' },
-  { id:'fortune.masereto', type:'FT', team:'swat' },
-  { id:'francis.ndeta', type:'FT', team:'swat' },
-  { id:'kelvin.matekwa', type:'FT', team:'swat' },
-  { id:'martin.karanu', type:'FT', team:'swat' },
+  // ── Team SWAT (QA: Rosemary Nyaleso) ─────────────────────────────────
   { id:'maureen.kaara', type:'FT', team:'swat' },
-  { id:'rachael.gitau', type:'FT', team:'swat' },
-  { id:'rading.yvonne2', type:'FT', team:'swat' },
-  { id:'rickson.macharia', type:'FT', team:'swat' },
-  { id:'ruth.dube', type:'PT', team:'swat' },
-  { id:'samuel.githae', type:'FT', team:'swat' },
-  { id:'samuel.hinga', type:'FT', team:'swat' },
   { id:'simon.lukoye', type:'FT', team:'swat' },
-  { id:'wario.sora', type:'FT', team:'swat' },
+  { id:'kelvin.matekwa', type:'FT', team:'swat' },
+  { id:'rickson.macharia', type:'FT', team:'swat' },
+  { id:'synthiakane.otieno', type:'FT', team:'swat' },
+  { id:'adhiambo.vivian', type:'FT', team:'swat' },
+  { id:'aisha.adhiambo', type:'FT', team:'swat' },
+  { id:'samuel.githae', type:'FT', team:'swat' },
   { id:'yassir.khalid', type:'FT', team:'swat' },
+  { id:'emmily.vannesa', type:'PT', team:'swat' },
+  { id:'mahdi.adan', type:'PT', team:'swat' },
+  { id:'kenneth.kamanu', type:'FT', team:'swat' },
+  { id:'teresa.wambui', type:'FT', team:'swat' },
+  { id:'charles.ndengwa', type:'PT', team:'swat' },
+  { id:'kelvin.karakacha', type:'PT', team:'swat' },
+  { id:'nancy.wambui', type:'PT', team:'swat' },
+
+  // ── Team Masterminds (QA: Pauline Safari) ─────────────────────────────────
+  { id:'ernest.maina', type:'FT', team:'pauline' },
+  { id:'melody.mapenzi', type:'FT', team:'pauline' },
+  { id:'sila.juma', type:'FT', team:'pauline' },
+  { id:'collins.marigu', type:'FT', team:'pauline' },
+  { id:'dennis.keter', type:'FT', team:'pauline' },
+  { id:'stacy.wanjiku', type:'FT', team:'pauline' },
+  { id:'jenipher.otieno', type:'FT', team:'pauline' },
+  { id:'james.maina', type:'PT', team:'pauline' },
+  { id:'beryl.seruya', type:'FT', team:'pauline' },
+  { id:'fridah.waithera', type:'FT', team:'pauline' },
+  { id:'charles.njoroge', type:'PT', team:'pauline' },
+  { id:'halima.adan', type:'FT', team:'pauline' },
+  { id:'devan.koki', type:'PT', team:'pauline' },
+  { id:'kaloki.kioko', type:'PT', team:'pauline' },
+  { id:'richard.mwenya', type:'PT', team:'pauline' },
+
+  // ── The Tag Team (QA: Kelvin Nderitu) ─────────────────────────────────
+  { id:'francis.ndeta', type:'FT', team:'kelvin' },
+  { id:'faith.mutinda', type:'FT', team:'kelvin' },
+  { id:'alfred.korir', type:'FT', team:'kelvin' },
+  { id:'martin.karanu', type:'FT', team:'kelvin' },
+  { id:'samuel.hinga', type:'FT', team:'kelvin' },
+  { id:'wario.sora', type:'FT', team:'kelvin' },
+  { id:'rachael.gitau', type:'FT', team:'kelvin' },
+  { id:'noah.njiri', type:'FT', team:'kelvin' },
+  { id:'abudho.tura', type:'PT', team:'kelvin' },
+  { id:'collins.prais', type:'PT', team:'kelvin' },
+  { id:'kennedy.kihingo', type:'FT', team:'kelvin' },
+  { id:'linet.awinja', type:'FT', team:'kelvin' },
+  { id:'favour.njenga', type:'PT', team:'kelvin' },
+  { id:'lavenda.minayo', type:'PT', team:'kelvin' },
+  { id:'mary.safari', type:'PT', team:'kelvin' },
+
   // ── Management ─────────────────────────────────────────────────────
   { id:'john.paul.kimongo',   type:'TL', team:'mgmt' },
   { id:'john.kingori',         type:'QA', team:'mgmt' },
   { id:'rosemary.nyaleso',     type:'QA', team:'mgmt' },
   { id:'pauline.safari',       type:'QA', team:'mgmt' },
   { id:'kelvin.nderitu',       type:'QA', team:'mgmt' },
-
-  // ── Former trainees (added 2026-09-06) — reclassified 2026-10-04 per
-  //    JP: no longer trainees, now regular FT/PT staff. Team still TBD. ──
-  { id:'kenneth.kamanu',   type:'FT', team:'unassigned' },
-  { id:'lavenda.minayo',   type:'PT', team:'unassigned' },
-  { id:'kennedy.kihingo',  type:'FT', team:'unassigned' },
-  { id:'charles.musya',    type:'PT', team:'unassigned' },
-  { id:'kaloki.kioko',     type:'PT', team:'unassigned' },
-  { id:'richard.mwenya',   type:'PT', team:'unassigned' },
-  { id:'kelvin.karakacha', type:'PT', team:'unassigned' },
-  { id:'fridah.waithera',  type:'FT', team:'unassigned' },
-  { id:'beryl.seruya',     type:'FT', team:'unassigned' },
-  { id:'linet.awinja',     type:'FT', team:'unassigned' },
-  { id:'renson.olubala',   type:'FT', team:'unassigned' },
-  { id:'mahdi.adan',       type:'PT', team:'unassigned' },
-  { id:'james.maina',      type:'PT', team:'unassigned' },
-  { id:'mary.safari',      type:'PT', team:'unassigned' },
-  { id:'abudho.tura',      type:'PT', team:'unassigned' },
-  { id:'cynthia.musyoka',  type:'FT', team:'unassigned' },
-  { id:'eli.kipruto',      type:'PT', team:'unassigned' },
-  { id:'wycliff.areba',    type:'PT', team:'unassigned' },
-  { id:'teresa.wambui',    type:'FT', team:'unassigned' },
-  { id:'charles.njoroge',  type:'PT', team:'unassigned' },
-  { id:'devan.koki',       type:'PT', team:'unassigned' },
-  { id:'halima.adan',      type:'FT', team:'unassigned' },
-  { id:'nancy.wambui',     type:'PT', team:'unassigned' },
-  { id:'samson.ouma',      type:'PT', team:'unassigned' },
-  { id:'favour.njenga',    type:'PT', team:'unassigned' },
-  { id:'charles.ndengwa',  type:'PT', team:'unassigned' },
-  { id:'collins.prais',    type:'PT', team:'unassigned' },
 ];
 // Flat array of IDs for backwards-compatible lookups
 const OPERATORS = OPERATOR_ROSTER.map(o => o.id);
@@ -5624,11 +5712,23 @@ function normalizeOpId(rawId) {
 
 function getOpType(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{type:'FT'}).type; }
 function getOpTeam(op) { return (OPERATOR_ROSTER.find(o=>o.id===op)||{team:''}).team; }
-const KINGS_OPS = OPERATOR_ROSTER.filter(o=>o.team==='kings').map(o=>o.id);
-const SWAT_OPS  = OPERATOR_ROSTER.filter(o=>o.team==='swat').map(o=>o.id);
+const KINGS_OPS    = OPERATOR_ROSTER.filter(o=>o.team==='kings').map(o=>o.id);
+const SWAT_OPS     = OPERATOR_ROSTER.filter(o=>o.team==='swat').map(o=>o.id);
+const PAULINE_OPS  = OPERATOR_ROSTER.filter(o=>o.team==='pauline').map(o=>o.id); // Team Masterminds
+const KELVIN_OPS   = OPERATOR_ROSTER.filter(o=>o.team==='kelvin').map(o=>o.id);  // The Tag Team
+const TEAM_META = {
+  kings:   { label:'Kings',       qaLabel:'Kings QA',             color:'var(--accent)', badgeClass:'badge-blue',   icon:'🔵' },
+  swat:    { label:'SWAT',        qaLabel:'SWAT QA',              color:'var(--swat)',   badgeClass:'badge-purple', icon:'🟣' },
+  pauline: { label:'Masterminds', qaLabel:'Team Masterminds QA',  color:'var(--violet)', badgeClass:'badge-violet', icon:'🧠' },
+  kelvin:  { label:'The Tag Team',qaLabel:'The Tag Team QA',      color:'var(--teal)',   badgeClass:'badge-teal',   icon:'🏷️' },
+};
+function teamLabel(t) { return (TEAM_META[t]||{}).label || t || ''; }
+function teamColor(t) { return (TEAM_META[t]||{}).color || 'var(--text3)'; }
 function visibleOps() {
-  if(currentRole==='kings') return KINGS_OPS;
-  if(currentRole==='swat')  return SWAT_OPS;
+  if(currentRole==='kings')   return KINGS_OPS;
+  if(currentRole==='swat')    return SWAT_OPS;
+  if(currentRole==='pauline') return PAULINE_OPS;
+  if(currentRole==='kelvin')  return KELVIN_OPS;
   return OPERATORS;
 }
 
@@ -5936,7 +6036,7 @@ function populateSelects() {
   // prod-operator always shows ALL operators (no team split for production)
   const prodOp = document.getElementById('prod-operator');
   if(prodOp) {
-    const allOps = OPERATOR_ROSTER.filter(o=>o.team==='kings'||o.team==='swat');
+    const allOps = OPERATOR_ROSTER.filter(o=>['kings','swat','pauline','kelvin'].includes(o.team));
     prodOp.innerHTML = '<option value="">-- Select --</option>'
       + allOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('');
   }
@@ -5946,21 +6046,29 @@ function populateSelects() {
   const pool = OPERATOR_ROSTER.filter(o=>vis.includes(o.id));
   const kOps = pool.filter(o=>o.team==='kings');
   const sOps = pool.filter(o=>o.team==='swat');
+  const pOps = pool.filter(o=>o.team==='pauline');
+  const cOps = pool.filter(o=>o.team==='kelvin');
   const tOps = pool.filter(o=>o.type==='TR');
   // Build grouped options based on visible scope
   let grouped = '<option value="">-- Select --</option>';
   if(kOps.length) grouped += `<optgroup label="── Team Kings ──">${kOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
   if(sOps.length) grouped += `<optgroup label="── Team SWAT ──">${sOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
+  if(pOps.length) grouped += `<optgroup label="── Team Masterminds ──">${pOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
+  if(cOps.length) grouped += `<optgroup label="── The Tag Team ──">${cOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
 
   // err-operator: all users see all names
   const errSel = document.getElementById('err-operator');
   if(errSel) {
     const allK = OPERATOR_ROSTER.filter(o=>o.team==='kings');
     const allS = OPERATOR_ROSTER.filter(o=>o.team==='swat');
+    const allP = OPERATOR_ROSTER.filter(o=>o.team==='pauline');
+    const allC = OPERATOR_ROSTER.filter(o=>o.team==='kelvin');
     const allM = OPERATOR_ROSTER.filter(o=>o.team==='mgmt');
     errSel.innerHTML = '<option value="">-- Select Operator --</option>'
       + `<optgroup label="── Team Kings ──">${allK.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
       + `<optgroup label="── Team SWAT ──">${allS.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
+      + `<optgroup label="── Team Masterminds ──">${allP.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
+      + `<optgroup label="── The Tag Team ──">${allC.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
       + `<optgroup label="── Management ──">${allM.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
   }
   if(tOps.length && (currentRole==='tl'||currentRole==='admin')) grouped += `<optgroup label="── Trainees ──">${tOps.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
@@ -7173,7 +7281,7 @@ function renderProd() {
     tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;color:var(--text3)">${msg}</td></tr>`;
     return;
   }
-  const TEAM_BADGE = {kings:'<span class="badge badge-blue">Kings</span>',swat:'<span class="badge badge-purple">SWAT</span>'};
+  const TEAM_BADGE = {kings:'<span class="badge badge-blue">Kings</span>',swat:'<span class="badge badge-purple">SWAT</span>',pauline:'<span class="badge badge-violet">Masterminds</span>',kelvin:'<span class="badge badge-teal">The Tag Team</span>'};
   const mono = 'font-family:\'DM Mono\',monospace;font-size:11px';
   const pct  = v => v != null && v !== '' ? (+v).toFixed(2)+'%' : '–';
   const num  = v => v != null && v !== '' && v !== 0 ? v : '–';
@@ -7260,8 +7368,8 @@ function saveError() {
 // ════════════════════════════════════════════════════════════════
 
 function initQAPortal(team) {
-  // team is 'kings' or 'swat' — auto-detected from currentRole if not passed
-  const t = team || (currentRole === 'kings' ? 'kings' : 'swat');
+  // team is 'kings'/'swat'/'pauline'/'kelvin' — auto-detected from currentRole if not passed
+  const t = team || currentRole;
 
   // Set date fields
   ['dp','dr','ach','myteam'].forEach(key => {
@@ -7503,8 +7611,16 @@ function renderQAPortalPerfForTeam(team) {
 // INTERNAL AUDITS PORTAL
 // ════════════════════════════════════════════════════════════════
 
+const AUDIT_TEAM_META = {
+  kings:   { label:'Kings',       icon:'🔵', color:'var(--accent)' },
+  swat:    { label:'SWAT',        icon:'🟣', color:'var(--violet)' },
+  pauline: { label:'Masterminds', icon:'🧠', color:'var(--orange)' },
+  kelvin:  { label:'Tag Team',    icon:'🏷️', color:'var(--teal)' },
+};
+const AUDIT_TEAMS = ['kings','swat','pauline','kelvin'];
+
 function initAuditLinks() {
-  ['kings','swat'].forEach(team => {
+  AUDIT_TEAMS.forEach(team => {
     const el = document.getElementById(`audit-${team}-date`);
     if(el && !el.value) el.value = nairobiDateStr();
   });
@@ -7527,7 +7643,7 @@ async function saveAuditLinks(team) {
   if(idx>=0) all[idx]=entry; else all.push(entry);
   const ok = await saveAndVerify('audit_links', all);
   if(!ok){ toast('Failed to save','❌'); return; }
-  toast(`${team==='kings'?'Kings':'SWAT'} audit links saved ✓`, '🔗');
+  toast(`${AUDIT_TEAM_META[team]?.label||team} audit links saved ✓`, '🔗');
   renderAuditLinks();
 }
 
@@ -7539,33 +7655,30 @@ function renderAuditLinks() {
   if(filter) all = all.filter(e => e.date===filter);
   if(!all.length){ el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No audit links saved yet.</div>'; return; }
   const dates = [...new Set(all.map(e=>e.date))];
+  const linkCount = e => e ? e.links.split('\n').filter(l=>l.trim()).length : 0;
   el.innerHTML = dates.map(date => {
-    const kings = all.find(e=>e.team==='kings'&&e.date===date);
-    const swat  = all.find(e=>e.team==='swat' &&e.date===date);
-    const linkCount = e => e ? e.links.split('\n').filter(l=>l.trim()).length : 0;
+    const byTeam = {};
+    AUDIT_TEAMS.forEach(t => { byTeam[t] = all.find(e=>e.team===t && e.date===date); });
+    const summary = AUDIT_TEAMS.filter(t=>byTeam[t]).map(t =>
+      `${AUDIT_TEAM_META[t].icon} ${linkCount(byTeam[t])} ${AUDIT_TEAM_META[t].label} links`).join(' · ');
+    const cols = AUDIT_TEAMS.map((t,i) => {
+      const e = byTeam[t];
+      const meta = AUDIT_TEAM_META[t];
+      const borderStyle = i < AUDIT_TEAMS.length-1 ? 'border-right:1px solid var(--border2);' : '';
+      if(!e) return `<div style="padding:14px 16px;${borderStyle}color:var(--text3);font-size:12px;font-style:italic;display:flex;align-items:center">${meta.icon} No ${meta.label} links for this date</div>`;
+      return `<div style="padding:14px 16px;${borderStyle}">
+          <div style="font-size:10px;font-weight:800;color:${meta.color};text-transform:uppercase;margin-bottom:8px">${meta.icon} ${meta.label} QA — ${linkCount(e)} links</div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);white-space:pre-wrap;line-height:1.8;max-height:200px;overflow-y:auto">${e.links.split('\n').filter(l=>l.trim()).map(l=>`<a href="${l.trim()}" target="_blank" style="color:${meta.color};text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.trim()}">${l.trim()}</a>`).join('')}</div>
+          ${e.notes?`<div style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic">${e.notes}</div>`:''}
+          <div style="font-size:10px;color:var(--text3);margin-top:6px">Saved by ${e.savedBy} · ${nairobiTimestampToTimeStr(e.savedAt)}</div>
+        </div>`;
+    }).join('');
     return `<div style="border:1px solid var(--border2);border-radius:10px;margin-bottom:12px;overflow:hidden">
       <div style="background:var(--surface2);padding:12px 16px;font-weight:800;color:var(--text);font-size:13px;display:flex;justify-content:space-between;align-items:center">
         <span>${fmtDate(date)}</span>
-        <span style="font-size:11px;font-weight:400;color:var(--text3)">
-          ${kings?`🔵 ${linkCount(kings)} Kings links`:''}
-          ${kings&&swat?' · ':''}
-          ${swat?`🟣 ${linkCount(swat)} SWAT links`:''}
-        </span>
+        <span style="font-size:11px;font-weight:400;color:var(--text3)">${summary}</span>
       </div>
-      <div class="grid-2" style="gap:0">
-        ${kings?`<div style="padding:14px 16px;border-right:1px solid var(--border2)">
-          <div style="font-size:10px;font-weight:800;color:var(--accent);text-transform:uppercase;margin-bottom:8px">🔵 Kings QA — ${linkCount(kings)} links</div>
-          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);white-space:pre-wrap;line-height:1.8;max-height:200px;overflow-y:auto">${kings.links.split('\n').filter(l=>l.trim()).map(l=>`<a href="${l.trim()}" target="_blank" style="color:var(--accent);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.trim()}">${l.trim()}</a>`).join('')}</div>
-          ${kings.notes?`<div style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic">${kings.notes}</div>`:''}
-          <div style="font-size:10px;color:var(--text3);margin-top:6px">Saved by ${kings.savedBy} · ${nairobiTimestampToTimeStr(kings.savedAt)}</div>
-        </div>`:`<div style="padding:14px 16px;border-right:1px solid var(--border2);color:var(--text3);font-size:12px;font-style:italic;display:flex;align-items:center">🔵 No Kings links for this date</div>`}
-        ${swat?`<div style="padding:14px 16px">
-          <div style="font-size:10px;font-weight:800;color:var(--violet);text-transform:uppercase;margin-bottom:8px">🟣 SWAT QA — ${linkCount(swat)} links</div>
-          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);white-space:pre-wrap;line-height:1.8;max-height:200px;overflow-y:auto">${swat.links.split('\n').filter(l=>l.trim()).map(l=>`<a href="${l.trim()}" target="_blank" style="color:var(--violet);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.trim()}">${l.trim()}</a>`).join('')}</div>
-          ${swat.notes?`<div style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic">${swat.notes}</div>`:''}
-          <div style="font-size:10px;color:var(--text3);margin-top:6px">Saved by ${swat.savedBy} · ${nairobiTimestampToTimeStr(swat.savedAt)}</div>
-        </div>`:`<div style="padding:14px 16px;color:var(--text3);font-size:12px;font-style:italic;display:flex;align-items:center">🟣 No SWAT links for this date</div>`}
-      </div>
+      <div class="grid-4" style="gap:0;display:grid;grid-template-columns:repeat(4,1fr)">${cols}</div>
     </div>`;
   }).join('');
 }
@@ -8090,7 +8203,7 @@ function renderErrors() {
     <td style="font-weight:600">${operatorLabel(e.operator||'?')}</td>
     <td><span class="badge ${e.type==='global'?'badge-red':'badge-amber'}">${e.type==='global'?'🔴 Global':'🟡 Internal'}</span></td>
     <td style="font-size:11px;max-width:160px">${e.desc||'–'}</td>
-    <td><span class="badge ${e.qaTeam==='Kings'?'badge-blue':'badge-purple'}">${e.qaTeam}</span></td>
+    <td><span class="badge ${e.qaTeam==='Kings'?'badge-blue':e.qaTeam==='Masterminds'?'badge-violet':e.qaTeam==='The Tag Team'?'badge-teal':'badge-purple'}">${e.qaTeam}</span></td>
     <td style="font-size:10px;color:var(--text3)">${e.coaching||'–'}</td>
     <td style="color:${e.deduction>0?'var(--red)':'var(--amber)'};font-family:'DM Mono',monospace;font-size:11px">${e.deduction>0?'-KES '+e.deduction.toLocaleString():'⚠️ Warning'}</td>
     <td style="font-size:10px;color:${e.deduction>0?'var(--green)':'var(--text3)'}">
@@ -9385,7 +9498,7 @@ function doLogout() {
 // Operators: change via a separate self-service prompt in the Operator Hub
 function openChangePassword() {
   const isSupervisor = currentRole === 'tl' || currentRole === 'admin';
-  const isQA = currentRole === 'kings' || currentRole === 'swat';
+  const isQA = currentRole === 'kings' || currentRole === 'swat' || currentRole === 'pauline' || currentRole === 'kelvin';
 
   if(isSupervisor) {
     openModal('🔐 Password Management', `
@@ -13107,7 +13220,7 @@ function openJoinMeetingFromPortal() {
 }
 
 function openCreateMeetingModal() {
-  const code = (currentRole==='kings'?'KINGS':currentRole==='swat'?'SWAT':'ROOM') + '-' +
+  const code = (currentRole==='kings'?'KINGS':currentRole==='swat'?'SWAT':currentRole==='pauline'?'MASTERMINDS':currentRole==='kelvin'?'TAGTEAM':'ROOM') + '-' +
                Math.floor(1000+Math.random()*9000);
   openModal('📹 Create Meeting Room', `
     <div class="form-group">
@@ -16311,8 +16424,7 @@ function clearProdFilter() {
 
 function exportProdCSV() {
   let prod = load('prod');
-  if(currentRole==='kings') prod = prod.filter(p=>p.team==='kings');
-  else if(currentRole==='swat')  prod = prod.filter(p=>p.team==='swat');
+  if(['kings','swat','pauline','kelvin'].includes(currentRole)) prod = prod.filter(p=>p.team===currentRole);
   // tl and admin see all
   let csv = 'Date,Operator,Team,Cases,AHT,NormalAHT,Occ%,Abandoned%,Reported%,Refreshed%,LogTime,GlobalSessions,TotalTime\n';
   prod.forEach(p => {
@@ -16341,15 +16453,190 @@ function initErrorForm() {
   if(tlView) tlView.style.display = isTLAdmin ? 'block' : 'none';
   const calcView = document.getElementById('err-calc-view');
   if(calcView) calcView.style.display = isTLAdmin ? 'block' : 'none';
-  // QA error form operator — show all names (both teams)
+  const bulkView = document.getElementById('err-bulk-view');
+  if(bulkView) bulkView.style.display = isTLAdmin ? 'block' : 'none';
+  // QA error form operator — show all names (all teams)
   const qaOp = document.getElementById('err-operator-qa');
   if(qaOp) {
     const allK = OPERATOR_ROSTER.filter(o=>o.team==='kings');
     const allS = OPERATOR_ROSTER.filter(o=>o.team==='swat');
+    const allP = OPERATOR_ROSTER.filter(o=>o.team==='pauline');
+    const allC = OPERATOR_ROSTER.filter(o=>o.team==='kelvin');
     qaOp.innerHTML = '<option value="">-- Select --</option>'
       + `<optgroup label="── Team Kings ──">${allK.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
-      + `<optgroup label="── Team SWAT ──">${allS.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
+      + `<optgroup label="── Team SWAT ──">${allS.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
+      + `<optgroup label="── Team Masterminds ──">${allP.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`
+      + `<optgroup label="── The Tag Team ──">${allC.map(o=>`<option value="${o.id}">${operatorLabel(o.id)}</option>`).join('')}</optgroup>`;
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// BULK ERROR IMPORT — paste JP's weekly first-name error log in one go.
+// First-name-only aliases below were hand-built from the 2026-10-04 master
+// log cross-referenced against OPERATOR_ROSTER; 'departed'/'ambiguous'
+// entries (Ivy Njerese, Mark Obara, Sheillah Aluoch, Rachael Hamada — all
+// removed from the roster — plus a bare "Samuel"/"Nderitu" with no safe
+// surname match) are shown in the preview but never imported.
+// ════════════════════════════════════════════════════════════════
+const BULK_ERR_ALIAS = {
+  'jennipher':['jenipher.otieno','active'], 'jenipher':['jenipher.otieno','active'],
+  'noah':['noah.njiri','active'], 'wario':['wario.sora','active'], 'sora':['wario.sora','active'],
+  'matekwa':['kelvin.matekwa','active'], 'faith':['faith.mutinda','active'],
+  'sangolo':['dennis.sangolo','active'], 'dennis sangolo':['dennis.sangolo','active'],
+  'rading':['rading.yvonne2','active'], 'radding':['rading.yvonne2','active'],
+  'gibson':['gibson.majimbo','active'], 'hinga':['samuel.hinga','active'], 'samuel hinga':['samuel.hinga','active'],
+  'stacy':['stacy.wanjiku','active'], 'fortune':['fortune.masereto','active'], 'ernest':['ernest.maina','active'],
+  'nderitu':[null,'ambiguous'],
+  'wanyama':['christopher.wanyama2','active'],
+  'samuel g':['samuel.githae','active'], 'sanmuel g':['samuel.githae','active'], 'samuel githae':['samuel.githae','active'], 'githae':['samuel.githae','active'],
+  'richard':['richard.otieno','active'],
+  'ivy':[null,'departed'],
+  'maureen':['maureen.kaara','active'], 'simon':['simon.lukoye','active'], 'lukoye':['simon.lukoye','active'],
+  'ruth':['ruth.dube','active'], 'dube':['ruth.dube','active'],
+  'emilly':['emmily.vannesa','active'], 'emmily':['emmily.vannesa','active'], 'vannesa':['emmily.vannesa','active'], 'vannessa':['emmily.vannesa','active'], 'vanessa':['emmily.vannesa','active'],
+  'aisha':['aisha.adhiambo','active'],
+  'ndeta':['francis.ndeta','active'], 'francis ndeta':['francis.ndeta','active'], 'francis':['francis.ndeta','active'],
+  'keter':['dennis.keter','active'],
+  'mwanza':['christine.mwanza','active'], 'christine':['christine.mwanza','active'],
+  'vivian':['adhiambo.vivian','active'],
+  'melody':['melody.mapenzi','active'],
+  'sila':['sila.juma','active'],
+  'alfred':['alfred.korir','active'], 'korir':['alfred.korir','active'],
+  'mark':[null,'departed'],
+  'yassir':['yassir.khalid','active'],
+  'collins':['collins.marigu','active'],
+  'rachael':['rachael.gitau','active'],
+  'hamada':[null,'departed'],
+  'samuel':[null,'ambiguous'],
+  'sheillah':[null,'departed'], 'sheilah':[null,'departed'],
+  'synthiakane':['synthiakane.otieno','active'], 'synthia':['synthiakane.otieno','active'],
+  'rickson':['rickson.macharia','active'],
+  'joy':['joy.mackenzie','active'],
+  'karanu':['martin.karanu','active'],
+  'james':['james.maina','active'],
+  'prais':['collins.prais','active'],
+  'fridah':['fridah.waithera','active'],
+  'njoroge':['charles.njoroge','active'],
+  'beryl':['beryl.seruya','active'],
+  'halima':['halima.adan','active'],
+  'wycliff':['wycliff.areba','active'],
+  'renson':['renson.olubala','active'],
+  'samuel.githae':['samuel.githae','active'], 'ruth.dube':['ruth.dube','active'],
+};
+
+let _bulkErrParsed = [];
+
+function _bulkErrNormKey(tok) {
+  tok = String(tok||'').trim().toLowerCase().replace(/–/g,'-');
+  tok = tok.replace(/\s*-\s*.*$/, ''); // "Matekwa - Different product" -> "matekwa"
+  return tok.replace(/\s+/g,' ').trim();
+}
+
+function _bulkErrParseDate(str) {
+  const m = str.match(/(\d{1,2})[\/\\](\d{1,2})[\/\\](\d{2,4})/);
+  if(!m) return null;
+  let [, a, b, y] = m;
+  a = +a; b = +b; y = +y; if(y < 100) y += 2000;
+  // If the first number can't be a month, it must be day-first (D/M/Y); otherwise assume M/D/Y.
+  let day, mon;
+  if(a > 12) { day = a; mon = b; } else { mon = a; day = b; }
+  if(mon < 1 || mon > 12 || day < 1 || day > 31) return null;
+  return `${y}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
+function _bulkErrAddDays(isoDate, days) {
+  const d = new Date(isoDate+'T00:00:00');
+  d.setDate(d.getDate()+days);
+  return d.toISOString().slice(0,10);
+}
+
+function parseBulkErrors() {
+  const week1 = document.getElementById('bulk-err-week1').value;
+  const raw = document.getElementById('bulk-err-paste').value;
+  const lines = raw.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim());
+  let currentWeek = null;
+  const out = [];
+  lines.forEach(line => {
+    const cols = line.split('\t');
+    const nameField = cols.find(c=>c.trim()) ;
+    if(!nameField) return;
+    const idx0 = cols.indexOf(nameField);
+    const rest = cols.slice(idx0+1);
+    const key = _bulkErrNormKey(nameField);
+    const alias = BULK_ERR_ALIAS[key];
+    const desc = (rest[0]||'').trim();
+    const col3 = (rest[1]||'').trim();
+    const col4 = (rest[2]||'').trim();
+
+    const weekMatch = col4.match(/week\s*(\d+)/i) || (/^\d{1,2}$/.test(col4) ? [null, col4] : null);
+    if(weekMatch) currentWeek = +weekMatch[1];
+
+    const explicitDate = _bulkErrParseDate(col3);
+    let date = null, dateNote = '';
+    if(explicitDate) {
+      date = explicitDate;
+    } else if(week1 && currentWeek) {
+      date = _bulkErrAddDays(week1, (currentWeek-1)*7);
+      dateNote = ` (Week ${currentWeek})`;
+    }
+
+    let status, opId, resolvedName;
+    if(!alias) { status = 'unmatched'; opId = null; resolvedName = nameField.trim()+' (no match)'; }
+    else if(alias[1] !== 'active') { status = alias[1]; opId = null; resolvedName = key; }
+    else { status = date ? 'ok' : 'no-date'; opId = alias[0]; resolvedName = operatorLabel(opId); }
+
+    const type = /global/i.test(col4) ? 'global' : 'internal';
+    out.push({ raw: nameField.trim(), opId, resolvedName, date, dateNote, desc, type, status, extraNote: col4 && !weekMatch && !/global/i.test(col4) ? col4 : '' });
+  });
+  _bulkErrParsed = out;
+
+  const counts = {}; out.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
+  document.getElementById('bulk-err-result').innerHTML =
+    `<div style="font-size:12px;color:var(--text3)">Parsed ${out.length} rows — `+
+    `<b style="color:var(--green)">${counts.ok||0} ready to import</b>, `+
+    `${counts['no-date']||0} matched but missing a date (set Week 1 date and re-parse), `+
+    `${counts.departed||0} departed/no-longer-on-roster (excluded), `+
+    `${counts.ambiguous||0} ambiguous (excluded), `+
+    `${counts.unmatched||0} unrecognized name (excluded).</div>`;
+
+  const body = document.getElementById('bulk-err-preview-body');
+  const statusLabel = {ok:'✅ Ready', 'no-date':'⚠️ No date', departed:'🚫 Departed', ambiguous:'🚫 Ambiguous', unmatched:'🚫 Unmatched'};
+  body.innerHTML = out.map(r => `<tr style="border-top:1px solid var(--border2);opacity:${r.status==='ok'?1:0.55}">
+    <td style="padding:5px">${r.raw}</td><td style="padding:5px">${r.resolvedName}</td>
+    <td style="padding:5px">${(r.date||'—')+r.dateNote}</td><td style="padding:5px">${r.desc}</td>
+    <td style="padding:5px">${statusLabel[r.status]||r.status}</td></tr>`).join('');
+  document.getElementById('bulk-err-preview').style.display = 'block';
+  document.getElementById('bulk-err-import-btn').style.display = (counts.ok>0) ? 'inline-block' : 'none';
+}
+
+function clearBulkErrors() {
+  document.getElementById('bulk-err-paste').value = '';
+  document.getElementById('bulk-err-result').innerHTML = '';
+  document.getElementById('bulk-err-preview').style.display = 'none';
+  document.getElementById('bulk-err-import-btn').style.display = 'none';
+  _bulkErrParsed = [];
+}
+
+function importBulkErrors() {
+  const ready = _bulkErrParsed.filter(r=>r.status==='ok');
+  if(!ready.length) { toast('Nothing to import','⚠️'); return; }
+  const errors = load('errors');
+  ready.forEach(r => {
+    const team = getOpTeam(r.opId);
+    const qaTeam = team==='kings' ? 'Kings' : team==='swat' ? 'SWAT' : '';
+    errors.push({
+      id: Date.now() + Math.floor(Math.random()*1000),
+      date: r.date, operator: r.opId, type: r.type,
+      desc: r.desc + r.dateNote + (r.extraNote ? ` — note: ${r.extraNote}` : '') + ' (bulk-imported from historical log)',
+      qaTeam, coaching: 'Imported — historical, no coaching record',
+      deduction: 0, deductSrc: 'warning', deductLbl: 'Bulk import — no deduction (historical)',
+      sessionLink: '', loggedBy: currentRole,
+    });
+  });
+  save('errors', errors);
+  toast(`Imported ${ready.length} historical errors ✓`,'📥');
+  clearBulkErrors();
+  renderErrors(); calcDeductions();
 }
 
 // QA saves error with deduction amount only
@@ -16363,7 +16650,7 @@ function saveErrorQA() {
   const entry = {
     id: Date.now(), date, operator: op, type,
     desc: '(Logged by QA — details visible to TL/Admin only)',
-    qaTeam:     currentRole==='kings' ? 'Kings' : 'SWAT',
+    qaTeam:     teamLabel(currentRole) || 'SWAT',
     coaching:   document.getElementById('err-coaching-qa')?.value || 'Pending coaching',
     deduction:  ded,
     deductSrc:  ded > 0 ? 'qa-set' : 'warning',
