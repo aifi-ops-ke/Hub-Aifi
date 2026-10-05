@@ -2422,7 +2422,7 @@ function _dbRefreshPage(key) {
             <table style="width:100%;border-collapse:collapse;font-size:11px">
               <thead><tr style="text-align:left;color:var(--text3);font-size:10px;text-transform:uppercase;position:sticky;top:0;background:var(--surface)">
                 <th style="padding:6px">Raw Name</th><th style="padding:6px">Resolved</th><th style="padding:6px">Date</th>
-                <th style="padding:6px">Type</th><th style="padding:6px">Status</th>
+                <th style="padding:6px">Desc</th><th style="padding:6px">Type</th><th style="padding:6px">Status</th>
               </tr></thead>
               <tbody id="bulk-err-preview-body"></tbody>
             </table>
@@ -16585,8 +16585,10 @@ function parseBulkErrors() {
     else if(alias[1] !== 'active') { status = alias[1]; opId = null; resolvedName = key; }
     else { status = date ? 'ok' : 'no-date'; opId = alias[0]; resolvedName = operatorLabel(opId); }
 
-    const type = /global/i.test(col4) ? 'global' : 'internal';
-    out.push({ raw: nameField.trim(), opId, resolvedName, date, dateNote, desc, type, status, extraNote: col4 && !weekMatch && !/global/i.test(col4) ? col4 : '' });
+    // Type follows which list the row came from, not a keyword in its note:
+    // the Week-N/QA-name list is all Global errors; the explicitly-dated list is all Internal.
+    const type = explicitDate ? 'internal' : 'global';
+    out.push({ raw: nameField.trim(), opId, resolvedName, date, dateNote, desc, type, status, extraNote: col4 && !weekMatch ? col4 : '' });
   });
   _bulkErrParsed = out;
 
@@ -16604,6 +16606,7 @@ function parseBulkErrors() {
   body.innerHTML = out.map(r => `<tr style="border-top:1px solid var(--border2);opacity:${r.status==='ok'?1:0.55}">
     <td style="padding:5px">${r.raw}</td><td style="padding:5px">${r.resolvedName}</td>
     <td style="padding:5px">${(r.date||'—')+r.dateNote}</td><td style="padding:5px">${r.desc}</td>
+    <td style="padding:5px">${r.type==='global'?'🔴 Global':'🟡 Internal'}</td>
     <td style="padding:5px">${statusLabel[r.status]||r.status}</td></tr>`).join('');
   document.getElementById('bulk-err-preview').style.display = 'block';
   document.getElementById('bulk-err-import-btn').style.display = (counts.ok>0) ? 'inline-block' : 'none';
