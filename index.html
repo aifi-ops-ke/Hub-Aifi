@@ -5901,7 +5901,14 @@ async function saveAndVerify(key, val) {
     const r = await fetch(_SUPA_URL+'/rest/v1/aifi_store?select=val&key=eq.'+key, {headers:_SUPA_HDR});
     if(!r.ok) return false;
     const rows = await r.json();
-    const landed = rows.length && Array.isArray(rows[0].val) && rows[0].val.length === val.length;
+    if(!rows.length || rows[0].val == null) return false;
+    const savedVal = rows[0].val;
+    // val may be an array (errors, prod, ...) or a plain object keyed by
+    // date/id (schedule, daily_plans, ...) — compare "size" either way
+    // instead of assuming Array.isArray, which silently failed every
+    // object-shaped store (schedule included) even when the write succeeded.
+    const sizeOf = v => Array.isArray(v) ? v.length : (v && typeof v === 'object') ? Object.keys(v).length : undefined;
+    const landed = Array.isArray(val) === Array.isArray(savedVal) && sizeOf(savedVal) === sizeOf(val);
     return !!landed;
   } catch(e) {
     console.warn('saveAndVerify failed ['+key+']:', e.message);
