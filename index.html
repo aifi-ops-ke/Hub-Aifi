@@ -1886,6 +1886,18 @@ function _dbRefreshPage(key) {
         <div id="db-task-list"></div>
       </div>
 
+      <!-- ── LATE / NOT CHECKED IN TODAY ──────────────────────── -->
+      <div class="card" style="margin-bottom:20px;border-color:rgba(240,92,92,0.3)">
+        <div class="card-header" style="margin-bottom:10px">
+          <div>
+            <div class="card-title">⏰ Late / Not Checked In — <span id="late-login-count" style="color:var(--red)">0</span></div>
+            <div class="card-sub">Scheduled shift vs. actual check-in today, across all 4 teams</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="renderLateLoginAlertsV2()">↻ Refresh</button>
+        </div>
+        <div id="late-login-list" style="max-height:280px;overflow-y:auto"></div>
+      </div>
+
       <!-- ── YESTERDAY'S PRODUCTION KPIs ──────────────────────── -->
       <div class="card" style="margin-bottom:20px;border-color:rgba(0,212,160,0.2)">
         <div class="card-header" style="margin-bottom:12px">
@@ -5951,7 +5963,7 @@ function nav(page) {
   if(page==='weekly'||page==='monthly'||page==='quarterly') initReportSelects();
   if(page==='errors') { initErrorForm(); renderErrors(); }
   if(page==='leave') { renderLeave(); renderLeaveBalanceGrid(); }
-  if(page==='dashboard') { renderNotifs(); updateNavBadges(); renderDashProdKPIs(); renderDashPerfChart(); renderDailyBoard(); }
+  if(page==='dashboard') { renderNotifs(); updateNavBadges(); renderDashProdKPIs(); renderDashPerfChart(); renderDailyBoard(); renderLateLoginAlertsV2(); }
   if(page==='critical-reports') { renderCriticalReports(); }
   if(page==='tl-portal') { initTLPortal(); }
   if(page==='audit-links') { initAuditLinks(); }
@@ -17289,6 +17301,76 @@ function nairobiTimestampToTimeStr(ts) {
   if(!ts) return '';
   const match = String(ts).match(/T(\d{2}):(\d{2})/);
   return match ? `${match[1]}:${match[2]}` : '';
+}
+
+// ════════════════════════════════════════════════════════════════
+// LATE / NOT CHECKED IN — compares each operator's scheduled shift
+// start (from the Schedule page's 'schedule' store) against their
+// actual WFH check-in time today. Threshold is deliberately strict
+// per JP (1 minute) given 61 operators across 4 teams are hard to
+// track by eye.
+// ════════════════════════════════════════════════════════════════
+const LATE_LOGIN_THRESHOLD_MIN = 1;
+
+function parseShiftStartTime(shiftStr) {
+  if(!shiftStr || shiftStr === 'OFF' || shiftStr === 'Leave') return null;
+  const m = String(shiftStr).match(/^(\d{2}):(\d{2})/);
+  return m ? { h: +m[1], m: +m[2] } : null;
+}
+
+async function renderLateLoginAlertsV2() {
+  const el = document.getElementById('late-login-list');
+  if(!el) return;
+  el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px;text-align:center">Checking…</div>';
+
+  const today = nairobiDateStr();
+  const sched = loadObj('schedule')[today] || {};
+  const sessions = await dbGetSessionsV2(today);
+  const nowMs = Date.now();
+
+  const results = [];
+  Object.keys(sched).forEach(opId => {
+    if(!OPERATORS.includes(opId)) return;
+    const start = parseShiftStartTime(sched[opId]);
+    if(!start) return; // OFF / Leave / not scheduled
+    const startNaive = `${today}T${String(start.h).padStart(2,'0')}:${String(start.m).padStart(2,'0')}:00`;
+    const expectedMs = parseNairobiTs(startNaive);
+    const sess = sessions[opId];
+    const checkInMs = sess?.checkIn ? parseNairobiTs(sess.checkIn) : null;
+
+    if(checkInMs) {
+      const lateBy = Math.round((checkInMs - expectedMs) / 60000);
+      if(lateBy > LATE_LOGIN_THRESHOLD_MIN) {
+        results.push({ opId, shift: sched[opId], status: 'late', lateBy, checkInTime: nairobiTimestampToTimeStr(sess.checkIn) });
+      }
+    } else {
+      const lateBy = Math.round((nowMs - expectedMs) / 60000);
+      if(lateBy > LATE_LOGIN_THRESHOLD_MIN) {
+        results.push({ opId, shift: sched[opId], status: 'absent', lateBy });
+      }
+    }
+  });
+  results.sort((a, b) => b.lateBy - a.lateBy);
+
+  const countEl = document.getElementById('late-login-count');
+  if(countEl) countEl.textContent = results.length;
+
+  if(!results.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:12px;text-align:center">✅ Everyone scheduled today has checked in on time.</div>';
+    return;
+  }
+  el.innerHTML = results.map(r => {
+    const team = teamLabel(getOpTeam(r.opId));
+    const expStart = r.shift.split('-')[0];
+    const statusLabel = r.status === 'absent' ? 'Not checked in' : `Checked in ${r.checkInTime}`;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border2);font-size:12px">
+      <div><b>${operatorLabel(r.opId)}</b> <span style="color:var(--text3)">· ${team}</span></div>
+      <div style="text-align:right">
+        <span style="color:var(--red);font-weight:700">${statusLabel}</span>
+        <span style="color:var(--text3);font-size:10px;display:block">expected ${expStart} · ${r.lateBy}m late</span>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // Client-side Nairobi date string, used ONLY for the date-picker's
