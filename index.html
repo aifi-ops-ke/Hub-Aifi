@@ -1249,6 +1249,7 @@ function _dbRefreshPage(key) {
     'daily-report':['dr_entries'], 'daily-plan':['daily_plans'],
     'call-reports':['call_reports'], 'team-dash':['team_data'],
     'team-perf-kings':['op_perf'], 'team-perf-swat':['op_perf'],
+    'team-perf-pauline':['op_perf'], 'team-perf-kelvin':['op_perf'],
     dashboard:['dash_daily','att'], 'mgmt-shifts':['mgmt_shifts'],
     'team-chat':[], 'ophub-chat':[],
     'critical-reports':['critical_reports'],
@@ -1302,6 +1303,8 @@ function _dbRefreshPage(key) {
       else if(page==='team-dash')       renderTeamDashboard();
       else if(page==='team-perf-kings') renderTeamPerf('kings');
       else if(page==='team-perf-swat')  renderTeamPerf('swat');
+      else if(page==='team-perf-pauline') renderTeamPerf('pauline');
+      else if(page==='team-perf-kelvin')  renderTeamPerf('kelvin');
       else if(page==='mgmt-shifts')     renderMgmtShiftCalendar();
       else if(page==='dashboard')       renderDailyBoard();
       // Check for new submissions and notify TL+Admin
@@ -1760,6 +1763,12 @@ function _dbRefreshPage(key) {
     </div>
     <div class="nav-item" onclick="nav('team-perf-swat')">
       <span class="nav-icon">🟣</span><span>SWAT Performance</span>
+    </div>
+    <div class="nav-item" onclick="nav('team-perf-pauline')">
+      <span class="nav-icon">🔶</span><span>Team Masterminds Performance</span>
+    </div>
+    <div class="nav-item" onclick="nav('team-perf-kelvin')">
+      <span class="nav-icon">⚔️</span><span>The Tag Team Performance</span>
     </div>
     <div class="nav-item" onclick="nav('weekly')">
       <span class="nav-icon">📈</span><span>Weekly Report</span>
@@ -3171,6 +3180,48 @@ function _dbRefreshPage(key) {
         <button class="btn btn-secondary" onclick="renderTeamPerf('swat')">↺ Refresh</button>
       </div>
       <div id="team-perf-swat-grid"></div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE: TEAM MASTERMINDS PERFORMANCE TRACKER
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-team-perf-pauline">
+      <div class="page-header">
+        <h1>🔶 Team Masterminds — Performance Tracker</h1>
+        <p>Individual operator metrics. Feed daily data to track AHT, quality, abandoned %, refreshed % and reported %. Red = needs coaching.</p>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button class="tab-btn active" id="mperf-tab-daily"   onclick="setPerfView('pauline','daily')">📅 Daily</button>
+        <button class="tab-btn"        id="mperf-tab-weekly"  onclick="setPerfView('pauline','weekly')">📈 Weekly</button>
+        <button class="tab-btn"        id="mperf-tab-monthly" onclick="setPerfView('pauline','monthly')">📆 Monthly</button>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0" id="mperf-date-wrap"><label>Date</label><input type="date" id="mperf-date" onchange="renderTeamPerf('pauline')" style="width:150px"/></div>
+        <button class="btn btn-primary" onclick="openFeedModal('pauline')">+ Feed Data</button>
+        <button class="btn btn-secondary" onclick="renderTeamPerf('pauline')">↺ Refresh</button>
+      </div>
+      <div id="team-perf-pauline-grid"></div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE: THE TAG TEAM PERFORMANCE TRACKER
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-team-perf-kelvin">
+      <div class="page-header">
+        <h1>⚔️ The Tag Team — Performance Tracker</h1>
+        <p>Individual operator metrics. Feed daily data to track AHT, quality, abandoned %, refreshed % and reported %. Red = needs coaching.</p>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button class="tab-btn active" id="tperf-tab-daily"   onclick="setPerfView('kelvin','daily')">📅 Daily</button>
+        <button class="tab-btn"        id="tperf-tab-weekly"  onclick="setPerfView('kelvin','weekly')">📈 Weekly</button>
+        <button class="tab-btn"        id="tperf-tab-monthly" onclick="setPerfView('kelvin','monthly')">📆 Monthly</button>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0" id="tperf-date-wrap"><label>Date</label><input type="date" id="tperf-date" onchange="renderTeamPerf('kelvin')" style="width:150px"/></div>
+        <button class="btn btn-primary" onclick="openFeedModal('kelvin')">+ Feed Data</button>
+        <button class="btn btn-secondary" onclick="renderTeamPerf('kelvin')">↺ Refresh</button>
+      </div>
+      <div id="team-perf-kelvin-grid"></div>
     </div>
 
 
@@ -5936,6 +5987,8 @@ const PAGE_TITLES = {
   'ophub-shift':'📅 My Shift Plan',
   'team-perf-kings':'Team Kings — Performance Tracker',
   'team-perf-swat':'Team SWAT — Performance Tracker',
+  'team-perf-pauline':'Team Masterminds — Performance Tracker',
+  'team-perf-kelvin':'The Tag Team — Performance Tracker',
   'team-dash-kings':'🔵 Team Kings Dashboard',
   'team-dash-swat':'🟣 Team SWAT Dashboard',
   'team-dash-pauline':'🔵 Team Masterminds Dashboard',
@@ -5989,6 +6042,8 @@ function nav(page) {
   if(page==='daily-plan') { refreshDPView(); }
   if(page==='team-perf-kings') { renderTeamPerf('kings'); }
   if(page==='team-perf-swat')  { renderTeamPerf('swat'); }
+  if(page==='team-perf-pauline') { renderTeamPerf('pauline'); }
+  if(page==='team-perf-kelvin')  { renderTeamPerf('kelvin'); }
   if(page==='payroll-full') { initPayrollPage(); }
   if(page==='pay-history') { renderPayHistory(); }
   if(page==='attendance-full') { initAttendancePage(); }
@@ -8764,7 +8819,7 @@ function deleteLeaveEntry(id) {
   load('daily_plans').forEach(p => _knownEntryIds.add('plan_'+p.id));
   load('dr_entries').forEach(r => _knownEntryIds.add('report_'+r.id));
   // Set today as default dates on performance pages
-  ['kperf-date','sperf-date','dp-date'].forEach(id=>{
+  ['kperf-date','sperf-date','mperf-date','tperf-date','dp-date'].forEach(id=>{
     const el=document.getElementById(id); if(el&&!el.value) el.value=today();
   });
 }
@@ -9434,24 +9489,24 @@ function applyRoleRestrictions(role) {
 
   const kingsPages = ['dashboard','team-dash-kings',
     'attendance','attendance-full','production','errors','leave','schedule',
-    'call-reports','team-dash','team-perf-kings','team-perf-swat',
+    'call-reports','team-dash','team-perf-kings','team-perf-swat','team-perf-pauline','team-perf-kelvin',
     'wfh','wfh-operator','meeting','qa-portal-kings','mgmt-shifts','team-chat'];
 
   const swatPages = ['dashboard','team-dash-swat',
     'attendance','attendance-full','production','errors','leave','schedule',
-    'call-reports','team-dash','team-perf-kings','team-perf-swat',
+    'call-reports','team-dash','team-perf-kings','team-perf-swat','team-perf-pauline','team-perf-kelvin',
     'wfh','wfh-operator','meeting','qa-portal-swat','mgmt-shifts','team-chat'];
 
   // Pauline (Team Masterminds) and Kelvin (The Tag Team) are independent QA
   // leads with their own team, NOT access to Kings/SWAT's team-dash or QA portal.
   const paulinePages = ['dashboard','team-dash-pauline',
     'attendance','attendance-full','production','errors','leave','schedule',
-    'call-reports','team-dash','team-perf-kings','team-perf-swat',
+    'call-reports','team-dash','team-perf-kings','team-perf-swat','team-perf-pauline','team-perf-kelvin',
     'wfh','wfh-operator','meeting','qa-portal-pauline','mgmt-shifts','team-chat'];
 
   const kelvinPages = ['dashboard','team-dash-kelvin',
     'attendance','attendance-full','production','errors','leave','schedule',
-    'call-reports','team-dash','team-perf-kings','team-perf-swat',
+    'call-reports','team-dash','team-perf-kings','team-perf-swat','team-perf-pauline','team-perf-kelvin',
     'wfh','wfh-operator','meeting','qa-portal-kelvin','mgmt-shifts','team-chat'];
 
   const allowedPages = role==='kings' ? kingsPages
@@ -13992,6 +14047,8 @@ const PAGE_LABELS = {
   'team-dash':         '🏆 Team Dashboard',
   'team-perf-kings':   '🔵 Kings Performance',
   'team-perf-swat':    '🟠 SWAT Performance',
+  'team-perf-pauline': '🔶 Masterminds Performance',
+  'team-perf-kelvin':  '⚔️ Tag Team Performance',
   'payroll-full':      '💰 Payroll',
   'pay-history':       '📊 Pay History',
   'wfh':               '🏠 WFH Monitor',
@@ -15476,8 +15533,12 @@ function deleteDP(id) { save('daily_plans',load('daily_plans').filter(e=>e.id!==
 // ════════════════════════════════════════════════════════════════
 // TEAM PERFORMANCE TRACKER
 // ════════════════════════════════════════════════════════════════
+const TEAM_PERF_POOL   = { kings:KINGS_OPS, swat:SWAT_OPS, pauline:PAULINE_OPS, kelvin:KELVIN_OPS };
+const TEAM_PERF_LABEL  = { kings:'Kings', swat:'SWAT', pauline:'Team Masterminds', kelvin:'The Tag Team' };
+const TEAM_PERF_PREFIX = { kings:'kperf', swat:'sperf', pauline:'mperf', kelvin:'tperf' };
+
 function openFeedModal(team) {
-  const pool = team==='kings' ? KINGS_OPS : SWAT_OPS;
+  const pool = TEAM_PERF_POOL[team] || [];
   const rows = pool.map(opId => {
     const existing = (load('op_perf').find(e=>e.opId===opId&&e.date===today())||{});
     return `<tr>
@@ -15491,7 +15552,7 @@ function openFeedModal(team) {
     </tr>`;
   }).join('');
 
-  openModal(`📊 Feed Performance Data — Team ${team==='kings'?'Kings':'SWAT'}`, `
+  openModal(`📊 Feed Performance Data — Team ${TEAM_PERF_LABEL[team] || team}`, `
     <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
       <div class="form-group" style="margin:0"><label>Date</label>
         <input type="date" id="feed-modal-date" value="${today()}" style="width:140px"/>
@@ -15538,10 +15599,10 @@ function saveFeedData(team) {
 }
 
 function renderTeamPerf(team) {
-  // All QAs can view both team performance pages
-  const perfDate = document.getElementById(team==='kings'?'kperf-date':'sperf-date');
+  // All QAs can view all four team performance pages
+  const perfDate = document.getElementById(`${TEAM_PERF_PREFIX[team]}-date`);
   const dateFilter = perfDate?.value || '';
-  const pool   = team==='kings' ? KINGS_OPS : SWAT_OPS;
+  const pool   = TEAM_PERF_POOL[team] || [];
   const allPerf= load('op_perf').filter(e=>e.team===team);
 
   // Per operator: get last 7 days of data for trend
@@ -15662,11 +15723,11 @@ function renderTeamPerf(team) {
 
 
 // ── Daily / Weekly / Monthly view switcher for team performance pages ──
-let _perfView = { kings: 'daily', swat: 'daily' };
+let _perfView = { kings: 'daily', swat: 'daily', pauline: 'daily', kelvin: 'daily' };
 
 function setPerfView(team, view) {
   _perfView[team] = view;
-  const prefix = team === 'kings' ? 'kperf' : 'sperf';
+  const prefix = TEAM_PERF_PREFIX[team] || 'kperf';
   ['daily','weekly','monthly'].forEach(v => {
     const btn = document.getElementById(`${prefix}-tab-${v}`);
     if(btn) btn.classList.toggle('active', v === view);
@@ -15691,7 +15752,7 @@ function perfBucketKey(dateStr, view) {
 }
 
 function renderTeamPerfAggregate(team, view) {
-  const pool = team === 'kings' ? KINGS_OPS : SWAT_OPS;
+  const pool = TEAM_PERF_POOL[team] || [];
   const allPerf = load('op_perf').filter(e => e.team === team);
   const elId = `team-perf-${team}-grid`;
   const el = document.getElementById(elId);
