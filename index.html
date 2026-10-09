@@ -1248,8 +1248,8 @@ function _dbRefreshPage(key) {
     leave:['leaves','leave_balances'], schedule:['schedule'],
     'daily-report':['dr_entries'], 'daily-plan':['daily_plans'],
     'call-reports':['call_reports'], 'team-dash':['team_data'],
-    'team-perf-kings':['op_perf'], 'team-perf-swat':['op_perf'],
-    'team-perf-pauline':['op_perf'], 'team-perf-kelvin':['op_perf'],
+    'team-perf-kings':['op_perf','prod'], 'team-perf-swat':['op_perf','prod'],
+    'team-perf-pauline':['op_perf','prod'], 'team-perf-kelvin':['op_perf','prod'],
     dashboard:['dash_daily','att'], 'mgmt-shifts':['mgmt_shifts'],
     'team-chat':[], 'ophub-chat':[],
     'critical-reports':['critical_reports'],
@@ -15609,12 +15609,35 @@ function saveFeedData(team) {
   toast('Performance data saved ✓','📊');
 }
 
+// Performance Tracker data comes from two stores: op_perf (manually fed via
+// "+ Feed Data", carries the QA 'quality' score) and prod (the Production
+// tracker's paste-import/manual entry, already populated for every team).
+// A prod row fills in cases/aht/abandoned/refreshed/reported automatically;
+// op_perf still wins when both exist for the same operator+date, since it's
+// the more deliberate QA entry and may carry a quality score prod has no way
+// to supply.
+function mergedPerfData(team) {
+  const opPerf = load('op_perf').filter(e=>e.team===team);
+  const prod   = load('prod').filter(p=>p.team===team);
+  const key    = (opId,date) => opId+'|'+date;
+  const seen   = new Set(opPerf.map(e=>key(e.opId,e.date)));
+  const fromProd = prod
+    .filter(p=>p.date && !seen.has(key(p.operator,p.date)))
+    .map(p=>({
+      id: 'prod-'+p.id, opId: p.operator, team, date: p.date,
+      cases: +p.cases||0, aht: +(p.normalAht||p.aht)||0, quality: null,
+      abandoned: +p.abandoned||0, refreshed: +p.refreshed||0, reported: +p.reported||0,
+      fromProd: true,
+    }));
+  return [...opPerf, ...fromProd];
+}
+
 function renderTeamPerf(team) {
   // All QAs can view all four team performance pages
   const perfDate = document.getElementById(`${TEAM_PERF_PREFIX[team]}-date`);
   const dateFilter = perfDate?.value || '';
   const pool   = TEAM_PERF_POOL[team] || [];
-  const allPerf= load('op_perf').filter(e=>e.team===team);
+  const allPerf= mergedPerfData(team);
 
   // Per operator: get last 7 days of data for trend
   const opData = pool.map(opId => {
@@ -15682,18 +15705,21 @@ function renderTeamPerf(team) {
     const fields = ['cases','aht','quality','abandoned','refreshed','reported'];
     const suffix = {cases:'',aht:'s',quality:'%',abandoned:'%',refreshed:'%',reported:'%'};
 
-    // Overall score: average of normalised metrics
-    const qScore = latest.quality   || 0;
-    const aScore = Math.max(0,100-(latest.abandoned||0)*5);
-    const rScore = latest.reported  || 0;
-    const totalScore = Math.round((qScore+aScore+rScore)/3);
+    // Overall score: average of whichever normalised metrics are actually
+    // available — quality is QA-judgment only, so a prod-sourced row that
+    // has no QA audit yet is scored on abandoned/reported alone rather than
+    // being dragged down by a missing quality score defaulting to 0.
+    const scoreParts = [Math.max(0,100-(latest.abandoned||0)*5)];
+    if(latest.quality)  scoreParts.push(latest.quality);
+    if(latest.reported) scoreParts.push(latest.reported);
+    const totalScore = Math.round(scoreParts.reduce((a,b)=>a+b,0)/scoreParts.length);
     const sCol = totalScore>=85?'var(--green)':totalScore>=65?'var(--amber)':'var(--red)';
     const status = totalScore>=85?'✅ Good':totalScore>=65?'⚠️ Watch':'🔴 Coach';
 
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:10px 12px">
         <div style="font-weight:700;font-size:12px">${operatorLabel(opId)}</div>
-        <div style="font-size:9px;color:var(--text3)">${latest.date}</div>
+        <div style="font-size:9px;color:var(--text3)">${latest.date}${latest.fromProd?' · <span title="Pulled from the Production tracker — no QA quality score yet">from Production</span>':''}</div>
       </td>
       ${fields.map(f=>`<td style="text-align:center;padding:8px 10px">
         <div style="font-size:14px;font-weight:800;color:${scoreField(latest[f],f)};font-family:'DM Mono',monospace">
@@ -15764,7 +15790,7 @@ function perfBucketKey(dateStr, view) {
 
 function renderTeamPerfAggregate(team, view) {
   const pool = TEAM_PERF_POOL[team] || [];
-  const allPerf = load('op_perf').filter(e => e.team === team);
+  const allPerf = mergedPerfData(team);
   const elId = `team-perf-${team}-grid`;
   const el = document.getElementById(elId);
   if(!el) return;
