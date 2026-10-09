@@ -1783,6 +1783,10 @@ function _dbRefreshPage(key) {
 
   </div><!-- /sidebar-nav-scroll -->
   <div class="sidebar-role">
+    <div class="role-pill" onclick="toggleDesktopAlerts()" id="alerts-toggle-btn" title="Get a Chrome notification when someone goes idle or away — no need to keep this tab open" style="display:none;margin-bottom:8px;background:rgba(0,180,216,0.08);color:var(--text3);border-color:rgba(0,180,216,0.2)">
+      <span id="alerts-toggle-icon">🔕</span>
+      <span id="alerts-toggle-label">Enable Alerts</span>
+    </div>
     <div class="role-pill" onclick="openChangePassword()" id="change-pw-btn" title="Change passwords" style="margin-bottom:8px;background:rgba(0,200,150,0.08);color:var(--text3);border-color:rgba(0,200,150,0.15)">
       <span>🔐</span>
       <span id="role-label">Team Lead</span>
@@ -9475,6 +9479,8 @@ function startSession(role, cred) {
   if(paulineNav) paulineNav.style.display = (role === 'pauline' || isSupervisorRole) ? 'flex' : 'none';
   if(kelvinNav)  kelvinNav.style.display  = (role === 'kelvin'  || isSupervisorRole) ? 'flex' : 'none';
 
+  initDesktopAlerts();
+
   toast(`Welcome, ${cred.name}! 👋`, cred.icon);
   startChatNotifyWatcher();
   setTimeout(updateAlertsBadge, 500);
@@ -9550,6 +9556,7 @@ function confirmLogout() {
 
 function doLogout() {
   localStorage.removeItem('aifi_session');
+  stopAlertsPolling();
   closeModal();
   // Reset login form
   document.getElementById('login-password').value = '';
@@ -18064,8 +18071,8 @@ async function renderQATrackingV2() {
     dbGetQAAuditLogsV2(date),
   ]);
 
-  const QA_NAMES = { kings: 'Kingori — Kings QA', swat: 'Rosemary Nyaleso — SWAT QA' };
-  const QA_IDS = ['kings', 'swat'];
+  const QA_NAMES = { kings: 'Kingori — Kings QA', swat: 'Rosemary Nyaleso — SWAT QA', 'pauline.safari': 'Pauline Safari — Masterminds QA', 'kelvin.nderitu': 'Kelvin Nderitu — Tag Team QA' };
+  const QA_IDS = ['kings', 'swat', 'pauline.safari', 'kelvin.nderitu'];
 
   const gridEl = document.getElementById('qa-tracking-grid-v2');
   if(gridEl) {
@@ -18096,6 +18103,112 @@ async function renderQATrackingV2() {
       </div>`;
     }).join('');
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// DESKTOP ALERTS — TL/Admin only.
+// Everything idle/away-related today only ever reaches the Hub's own
+// UI (a badge you only see if the page is open) or the operator's own
+// browser (a self-reminder). Nobody actually gets notified. This adds
+// a native Chrome notification — fired here, on TL/Admin's own
+// browser — whenever an operator or QA lead crosses the idle
+// threshold, so TL/Admin don't have to keep the Hub open and watching
+// to catch it. Requires a one-time permission grant per browser/role
+// (each person enables it for themselves), since Notification.
+// requestPermission() must run from their own click.
+// ════════════════════════════════════════════════════════════════
+let _alertsPollInterval = null;
+let _alertedIdleKeys = new Set(); // dedup: cleared once the person is active again
+
+function alertsPrefKey() { return 'hub_alerts_enabled_' + currentRole; }
+
+function alertsSupported() { return 'Notification' in window; }
+
+function renderAlertsToggleBtn() {
+  const btn = document.getElementById('alerts-toggle-btn');
+  if(!btn) return;
+  const isSupervisor = currentRole === 'tl' || currentRole === 'admin';
+  btn.style.display = isSupervisor ? 'flex' : 'none';
+  if(!isSupervisor) return;
+  const on = alertsSupported() && Notification.permission === 'granted' && localStorage.getItem(alertsPrefKey()) === '1';
+  document.getElementById('alerts-toggle-icon').textContent = on ? '🔔' : '🔕';
+  document.getElementById('alerts-toggle-label').textContent = on ? 'Alerts: On' : 'Enable Alerts';
+}
+
+async function toggleDesktopAlerts() {
+  const on = alertsSupported() && Notification.permission === 'granted' && localStorage.getItem(alertsPrefKey()) === '1';
+  if(on) {
+    localStorage.setItem(alertsPrefKey(), '0');
+    stopAlertsPolling();
+    renderAlertsToggleBtn();
+    toast('Desktop alerts turned off', '🔕');
+    return;
+  }
+  if(!alertsSupported()) { toast('This browser does not support desktop notifications', '⚠️'); return; }
+  const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+  if(perm !== 'granted') { toast('Notification permission denied — enable it in your browser\'s site settings', '⚠️'); return; }
+  localStorage.setItem(alertsPrefKey(), '1');
+  renderAlertsToggleBtn();
+  startAlertsPolling();
+  new Notification('AIFI Hub alerts are on', { body: "You'll get a notification here when someone goes idle or away — no need to keep this tab open." });
+  toast('Desktop alerts enabled ✓', '🔔');
+}
+
+function initDesktopAlerts() {
+  renderAlertsToggleBtn();
+  if(currentRole !== 'tl' && currentRole !== 'admin') { stopAlertsPolling(); return; }
+  if(alertsSupported() && Notification.permission === 'granted' && localStorage.getItem(alertsPrefKey()) === '1') {
+    startAlertsPolling();
+  }
+}
+
+function startAlertsPolling() {
+  if(_alertsPollInterval) return;
+  checkAlertsNow();
+  _alertsPollInterval = setInterval(checkAlertsNow, 60000);
+}
+
+function stopAlertsPolling() {
+  if(_alertsPollInterval) { clearInterval(_alertsPollInterval); _alertsPollInterval = null; }
+  _alertedIdleKeys.clear();
+}
+
+async function checkAlertsNow() {
+  if(Notification.permission !== 'granted') return;
+  try {
+    const date = nairobiDateStr();
+    const [sessions, logs, qaSessions, qaLogs] = await Promise.all([
+      dbGetSessionsV2(date), dbGetLogsV2(date),
+      dbGetQASessionsV2(date), dbGetQAAuditLogsV2(date),
+    ]);
+
+    Object.keys(sessions).forEach(opId => {
+      const sess = sessions[opId];
+      if(!sess.checkIn || sess.checkOut) { clearIdleAlert(opId); return; }
+      const idleMin = wfhIdleMinutesV2(opId, logs, sess);
+      fireIdleAlertIfNeeded(opId, idleMin, sess.status, 'No submission');
+    });
+
+    ['kings', 'swat', 'pauline.safari', 'kelvin.nderitu'].forEach(opId => {
+      const sess = qaSessions[opId];
+      if(!sess || !sess.checkIn || sess.checkOut) { clearIdleAlert(opId); return; }
+      const idleMin = qaIdleMinutesV2(opId, qaLogs, sess);
+      fireIdleAlertIfNeeded(opId, idleMin, sess.status, 'No audit');
+    });
+  } catch(e) { console.error('checkAlertsNow error:', e); }
+}
+
+function clearIdleAlert(opId) { _alertedIdleKeys.delete(opId); }
+
+function fireIdleAlertIfNeeded(opId, idleMin, status, label) {
+  const isIdle = status === 'idle' || idleMin > WFH_IDLE_THRESHOLD_MIN_V2;
+  if(!isIdle) { clearIdleAlert(opId); return; }
+  if(_alertedIdleKeys.has(opId)) return; // already alerted this idle streak
+  _alertedIdleKeys.add(opId);
+  new Notification(`⏰ ${operatorLabel(opId)}`, {
+    body: `${label} in ${idleMin} min — may need a nudge.`,
+    tag: 'idle_' + opId, // replaces any earlier notification for the same person
+  });
 }
 
 async function renderWFHMonitorV2() {
