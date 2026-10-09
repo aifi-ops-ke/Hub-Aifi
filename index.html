@@ -2645,6 +2645,8 @@ function _dbRefreshPage(key) {
               <option value="tl-jk">John Paul Kimongo (TL)</option>
               <option value="qa-kings">Kingori (QA)</option>
               <option value="qa-swat">Rosemary Nyaleso (QA)</option>
+              <option value="qa-pauline">Pauline Safari (QA)</option>
+              <option value="qa-kelvin">Kelvin Nderitu (QA)</option>
               <option value="operator">Operator</option>
             </select>
           </div>
@@ -2829,6 +2831,8 @@ function _dbRefreshPage(key) {
               <option value="tl-jk">John Paul Kimongo (TL)</option>
               <option value="qa-kings">Kingori (QA)</option>
               <option value="qa-swat">Rosemary Nyaleso (QA)</option>
+              <option value="qa-pauline">Pauline Safari (QA)</option>
+              <option value="qa-kelvin">Kelvin Nderitu (QA)</option>
               <option value="operator">Operator</option>
             </select>
           </div>
@@ -8374,7 +8378,7 @@ function showEarningsHistory() {
   const person = document.getElementById('pay-person').value;
   const op     = document.getElementById('pay-operator').value;
   const data   = getPayrollData();
-  const MAP = {'tl-jk':'John Paul Kimongo','qa-kings':'John Kingori','qa-swat':'Rosemary Nyaleso'};
+  const MAP = {'tl-jk':'John Paul Kimongo','qa-kings':'John Kingori','qa-swat':'Rosemary Nyaleso','qa-pauline':'Pauline Safari','qa-kelvin':'Kelvin Nderitu'};
   let name = MAP[person];
   if(person==='operator'&&op) {
     const disp = operatorLabel(op);
@@ -8412,9 +8416,9 @@ function calcPay() {
   const el = document.getElementById('pay-result');
 
   // OT rate per hour: TL=500, QAs=400, operators=0 (not applicable)
-  const OT_RATE = { 'tl-jk': 500, 'qa-kings': 400, 'qa-swat': 400, 'operator': 0 };
+  const OT_RATE = { 'tl-jk': 500, 'qa-kings': 400, 'qa-swat': 400, 'qa-pauline': 400, 'qa-kelvin': 400, 'operator': 0 };
   // Cover pay per absent operator account: TL & QAs = KES 400 each
-  const COVER_RATE = { 'tl-jk': 400, 'qa-kings': 400, 'qa-swat': 400, 'operator': 0 };
+  const COVER_RATE = { 'tl-jk': 400, 'qa-kings': 400, 'qa-swat': 400, 'qa-pauline': 400, 'qa-kelvin': 400, 'operator': 0 };
 
   let base=0, role='', transportAllowance=3000, transportDeduction=0,
       nightTransport=0, errorDeductions=0, empType='';
@@ -8434,6 +8438,10 @@ function calcPay() {
     base=40000; role='QA Lead – Team Kings — KES 40,000 (Fixed monthly)'; empType='Staff';
   } else if(person==='qa-swat') {
     base=40000; role='QA Lead – Team SWAT — KES 40,000 (Fixed monthly)'; empType='Staff';
+  } else if(person==='qa-pauline') {
+    base=40000; role='QA Lead – Team Masterminds — KES 40,000 (Fixed monthly)'; empType='Staff';
+  } else if(person==='qa-kelvin') {
+    base=40000; role='QA Lead – The Tag Team — KES 40,000 (Fixed monthly)'; empType='Staff';
   } else if(person==='operator') {
     const days = +document.getElementById('pay-days').value || 0;
     empType = op ? getOpType(op) : 'FT';
@@ -8479,7 +8487,7 @@ function calcPay() {
   `;
 
   // Update summary table
-  const dispName = person==='tl-jk'?'John Paul Kimongo (TL)':person==='qa-kings'?'Kingori (QA)':person==='qa-swat'?'Rosemary Nyaleso (QA)':operatorLabel(op||'?')+' ['+empType+']';
+  const dispName = person==='tl-jk'?'John Paul Kimongo (TL)':person==='qa-kings'?'Kingori (QA)':person==='qa-swat'?'Rosemary Nyaleso (QA)':person==='qa-pauline'?'Pauline Safari (QA)':person==='qa-kelvin'?'Kelvin Nderitu (QA)':operatorLabel(op||'?')+' ['+empType+']';
   const roleLabel = person==='tl-jk'?'TL':person.startsWith('qa')?'QA':'Operator';
   const tbody = document.getElementById('payroll-summary-tbody');
   const existing = Array.from(tbody.querySelectorAll('tr')).find(tr=>tr.dataset.name===dispName);
@@ -8526,19 +8534,15 @@ function computeBulkPayroll(month) {
     { name:'John Paul Kimongo', role:'TL', paidDays:'', base:52000, transportAllowance:3000, transportDeduction:0, errorDeductions:0 },
     { name:'John Kingori',      role:'QA', paidDays:'', base:40000, transportAllowance:3000, transportDeduction:0, errorDeductions:0 },
     { name:'Rosemary Nyaleso',  role:'QA', paidDays:'', base:40000, transportAllowance:3000, transportDeduction:0, errorDeductions:0 },
+    // Pauline and Kelvin became independent QA leads (2026-09-19) and were
+    // kept on day-rate through September as a stopgap pending JP's figures;
+    // per JP's decision (2026-10-09) they get the same fixed QA Lead pay as
+    // Kingori/Rosemary, effective October.
+    { name:'Pauline Safari',    role:'QA', paidDays:'', base:40000, transportAllowance:3000, transportDeduction:0, errorDeductions:0 },
+    { name:'Kelvin Nderitu',    role:'QA', paidDays:'', base:40000, transportAllowance:3000, transportDeduction:0, errorDeductions:0 },
   ];
 
-  // Pauline Safari and Kelvin Nderitu became independent QA leads and moved
-  // to team:'mgmt' (2026-09-19), but per JP's decision that same day they're
-  // still paid as regular day-rate operators through September — their fixed
-  // management salary (to be added above, once JP gives the figures) only
-  // starts from October's payroll. Without this, the mgmt-exclusion below
-  // would drop them from the export entirely this month (no day-rate row,
-  // no fixed row either).
-  const TRANSITIONING_MGMT_OPS = ['pauline.safari', 'kelvin.nderitu'];
-  const stillOnDayRate = op => TRANSITIONING_MGMT_OPS.includes(op) && month < '2026-10';
-
-  OPERATORS.filter(op => getOpTeam(op) !== 'mgmt' || stillOnDayRate(op)).forEach(op => {
+  OPERATORS.filter(op => getOpTeam(op) !== 'mgmt').forEach(op => {
     const empType = getOpType(op);
     const { paidDays, absentDays } = attendanceDays(op);
     const isTrainee = empType === 'TR';
