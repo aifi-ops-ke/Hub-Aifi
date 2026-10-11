@@ -15630,8 +15630,13 @@ function saveFeedData(team) {
 // the more deliberate QA entry and may carry a quality score prod has no way
 // to supply.
 function mergedPerfData(team) {
-  const opPerf = load('op_perf').filter(e=>e.team===team);
-  const prod   = load('prod').filter(p=>p.team===team);
+  // Follows each operator's CURRENT team assignment, not whichever team was
+  // stamped on an entry at the time it was logged — per JP, after the Oct 4
+  // reshuffle a mover's full history (including pre-move days) should show
+  // up on their new team's Performance page, not stay behind on the old one.
+  const opSet  = new Set(TEAM_PERF_POOL[team] || []);
+  const opPerf = load('op_perf').filter(e=>opSet.has(e.opId));
+  const prod   = load('prod').filter(p=>opSet.has(p.operator));
   const key    = (opId,date) => opId+'|'+date;
   const seen   = new Set(opPerf.map(e=>key(e.opId,e.date)));
   const fromProd = prod
