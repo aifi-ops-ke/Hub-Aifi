@@ -9394,7 +9394,7 @@ function doLogin() {
     return;
   }
 
-  const pw = document.getElementById('login-password').value;
+  const pw = document.getElementById('login-password').value.trim();
   if(!pw) { showLoginError('Please enter your password.'); return; }
 
   const creds = getCreds();
@@ -9688,25 +9688,26 @@ function checkPasswordExpiry(role) {
 
 
 
-function savePasswords() {
+async function savePasswords() {
   const creds = loadObj('creds');
   const opCreds = loadObj('op_creds');
   let changed = 0;
 
-  // Role passwords
-  const tlPw    = document.getElementById('cp-tl')?.value;
-  const adminPw = document.getElementById('cp-admin')?.value;
-  const kingsPw = document.getElementById('cp-kings')?.value;
-  const swatPw  = document.getElementById('cp-swat')?.value;
-  const paulinePw = document.getElementById('cp-pauline')?.value;
-  const kelvinPw  = document.getElementById('cp-kelvin')?.value;
+  // Role passwords — trimmed like operator passwords already were, so a
+  // stray leading/trailing space typed while setting it doesn't silently
+  // mismatch against what gets typed at login.
+  const tlPw    = document.getElementById('cp-tl')?.value.trim();
+  const adminPw = document.getElementById('cp-admin')?.value.trim();
+  const kingsPw = document.getElementById('cp-kings')?.value.trim();
+  const swatPw  = document.getElementById('cp-swat')?.value.trim();
+  const paulinePw = document.getElementById('cp-pauline')?.value.trim();
+  const kelvinPw  = document.getElementById('cp-kelvin')?.value.trim();
   if(tlPw)    { creds.tl    = btoa(tlPw);    changed++; }
   if(adminPw) { creds.admin = btoa(adminPw);  changed++; }
   if(kingsPw) { creds.kings = btoa(kingsPw);  changed++; }
   if(swatPw)  { creds.swat  = btoa(swatPw);   changed++; }
   if(paulinePw) { creds.pauline = btoa(paulinePw); changed++; }
   if(kelvinPw)  { creds.kelvin  = btoa(kelvinPw);  changed++; }
-  save('creds', creds);
 
   // Record change dates for monthly reminder
   const history = loadObj('pw_history');
@@ -9722,13 +9723,24 @@ function savePasswords() {
     const pw = input.value.trim();
     if(pw) { opCreds[input.dataset.opid] = pw; changed++; }
   });
-  save('op_creds', opCreds);
 
+  // Password changes are security-sensitive — never report success without
+  // confirming the write actually landed in Supabase (save() alone is
+  // fire-and-forget and fails silently on a network hiccup, which is
+  // exactly how a reset can "still decline" for the other person).
+  const credsOk = await saveAndVerify('creds', creds);
+  const opCredsOk = await saveAndVerify('op_creds', opCreds);
+  if(!credsOk || !opCredsOk) {
+    toast('Password save did not verify — check your connection and try again','❌');
+    return;
+  }
+
+  save('pw_history', history);
   closeModal();
   toast(`${changed} password${changed!==1?'s':''} updated ✓`, '🔐');
 }
 
-function saveSelfPassword(role) {
+async function saveSelfPassword(role) {
   const current = document.getElementById('cp-current')?.value?.trim();
   const pw  = document.getElementById('cp-self')?.value?.trim();
   const pw2 = document.getElementById('cp-self-confirm')?.value?.trim();
@@ -9740,7 +9752,8 @@ function saveSelfPassword(role) {
   if(pw.length < 6){ toast('Password must be at least 6 characters','⚠️'); return; }
   const creds = loadObj('creds');
   creds[role] = btoa(pw);
-  save('creds', creds);
+  const ok = await saveAndVerify('creds', creds);
+  if(!ok) { toast('Password save did not verify — check your connection and try again','❌'); return; }
   // Record change date for monthly reminder
   const history = loadObj('pw_history');
   history[role] = nowNairobi();
